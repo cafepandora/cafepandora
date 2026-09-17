@@ -302,31 +302,19 @@
 const CLAVE_ACCESO = 'pandora2026';
 const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 const PRESENTACIONES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
-const LB_POR_PRESENTACION = { 'Media lb': 0.5, 'Libra': 1, 'Kilo': 2.2046, 'Cuarterón': 0.275 };
 const TIPOS_CLIENTE = ['Cliente normal', 'Mayorista', 'Distribuidor', 'Interno'];
 const METODOS_PAGO = ['Efectivo', 'Transferencia a Joaquín', 'Transferencia a Inés', 'Juan Nequi', 'Juan Bancolombia'];
 const CATEGORIAS_GASTO = ['Insumos', 'Servicios', 'Nómina', 'Transporte', 'Mano de obra', 'Café verde', 'Otro'];
 const CATEGORIAS_FINCA = ['Insumos', 'Mano de obra', 'Cosecha', 'Otro'];
 
-// Precios de referencia por libra de café tostado (editable aquí en el código;
-// el campo "valor" de cada venta siempre se puede corregir a mano al registrar).
-const PRECIOS_LOTE = {
-  Lavado:  { libra: 45000, medialb: 23000 },
-  Honey:   { libra: 50000, medialb: 25000 },
-  Natural: { libra: 52000, medialb: 26000 },
-  Exotico: { libra: 75000, medialb: 37500 }, // normalmente solo se vende por Media lb
-};
-
 const QUICK_ADD = [
-  { lote: 'Honey', presentacion: 'Media lb' },
-  { lote: 'Honey', presentacion: 'Libra' },
-  { lote: 'Natural', presentacion: 'Media lb' },
-  { lote: 'Natural', presentacion: 'Libra' },
-  { lote: 'Exotico', presentacion: 'Media lb' },
+  { lote: 'Lavado', presentacion: 'Libra', tipoCliente: null },
+  { lote: 'Lavado', presentacion: 'Media lb', tipoCliente: null },
+  { lote: 'Lavado', presentacion: 'Cuarterón', tipoCliente: 'Distribuidor' },
 ];
 
 const state = {
-  ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [],
+  ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [], preciosCafe: [],
   tabActiva: 'ventas',
 };
 let carritoActual = [];
@@ -336,10 +324,15 @@ const mesDe = ts => { const d = new Date(Number(ts)); return d.getFullYear() + '
 const coincide = (texto, q) => !q || String(texto || '').toLowerCase().includes(q.toLowerCase());
 const hoyMes = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 
-function precioSugerido(lote, presentacion) {
-  const p = PRECIOS_LOTE[lote]; if (!p) return 0;
-  const factor = LB_POR_PRESENTACION[presentacion] || 0;
-  return Math.round(p.libra * factor);
+// El tipo de cliente decide qué tarifa aplica: 'Distribuidor' usa precios de
+// distribuidor; cualquier otro tipo (Cliente normal, Mayorista, Interno) usa
+// la tarifa normal.
+const tierDeCliente = tipoCliente => tipoCliente === 'Distribuidor' ? 'distribuidor' : 'normal';
+
+function precioSugerido(lote, presentacion, tipoCliente) {
+  const tier = tierDeCliente(tipoCliente);
+  const fila = state.preciosCafe.find(p => p.lote === lote && p.presentacion === presentacion && p.tipoCliente === tier);
+  return fila ? fila.precio : 0;
 }
 
 /* ================================================================
@@ -366,7 +359,7 @@ if (localStorage.getItem('cp_unlocked') === '1') {
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -384,16 +377,17 @@ async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
   try {
-    const [v, g, c, i, m, f] = await Promise.all([
+    const [v, g, c, i, m, f, pc] = await Promise.all([
       fetch('/api/ventas').then(r => r.json()),
       fetch('/api/gastos').then(r => r.json()),
       fetch('/api/clientes').then(r => r.json()),
       fetch('/api/inventario').then(r => r.json()),
       fetch('/api/maquila').then(r => r.json()),
       fetch('/api/finca').then(r => r.json()),
+      fetch('/api/precios-cafe').then(r => r.json()),
     ]);
     state.ventas = v; state.gastos = g; state.clientes = c;
-    state.inventario = i; state.maquila = m; state.finca = f;
+    state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -434,7 +428,7 @@ function renderAlertaStock() {
   const el = document.getElementById('stockAlert');
   if (bajos.length) {
     el.style.display = 'block';
-    el.textContent = '⚠️ Stock bajo (menos de 5 lb): ' + bajos.map(b => b.lote + ' (' + Number(b.stockLb).toFixed(2) + ' lb)').join(' · ');
+    el.textContent = '⚠️ Stock bajo (menos de 5 kg): ' + bajos.map(b => b.lote + ' (' + Number(b.stockLb).toFixed(2) + ' kg)').join(' · ');
   } else {
     el.style.display = 'none';
   }
@@ -463,8 +457,19 @@ function renderVentas() {
   document.getElementById('view-ventas').innerHTML = `
     <div class="card">
       <h3 class="section-title" style="margin-top:0">Nuevo pedido</h3>
+
+      <div class="row">
+        <div class="field"><label>Cliente</label>
+          <input id="v-cliente" list="clientesList" placeholder="Nombre del cliente">
+          ${datalist}
+        </div>
+        <div class="field"><label>Tipo de cliente</label>
+          <select id="v-tipoCliente" onchange="recalcularLinea()">${TIPOS_CLIENTE.map(t => `<option>${t}</option>`).join('')}</select>
+        </div>
+      </div>
+
       <div class="quick-add">
-        ${QUICK_ADD.map((qa, idx) => `<button onclick="aplicarQuickAdd(${idx})">⚡ ${qa.lote} · ${qa.presentacion}</button>`).join('')}
+        ${QUICK_ADD.map((qa, idx) => `<button onclick="aplicarQuickAdd(${idx})">⚡ ${qa.lote} · ${qa.presentacion}${qa.tipoCliente ? ' (' + qa.tipoCliente + ')' : ''}</button>`).join('')}
       </div>
 
       <div class="row">
@@ -511,15 +516,6 @@ function renderVentas() {
       <div style="text-align:right;font-weight:700;margin:6px 0 4px">Total: <span id="carrito-total">$0</span></div>
 
       <div class="row" style="margin-top:10px">
-        <div class="field"><label>Cliente</label>
-          <input id="v-cliente" list="clientesList" placeholder="Nombre del cliente">
-          ${datalist}
-        </div>
-        <div class="field"><label>Tipo de cliente</label>
-          <select id="v-tipoCliente">${TIPOS_CLIENTE.map(t => `<option>${t}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="row">
         <div class="field"><label>Valor total</label>
           <input id="v-valor" type="number" placeholder="0">
         </div>
@@ -571,7 +567,8 @@ function recalcularLinea() {
     const lote = document.getElementById('ln-lote').value;
     const presentacion = document.getElementById('ln-presentacion').value;
     const cantidad = Number(document.getElementById('ln-cantidad-cafe').value) || 1;
-    valor = precioSugerido(lote, presentacion) * cantidad;
+    const tipoCliente = document.getElementById('v-tipoCliente').value;
+    valor = precioSugerido(lote, presentacion, tipoCliente) * cantidad;
   } else {
     const filas = gruposDeServicio(tipo);
     const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -636,7 +633,10 @@ function pintarCarrito() {
 
 function aplicarQuickAdd(idx) {
   const qa = QUICK_ADD[idx];
-  carritoActual.push({ tipo: 'cafe', lote: qa.lote, presentacion: qa.presentacion, cantidad: 1, valor: precioSugerido(qa.lote, qa.presentacion) });
+  const tipoClienteSelect = document.getElementById('v-tipoCliente');
+  if (qa.tipoCliente) tipoClienteSelect.value = qa.tipoCliente; // este botón siempre agrega con la tarifa de distribuidor, ajusta el pedido completo
+  const tipoCliente = tipoClienteSelect.value;
+  carritoActual.push({ tipo: 'cafe', lote: qa.lote, presentacion: qa.presentacion, cantidad: 1, valor: precioSugerido(qa.lote, qa.presentacion, tipoCliente) });
   pintarCarrito();
   document.getElementById('v-cliente').focus();
 }
@@ -719,7 +719,8 @@ async function eliminarVenta(id) {
 }
 /* ---------- Editar un pedido: agregar más líneas días después ---------- */
 let editCarrito = [];
-let editItemsNuevos = []; // solo lo agregado EN ESTA sesión de edición (para descontar inventario)
+let editItemsNuevos = [];
+let editTipoCliente = 'Cliente normal';
 
 function itemsNormalizados(v) {
   if (v.items && v.items.length && v.items[0] && v.items[0].tipo) return v.items.map(it => ({ ...it }));
@@ -734,6 +735,7 @@ function abrirEdicionVenta(id) {
   const v = state.ventas.find(x => x.id === id); if (!v) return;
   editCarrito = itemsNormalizados(v);
   editItemsNuevos = [];
+  editTipoCliente = v.tipoCliente || 'Cliente normal';
 
   const gruposMaquila = {};
   state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
@@ -802,7 +804,7 @@ function recalcularEmLinea() {
     const lote = document.getElementById('em-ln-lote').value;
     const presentacion = document.getElementById('em-ln-presentacion').value;
     const cantidad = Number(document.getElementById('em-ln-cantidad-cafe').value) || 1;
-    valor = precioSugerido(lote, presentacion) * cantidad;
+    valor = precioSugerido(lote, presentacion, editTipoCliente) * cantidad;
   } else {
     const filas = gruposDeServicio(tipo);
     const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -891,7 +893,7 @@ function renderInventario() {
         <div class="lote-card ${Number(i.stockLb) < 5 ? 'bajo' : ''}">
           <div class="icono">${ICONOS_LOTE[i.lote] || '☕'}</div>
           <div class="nombre">${i.lote}</div>
-          <div class="stock">${Number(i.stockLb).toFixed(2)} lb</div>
+          <div class="stock">${Number(i.stockLb).toFixed(2)} kg</div>
           <button class="sec-btn" onclick="abrirEdicionInventario(${i.id})">Editar stock</button>
         </div>
       `).join('') || '<div class="empty">Aún no hay lotes cargados.</div>'}
@@ -902,7 +904,7 @@ function abrirEdicionInventario(id) {
   const i = state.inventario.find(x => x.id === id); if (!i) return;
   abrirModal(`
     <h3>Ajustar stock — ${i.lote}</h3>
-    <div class="row"><div class="field"><label>Stock actual (lb)</label><input id="m-stock" type="number" step="0.01" value="${i.stockLb}"></div></div>
+    <div class="row"><div class="field"><label>Stock actual (kg)</label><input id="m-stock" type="number" step="0.01" value="${i.stockLb}"></div></div>
     <p style="font-size:12px;color:var(--cafe-soft)">Usa esto después de un tueste nuevo o para corregir el conteo físico. Las ventas descuentan solas.</p>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionInventario(${id})">Guardar</button>
@@ -1142,9 +1144,27 @@ function renderResumen() {
    CONFIGURACIÓN / MAQUILA
 ================================================================ */
 function renderConfig() {
+  const orden = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
+
+  const gruposCafe = {};
+  state.preciosCafe.forEach(p => { (gruposCafe[p.lote] ||= { normal: [], distribuidor: [] })[p.tipoCliente].push(p); });
+  const filasCafe = Object.entries(gruposCafe).map(([lote, tiers]) => {
+    const filaTier = (label, filas) => `
+      <div style="padding-top:4px"><div class="nombre" style="font-weight:600;font-size:12.5px;color:var(--cafe-soft)">${label}</div></div>
+      ${[...filas].sort((a, b) => orden.indexOf(a.presentacion) - orden.indexOf(b.presentacion)).map(p => `
+        <div class="tarifa-row" style="padding-left:16px">
+          <div class="nombre" style="font-weight:400;font-size:13px">${p.presentacion}</div>
+          <input type="number" id="pc-${p.id}" value="${p.precio}">
+          <button class="sec-btn" onclick="guardarPrecioCafe(${p.id})">Guardar</button>
+        </div>`).join('')}`;
+    return `<div style="padding-top:10px"><div class="nombre" style="font-weight:700;font-size:14.5px">${lote}</div>
+      ${filaTier('Precio normal', tiers.normal)}
+      ${filaTier('Precio distribuidor', tiers.distribuidor)}
+    </div>`;
+  }).join('');
+
   const grupos = {};
   state.maquila.forEach(t => { (grupos[t.servicio] ||= []).push(t); });
-  const orden = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
 
   const filas = Object.entries(grupos).map(([servicio, tarifas]) => {
     if (tarifas.length === 1 && !tarifas[0].presentacion) {
@@ -1165,10 +1185,20 @@ function renderConfig() {
   }).join('');
 
   document.getElementById('view-config').innerHTML = `
-    <h3 class="section-title" style="margin-top:0">Tarifas de maquila</h3>
+    <h3 class="section-title" style="margin-top:0">Precios de café</h3>
+    ${filasCafe || '<div class="empty">Sin precios configurados.</div>'}
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:10px">Estos precios se usan para calcular el valor sugerido de cada línea de café, según el tipo de cliente del pedido (Distribuidor usa la tarifa de distribuidor; los demás, la normal). Siempre puedes corregir el valor a mano al registrar.</p>
+
+    <h3 class="section-title">Tarifas de maquila</h3>
     ${filas || '<div class="empty">Sin tarifas configuradas.</div>'}
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación — estas tarifas se usan para calcular el valor automático al registrar una venta de tipo "Servicio Maquila".</p>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación.</p>
   `;
+}
+async function guardarPrecioCafe(id) {
+  const precio = Number(document.getElementById('pc-' + id).value) || 0;
+  const p = state.preciosCafe.find(x => x.id === id); if (p) p.precio = precio;
+  guardarCacheLocal('preciosCafe');
+  await fetch('/api/precios-cafe/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ precio }) });
 }
 async function guardarTarifa(id) {
   const precio = Number(document.getElementById('tar-' + id).value) || 0;
@@ -1237,7 +1267,7 @@ function exportarExcel() {
   const hojaInventario = {
     name: 'Inventario',
     cols: [22, 16],
-    rows: [[HEAD('Lote'), HEAD('Stock (lb)')], ...state.inventario.map(i => [i.lote, { v: Number(i.stockLb).toFixed(2), s: 'num2' }])],
+    rows: [[HEAD('Lote'), HEAD('Stock (kg)')], ...state.inventario.map(i => [i.lote, { v: Number(i.stockLb).toFixed(2), s: 'num2' }])],
   };
 
   const nombre = 'CafePandora_' + new Date().toISOString().split('T')[0] + '.xlsx';
