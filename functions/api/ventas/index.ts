@@ -24,21 +24,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   return Response.json(data);
 };
 
+// El cuerpo trae un pedido completo: { ...datos del cliente, items: [...], valor, estado, metodo }
+// Cada item es { tipo:'cafe', lote, presentacion, cantidad, valor } o
+// { tipo:'maquila', servicio, presentacion (o null si se cobra por kg), cantidad, valor }.
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
   const body: any = await context.request.json();
 
-  const tipoVenta = body.tipoVenta === 'maquila' ? 'maquila' : 'cafe';
-  let valor = Number(body.valor) || 0;
-  const cantidad = Number(body.cantidad) || 1;
-
-  if (tipoVenta === 'maquila' && Array.isArray(body.servicios) && body.servicios.length && !body.valor) {
-    const { data: tarifas } = await supabase.from('maquila_tarifas').select('servicio, presentacion, precio');
-    valor = body.servicios.reduce((acc: number, s: { servicio: string; presentacion?: string | null; cantidad: number }) => {
-      const tarifa = (tarifas || []).find((t: any) => t.servicio === s.servicio && (t.presentacion || null) === (s.presentacion || null));
-      return acc + (tarifa ? tarifa.precio : 0) * (Number(s.cantidad) || 0);
-    }, 0);
-  }
+  const items = Array.isArray(body.items) ? body.items : [];
+  const valor = Number(body.valor) || items.reduce((s: number, it: any) => s + (Number(it.valor) || 0), 0);
 
   const { data: row, error } = await supabase
     .from('ventas')
@@ -46,12 +40,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       usuario: body.usuario,
       cliente: body.cliente,
       tipo_cliente: body.tipoCliente,
-      tipo_venta: tipoVenta,
-      lote: body.lote || null,
-      presentacion: body.presentacion || null,
-      cantidad,
-      servicios: tipoVenta === 'maquila' ? body.servicios || [] : null,
-      items: body.items || [],
+      tipo_venta: 'pedido',
+      lote: null,
+      presentacion: null,
+      cantidad: 1,
+      servicios: null,
+      items,
       valor,
       estado: body.estado,
       metodo: body.metodo || '',
@@ -64,11 +58,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   await registrarCliente(supabase, body.cliente, body.tipoCliente);
 
-  // Café vendido de un lote concreto: descuenta del inventario tostado.
-  if (tipoVenta === 'cafe' && body.lote && body.presentacion) {
-    const lb = librasVendidas(body.presentacion, cantidad);
+  // Suma cuántas libras se venden de cada lote en este pedido (puede tener
+  // varias líneas del mismo lote) y descuenta el inventario una sola vez por lote.
+  const librasPorLote: Record<string, number> = {};
+  for (const it of items) {
+    if (it && it.tipo === 'cafe' && it.lote && it.presentacion) {
+      const lb = librasVendidas(it.presentacion, Number(it.cantidad) || 0);
+      librasPorLote[it.lote] = (librasPorLote[it.lote] || 0) + lb;
+    }
+  }
+  for (const [lote, lb] of Object.entries(librasPorLote)) {
     if (lb > 0) {
-      const { data: inv } = await supabase.from('inventario').select('id, stock_lb').eq('lote', body.lote).single();
+      const { data: inv } = await supabase.from('inventario').select('id, stock_lb').eq('lote', lote).single();
       if (inv) {
         await supabase.from('inventario').update({ stock_lb: Number(inv.stock_lb) - lb, ts: Date.now() }).eq('id', inv.id);
       }
