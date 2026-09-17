@@ -134,9 +134,12 @@
   }
   .quick-add button:hover { background: var(--verde); color: #fff; }
 
-  .servicios-maquila { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
-  .servicios-maquila .srow { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-  .servicios-maquila .srow input[type="number"] { width: 90px; }
+  .servicios-maquila { display: flex; flex-direction: column; gap: 0; margin: 8px 0; }
+  .servicios-maquila .srow {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-size: 13.5px; font-weight: 600; padding: 9px 2px; border-bottom: 1px solid var(--linea);
+  }
+  .servicios-maquila .srow input[type="number"] { width: 100px; flex: 0 0 auto; }
 
   button.add-btn {
     font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; background: var(--terracota);
@@ -299,7 +302,7 @@ const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 const PRESENTACIONES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
 const LB_POR_PRESENTACION = { 'Media lb': 0.5, 'Libra': 1, 'Kilo': 2.2046, 'Cuarterón': 0.275 };
 const TIPOS_CLIENTE = ['Cliente normal', 'Mayorista', 'Distribuidor', 'Interno'];
-const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Otro'];
+const METODOS_PAGO = ['Efectivo', 'Transferencia a Joaquín', 'Transferencia a Inés', 'Juan Nequi', 'Juan Bancolombia'];
 const CATEGORIAS_GASTO = ['Insumos', 'Servicios', 'Nómina', 'Transporte', 'Mano de obra', 'Café verde', 'Otro'];
 const CATEGORIAS_FINCA = ['Insumos', 'Mano de obra', 'Cosecha', 'Otro'];
 
@@ -447,9 +450,10 @@ function renderVentas() {
   const datalist = '<datalist id="clientesList">' + state.clientes.map(c => `<option value="${escapeAttr(c.nombre)}">`).join('') + '</datalist>';
 
   const servicios = state.maquila.map(s => `
-    <label class="srow"><input type="checkbox" class="srv-check" value="${s.servicio}"> ${s.servicio} —
-      <input type="number" class="srv-kg" data-servicio="${s.servicio}" placeholder="kg" min="0" step="0.1" style="display:none">
-    </label>`).join('');
+    <div class="srow">
+      <span>${escapeHtml(s.servicio)}</span>
+      <input type="number" class="srv-kg" data-servicio="${escapeAttr(s.servicio)}" placeholder="0 kg" min="0" step="0.1">
+    </div>`).join('');
 
   document.getElementById('view-ventas').innerHTML = `
     <div class="card">
@@ -519,10 +523,17 @@ function renderVentas() {
     </div>
   `;
   toggleTipoVenta();
-  document.querySelectorAll('.srv-check').forEach(cb => cb.addEventListener('change', e => {
-    const kgInput = e.target.closest('.srow').querySelector('.srv-kg');
-    kgInput.style.display = e.target.checked ? 'inline-block' : 'none';
-  }));
+  document.querySelectorAll('.srv-kg').forEach(inp => inp.addEventListener('input', recalcularValorMaquila));
+}
+
+function recalcularValorMaquila() {
+  const porNombre = Object.fromEntries(state.maquila.map(m => [m.servicio, m.precioPorKg]));
+  let total = 0;
+  document.querySelectorAll('.srv-kg').forEach(inp => {
+    const kg = Number(inp.value) || 0;
+    total += kg * (porNombre[inp.dataset.servicio] || 0);
+  });
+  document.getElementById('v-valor').value = total;
 }
 
 function filaVenta(v, esDeuda) {
@@ -549,7 +560,7 @@ function toggleTipoVenta() {
   const tipo = document.getElementById('v-tipoVenta').value;
   document.getElementById('bloque-cafe').style.display = tipo === 'cafe' ? 'flex' : 'none';
   document.getElementById('bloque-maquila').style.display = tipo === 'maquila' ? 'flex' : 'none';
-  recalcularValorSugerido();
+  if (tipo === 'maquila') recalcularValorMaquila(); else recalcularValorSugerido();
 }
 function recalcularValorSugerido() {
   const tipo = document.getElementById('v-tipoVenta').value;
@@ -591,10 +602,9 @@ async function registrarVenta() {
     payload.presentacion = document.getElementById('v-presentacion').value;
     payload.cantidad = Number(document.getElementById('v-cantidad').value) || 1;
   } else {
-    payload.servicios = [...document.querySelectorAll('.srv-check:checked')].map(cb => ({
-      servicio: cb.value,
-      cantidadKg: Number(cb.closest('.srow').querySelector('.srv-kg').value) || 0,
-    }));
+    payload.servicios = [...document.querySelectorAll('.srv-kg')]
+      .map(inp => ({ servicio: inp.dataset.servicio, cantidadKg: Number(inp.value) || 0 }))
+      .filter(s => s.cantidadKg > 0);
   }
 
   const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
