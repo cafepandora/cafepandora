@@ -109,6 +109,14 @@
   }
   nav.tabs button.active { color: #fff; background: var(--cafe); border-color: var(--cafe); }
 
+  .subtabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .subtabs button {
+    flex: 1; background: var(--crema-alt); border: 1px solid var(--linea); color: var(--cafe-soft);
+    font-family: 'Outfit', sans-serif; font-size: 12.5px; font-weight: 700; padding: 9px 4px;
+    border-radius: 8px; cursor: pointer;
+  }
+  .subtabs button.active { background: var(--cafe); color: #fff; border-color: var(--cafe); }
+
   section.view { display: none; }
   section.view.active { display: block; }
 
@@ -169,11 +177,13 @@
   .ledger-row .amount { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ledger-row .amount.pos { color: var(--verde); }
   .ledger-row .amount.neg { color: var(--terracota); }
-  .ledger-row .acciones { display: flex; gap: 4px; align-items: center; }
+  .ledger-row .acciones { display: flex; gap: 6px; align-items: center; }
   .ledger-row .acciones button {
-    background: none; border: none; color: var(--cafe-soft); font-size: 13px; cursor: pointer; padding: 3px 5px;
+    background: var(--crema-alt); border: 1px solid var(--linea); color: var(--cafe);
+    font-size: 16px; cursor: pointer; padding: 7px 10px; border-radius: 8px;
+    min-width: 38px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center;
   }
-  .ledger-row .acciones button:hover { color: var(--terracota); }
+  .ledger-row .acciones button:hover, .ledger-row .acciones button:active { background: var(--terracota); color: #fff; border-color: var(--terracota); }
 
   .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; cursor: pointer; border: none; }
   .tag.pendiente { background: #F2E2C4; color: #8A6A1F; }
@@ -318,6 +328,7 @@ const state = {
   tabActiva: 'ventas',
 };
 let carritoActual = [];
+let resumenSubTab = 'pagadas';
 
 const fmt = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO');
 const mesDe = ts => { const d = new Date(Number(ts)); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
@@ -401,6 +412,13 @@ async function sincronizar() {
 ================================================================ */
 document.querySelectorAll('nav.tabs button').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (btn.dataset.tab === 'config') {
+      const clave = prompt('Esta sección es solo para administración. Escribe la clave para entrar:');
+      if (clave !== CLAVE_ACCESO) {
+        if (clave !== null) alert('Clave incorrecta.');
+        return;
+      }
+    }
     state.tabActiva = btn.dataset.tab;
     document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b === btn));
     document.querySelectorAll('section.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + btn.dataset.tab));
@@ -1129,16 +1147,20 @@ function renderResumen() {
       </div>
     `).join('') : '<div class="empty">Sin ventas de café este mes.</div>'}
 
-    <h3 class="section-title">Ventas pagadas (${pagadas.length})</h3>
-    <div class="ledger">${pagadas.length ? pagadas.map(filaResumenVenta).join('') : '<div class="empty">Sin ventas pagadas este mes.</div>'}</div>
-
-    <h3 class="section-title" style="color:var(--terracota)">Ventas pendientes (${pendientes.length})</h3>
-    <div class="ledger">${pendientes.length ? pendientes.map(filaResumenVenta).join('') : '<div class="empty">Sin ventas pendientes este mes.</div>'}</div>
-
-    <h3 class="section-title">Gastos (${gastosMes.length})</h3>
-    <div class="ledger">${gastosMes.length ? gastosMes.sort((a,b)=>b.ts-a.ts).map(filaResumenGasto).join('') : '<div class="empty">Sin gastos este mes.</div>'}</div>
+    <h3 class="section-title">Detalle</h3>
+    <div class="subtabs">
+      <button class="${resumenSubTab==='pagadas'?'active':''}" onclick="cambiarResumenSubTab('pagadas')">Pagadas (${pagadas.length})</button>
+      <button class="${resumenSubTab==='pendientes'?'active':''}" onclick="cambiarResumenSubTab('pendientes')">Por pagar (${pendientes.length})</button>
+      <button class="${resumenSubTab==='gastos'?'active':''}" onclick="cambiarResumenSubTab('gastos')">Gastos (${gastosMes.length})</button>
+    </div>
+    <div class="ledger">
+      ${resumenSubTab === 'pagadas' ? (pagadas.length ? pagadas.map(filaResumenVenta).join('') : '<div class="empty">Sin ventas pagadas este mes.</div>') : ''}
+      ${resumenSubTab === 'pendientes' ? (pendientes.length ? pendientes.map(filaResumenVenta).join('') : '<div class="empty">Sin ventas pendientes este mes.</div>') : ''}
+      ${resumenSubTab === 'gastos' ? (gastosMes.length ? gastosMes.slice().sort((a,b)=>b.ts-a.ts).map(filaResumenGasto).join('') : '<div class="empty">Sin gastos este mes.</div>') : ''}
+    </div>
   `;
 }
+function cambiarResumenSubTab(tab) { resumenSubTab = tab; renderResumen(); }
 
 /* ================================================================
    CONFIGURACIÓN / MAQUILA
