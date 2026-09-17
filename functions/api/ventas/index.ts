@@ -1,5 +1,5 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { librasVendidas } from '../../_lib/convert.js';
+import { kilosVendidos } from '../../_lib/convert.js';
 
 const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, metodo, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
@@ -63,7 +63,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const librasPorLote: Record<string, number> = {};
   for (const it of items) {
     if (it && it.tipo === 'cafe' && it.lote && it.presentacion) {
-      const lb = librasVendidas(it.presentacion, Number(it.cantidad) || 0);
+      const lb = kilosVendidos(it.presentacion, Number(it.cantidad) || 0);
       librasPorLote[it.lote] = (librasPorLote[it.lote] || 0) + lb;
     }
   }
