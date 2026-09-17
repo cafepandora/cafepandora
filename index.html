@@ -140,6 +140,8 @@
     font-size: 13.5px; font-weight: 600; padding: 9px 2px; border-bottom: 1px solid var(--linea);
   }
   .servicios-maquila .srow input[type="number"] { width: 100px; flex: 0 0 auto; }
+  .servicios-maquila .srow-pres select { flex: 1; min-width: 0; padding: 7px 8px; border: 1px solid var(--linea); border-radius: 6px; font-family: 'Outfit', sans-serif; font-size: 13px; }
+  .servicios-maquila .srow-pres input[type="number"] { width: 70px; }
 
   button.add-btn {
     font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; background: var(--terracota);
@@ -449,11 +451,24 @@ function renderVentas() {
 
   const datalist = '<datalist id="clientesList">' + state.clientes.map(c => `<option value="${escapeAttr(c.nombre)}">`).join('') + '</datalist>';
 
-  const servicios = state.maquila.map(s => `
-    <div class="srow">
-      <span>${escapeHtml(s.servicio)}</span>
-      <input type="number" class="srv-kg" data-servicio="${escapeAttr(s.servicio)}" placeholder="0 kg" min="0" step="0.1">
-    </div>`).join('');
+  const gruposMaquila = {};
+  state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
+  const servicios = Object.entries(gruposMaquila).map(([servicio, filas]) => {
+    if (filas.length === 1 && !filas[0].presentacion) {
+      return `<div class="srow">
+        <span>${escapeHtml(servicio)}</span>
+        <input type="number" class="srv-kg" data-servicio="${escapeAttr(servicio)}" placeholder="0 kg" min="0" step="0.1">
+      </div>`;
+    }
+    return `<div class="srow srow-pres">
+      <span>${escapeHtml(servicio)}</span>
+      <select class="srv-pres" data-servicio="${escapeAttr(servicio)}">
+        <option value="">Presentación…</option>
+        ${PRESENTACIONES.map(p => `<option value="${p}">${p}</option>`).join('')}
+      </select>
+      <input type="number" class="srv-cant" placeholder="cant." min="0" step="1">
+    </div>`;
+  }).join('');
 
   document.getElementById('view-ventas').innerHTML = `
     <div class="card">
@@ -523,22 +538,31 @@ function renderVentas() {
     </div>
   `;
   toggleTipoVenta();
-  document.querySelectorAll('.srv-kg').forEach(inp => inp.addEventListener('input', recalcularValorMaquila));
+  document.querySelectorAll('.srv-kg, .srv-cant').forEach(inp => inp.addEventListener('input', recalcularValorMaquila));
+  document.querySelectorAll('.srv-pres').forEach(sel => sel.addEventListener('change', recalcularValorMaquila));
 }
 
 function recalcularValorMaquila() {
-  const porNombre = Object.fromEntries(state.maquila.map(m => [m.servicio, m.precioPorKg]));
   let total = 0;
   document.querySelectorAll('.srv-kg').forEach(inp => {
-    const kg = Number(inp.value) || 0;
-    total += kg * (porNombre[inp.dataset.servicio] || 0);
+    const cantidad = Number(inp.value) || 0;
+    const tarifa = state.maquila.find(t => t.servicio === inp.dataset.servicio && !t.presentacion);
+    total += cantidad * (tarifa ? tarifa.precio : 0);
+  });
+  document.querySelectorAll('.srow-pres').forEach(row => {
+    const sel = row.querySelector('.srv-pres');
+    const cantidad = Number(row.querySelector('.srv-cant').value) || 0;
+    if (sel.value) {
+      const tarifa = state.maquila.find(t => t.servicio === sel.dataset.servicio && t.presentacion === sel.value);
+      total += cantidad * (tarifa ? tarifa.precio : 0);
+    }
   });
   document.getElementById('v-valor').value = total;
 }
 
 function filaVenta(v, esDeuda) {
   const detalle = v.tipoVenta === 'maquila'
-    ? (v.servicios || []).map(s => `${s.servicio} ${s.cantidadKg}kg`).join(' · ')
+    ? (v.servicios || []).map(s => s.presentacion ? `${s.servicio} ${s.cantidad} ${s.presentacion}` : `${s.servicio} ${s.cantidad}kg`).join(' · ')
     : `${v.lote || ''} · ${v.presentacion || ''} × ${v.cantidad || 1}`;
   return `
     <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''}">
@@ -602,9 +626,18 @@ async function registrarVenta() {
     payload.presentacion = document.getElementById('v-presentacion').value;
     payload.cantidad = Number(document.getElementById('v-cantidad').value) || 1;
   } else {
-    payload.servicios = [...document.querySelectorAll('.srv-kg')]
-      .map(inp => ({ servicio: inp.dataset.servicio, cantidadKg: Number(inp.value) || 0 }))
-      .filter(s => s.cantidadKg > 0);
+    payload.servicios = [];
+    document.querySelectorAll('.srv-kg').forEach(inp => {
+      const cantidad = Number(inp.value) || 0;
+      if (cantidad > 0) payload.servicios.push({ servicio: inp.dataset.servicio, presentacion: null, cantidad });
+    });
+    document.querySelectorAll('.srow-pres').forEach(row => {
+      const sel = row.querySelector('.srv-pres');
+      const cantidad = Number(row.querySelector('.srv-cant').value) || 0;
+      if (sel.value && cantidad > 0) {
+        payload.servicios.push({ servicio: sel.dataset.servicio, presentacion: sel.value, cantidad });
+      }
+    });
   }
 
   const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -629,8 +662,7 @@ async function eliminarVenta(id) {
 function abrirEdicionVenta(id) {
   const v = state.ventas.find(x => x.id === id); if (!v) return;
   abrirModal(`
-    <h3>Editar venta</h3>
-    <div class="row"><div class="field"><label>Cliente</label><input id="m-cliente" value="${escapeAttr(v.cliente)}"></div></div>
+    <h3>Editar venta — ${escapeHtml(v.cliente || 'Venta directa')}</h3>
     <div class="row">
       <div class="field"><label>Valor</label><input id="m-valor" type="number" value="${v.valor}"></div>
       <div class="field"><label>Estado</label><select id="m-estado"><option ${v.estado==='Pagado'?'selected':''}>Pagado</option><option ${v.estado==='Pendiente'?'selected':''}>Pendiente</option></select></div>
@@ -644,7 +676,6 @@ function abrirEdicionVenta(id) {
 }
 async function guardarEdicionVenta(id) {
   const cambios = {
-    cliente: document.getElementById('m-cliente').value.trim(),
     valor: Number(document.getElementById('m-valor').value) || 0,
     estado: document.getElementById('m-estado').value,
     metodo: document.getElementById('m-metodo').value,
@@ -917,23 +948,39 @@ function renderResumen() {
    CONFIGURACIÓN / MAQUILA
 ================================================================ */
 function renderConfig() {
+  const grupos = {};
+  state.maquila.forEach(t => { (grupos[t.servicio] ||= []).push(t); });
+  const orden = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
+
+  const filas = Object.entries(grupos).map(([servicio, tarifas]) => {
+    if (tarifas.length === 1 && !tarifas[0].presentacion) {
+      const t = tarifas[0];
+      return `<div class="tarifa-row">
+        <div class="nombre">${servicio} (por kg)</div>
+        <input type="number" id="tar-${t.id}" value="${t.precio}">
+        <button class="sec-btn" onclick="guardarTarifa(${t.id})">Guardar</button>
+      </div>`;
+    }
+    const filasPres = [...tarifas].sort((a, b) => orden.indexOf(a.presentacion) - orden.indexOf(b.presentacion)).map(t => `
+      <div class="tarifa-row" style="padding-left:16px">
+        <div class="nombre" style="font-weight:400;font-size:13px;color:var(--cafe-soft)">${t.presentacion}</div>
+        <input type="number" id="tar-${t.id}" value="${t.precio}">
+        <button class="sec-btn" onclick="guardarTarifa(${t.id})">Guardar</button>
+      </div>`).join('');
+    return `<div style="padding-top:8px"><div class="nombre" style="font-weight:700;font-size:14px">${servicio}</div>${filasPres}</div>`;
+  }).join('');
+
   document.getElementById('view-config').innerHTML = `
-    <h3 class="section-title" style="margin-top:0">Tarifas de maquila (por kg)</h3>
-    ${state.maquila.map(m => `
-      <div class="tarifa-row">
-        <div class="nombre">${m.servicio}</div>
-        <input type="number" id="tar-${m.id}" value="${m.precioPorKg}">
-        <button class="sec-btn" onclick="guardarTarifa(${m.id})">Guardar</button>
-      </div>
-    `).join('') || '<div class="empty">Sin tarifas configuradas.</div>'}
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Estas tarifas se usan para calcular el valor automático cuando registras una venta de tipo "Servicio Maquila".</p>
+    <h3 class="section-title" style="margin-top:0">Tarifas de maquila</h3>
+    ${filas || '<div class="empty">Sin tarifas configuradas.</div>'}
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación — estas tarifas se usan para calcular el valor automático al registrar una venta de tipo "Servicio Maquila".</p>
   `;
 }
 async function guardarTarifa(id) {
-  const precioPorKg = Number(document.getElementById('tar-' + id).value) || 0;
-  const m = state.maquila.find(x => x.id === id); m.precioPorKg = precioPorKg;
+  const precio = Number(document.getElementById('tar-' + id).value) || 0;
+  const m = state.maquila.find(x => x.id === id); m.precio = precio;
   guardarCacheLocal('maquila');
-  await fetch('/api/maquila/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ precioPorKg }) });
+  await fetch('/api/maquila/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ precio }) });
 }
 
 /* ================================================================
@@ -966,7 +1013,7 @@ function exportarExcel() {
       ...state.ventas.sort((a,b)=>b.ts-a.ts).map(v => [
         { v: new Date(Number(v.ts)), s: 'date' },
         v.cliente || '',
-        v.tipoVenta === 'maquila' ? (v.servicios||[]).map(s=>`${s.servicio} ${s.cantidadKg}kg`).join(', ') : `${v.lote||''} ${v.presentacion||''} x${v.cantidad||1}`,
+        v.tipoVenta === 'maquila' ? (v.servicios||[]).map(s=>s.presentacion ? `${s.servicio} ${s.cantidad} ${s.presentacion}` : `${s.servicio} ${s.cantidad}kg`).join(', ') : `${v.lote||''} ${v.presentacion||''} x${v.cantidad||1}`,
         MONEY(v.valor), v.estado, v.usuario || '',
       ]),
       [],
