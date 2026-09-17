@@ -33,10 +33,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const cantidad = Number(body.cantidad) || 1;
 
   if (tipoVenta === 'maquila' && Array.isArray(body.servicios) && body.servicios.length && !body.valor) {
-    const { data: tarifas } = await supabase.from('maquila_tarifas').select('servicio, precio_por_kg');
-    const porNombre = Object.fromEntries((tarifas || []).map((t: any) => [t.servicio, t.precio_por_kg]));
-    valor = body.servicios.reduce((acc: number, s: { servicio: string; cantidadKg: number }) => {
-      return acc + (porNombre[s.servicio] || 0) * (Number(s.cantidadKg) || 0);
+    const { data: tarifas } = await supabase.from('maquila_tarifas').select('servicio, presentacion, precio');
+    valor = body.servicios.reduce((acc: number, s: { servicio: string; presentacion?: string | null; cantidad: number }) => {
+      const tarifa = (tarifas || []).find((t: any) => t.servicio === s.servicio && (t.presentacion || null) === (s.presentacion || null));
+      return acc + (tarifa ? tarifa.precio : 0) * (Number(s.cantidad) || 0);
     }, 0);
   }
 
