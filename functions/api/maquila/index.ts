@@ -4,7 +4,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
   const { data, error } = await supabase
     .from('maquila_tarifas')
-    .select('id, servicio, precioPorKg:precio_por_kg, ts')
+    .select('id, servicio, presentacion, precio, ts')
     .order('servicio');
   if (error) return new Response(error.message, { status: 500 });
   return Response.json(data);
