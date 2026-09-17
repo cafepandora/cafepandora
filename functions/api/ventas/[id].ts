@@ -1,4 +1,5 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
+import { librasVendidas } from '../../_lib/convert.js';
 
 const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, metodo, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
@@ -11,46 +12,69 @@ async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre
       { nombre: limpio, tipo_cliente: String(tipoCliente || 'Cliente normal'), ts: Date.now() },
       { onConflict: 'nombre' }
     );
-  } catch {}
+  } catch {
+    // El directorio es un apoyo: si falla no debe tumbar el registro de la venta.
+  }
 }
 
-// Nota: editar cantidad/lote/presentación de una venta ya guardada no vuelve
-// a tocar el inventario. Si corriges una venta con lote equivocado, ajusta
-// el stock a mano desde la pestaña Inventario Tostado.
-export const onRequestPatch: PagesFunction<Env> = async (context) => {
+export const onRequestGet: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
-  const id = context.params.id as string;
-  const body: any = await context.request.json();
-
-  const updates: Record<string, unknown> = {};
-  if (body.usuario !== undefined) updates.usuario = body.usuario;
-  if (body.cliente !== undefined) updates.cliente = body.cliente;
-  if (body.tipoCliente !== undefined) updates.tipo_cliente = body.tipoCliente;
-  if (body.tipoVenta !== undefined) updates.tipo_venta = body.tipoVenta;
-  if (body.lote !== undefined) updates.lote = body.lote;
-  if (body.presentacion !== undefined) updates.presentacion = body.presentacion;
-  if (body.cantidad !== undefined) updates.cantidad = Number(body.cantidad) || 1;
-  if (body.servicios !== undefined) updates.servicios = body.servicios;
-  if (body.items !== undefined) updates.items = body.items;
-  if (body.valor !== undefined) updates.valor = Number(body.valor) || 0;
-  if (body.estado !== undefined) updates.estado = body.estado;
-  if (body.metodo !== undefined) updates.metodo = body.metodo;
-  if (body.ts !== undefined) updates.ts = Number(body.ts);
-
-  if (Object.keys(updates).length === 0) return new Response('Sin cambios', { status: 400 });
-
-  const { data: row, error } = await supabase.from('ventas').update(updates).eq('id', id).select(SELECT_VENTA).single();
+  const { data, error } = await supabase.from('ventas').select(SELECT_VENTA);
   if (error) return new Response(error.message, { status: 500 });
-  if (!row) return new Response('Venta no encontrada', { status: 404 });
-
-  if (body.cliente !== undefined) await registrarCliente(supabase, row.cliente, row.tipoCliente);
-  return Response.json(row);
+  return Response.json(data);
 };
 
-export const onRequestDelete: PagesFunction<Env> = async (context) => {
+// El cuerpo trae un pedido completo: { ...datos del cliente, items: [...], valor, estado, metodo }
+// Cada item es { tipo:'cafe', lote, presentacion, cantidad, valor } o
+// { tipo:'maquila', servicio, presentacion (o null si se cobra por kg), cantidad, valor }.
+export const onRequestPost: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
-  const id = context.params.id as string;
-  const { error } = await supabase.from('ventas').delete().eq('id', id);
+  const body: any = await context.request.json();
+
+  const items = Array.isArray(body.items) ? body.items : [];
+  const valor = Number(body.valor) || items.reduce((s: number, it: any) => s + (Number(it.valor) || 0), 0);
+
+  const { data: row, error } = await supabase
+    .from('ventas')
+    .insert({
+      usuario: body.usuario,
+      cliente: body.cliente,
+      tipo_cliente: body.tipoCliente,
+      tipo_venta: 'pedido',
+      lote: null,
+      presentacion: null,
+      cantidad: 1,
+      servicios: null,
+      items,
+      valor,
+      estado: body.estado,
+      metodo: body.metodo || '',
+      ts: body.ts || Date.now(),
+    })
+    .select(SELECT_VENTA)
+    .single();
+
   if (error) return new Response(error.message, { status: 500 });
-  return new Response(null, { status: 204 });
+
+  await registrarCliente(supabase, body.cliente, body.tipoCliente);
+
+  // Suma cuántas libras se venden de cada lote en este pedido (puede tener
+  // varias líneas del mismo lote) y descuenta el inventario una sola vez por lote.
+  const librasPorLote: Record<string, number> = {};
+  for (const it of items) {
+    if (it && it.tipo === 'cafe' && it.lote && it.presentacion) {
+      const lb = librasVendidas(it.presentacion, Number(it.cantidad) || 0);
+      librasPorLote[it.lote] = (librasPorLote[it.lote] || 0) + lb;
+    }
+  }
+  for (const [lote, lb] of Object.entries(librasPorLote)) {
+    if (lb > 0) {
+      const { data: inv } = await supabase.from('inventario').select('id, stock_lb').eq('lote', lote).single();
+      if (inv) {
+        await supabase.from('inventario').update({ stock_lb: Number(inv.stock_lb) - lb, ts: Date.now() }).eq('id', inv.id);
+      }
+    }
+  }
+
+  return Response.json(row, { status: 201 });
 };
