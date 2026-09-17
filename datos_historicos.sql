@@ -1,0 +1,20 @@
+-- Datos históricos de la versión anterior (Netlify), adaptados al esquema nuevo.
+-- Ejecuta esto en el SQL Editor de Supabase DESPUÉS de haber corrido migration.sql.
+--
+-- Notas de la conversión (para que sepas qué se ajustó):
+-- 1) El estado antiguo "entregado" no existe en el modelo nuevo (que solo
+--    distingue Pagado/Pendiente). Se importó como "Pendiente" por seguridad
+--    contable — si esas ventas ya estaban cobradas, entra a Ventas y cámbialas
+--    a "Pagado" con un clic.
+-- 2) Cuando una venta antigua tenía VARIOS productos distintos en un solo
+--    pedido (ej. lavado + honey en la misma venta), no se puede reducir a un
+--    solo lote/presentación, así que esas quedan con lote vacío pero con el
+--    detalle completo guardado en la columna "items" (se ve igual en la
+--    lista de Ventas, solo que no suman en el desglose "Ventas por lote" del
+--    Resumen).
+-- 3) El valor de cada venta se tomó del campo "valor" original (el total real
+--    cobrado), no de la suma de los subtotales de cada ítem — en varias
+--    ventas antiguas esos dos números no coinciden exactamente.
+-- 4) "Media libra" se renombró a "Media lb" para que calce con las opciones
+--    de presentación de la app nueva.
+
