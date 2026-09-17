@@ -717,30 +717,166 @@ async function eliminarVenta(id) {
   state.ventas = state.ventas.filter(x => x.id !== id); guardarCacheLocal('ventas'); renderTodo();
   await fetch('/api/ventas/' + id, { method: 'DELETE' });
 }
+/* ---------- Editar un pedido: agregar más líneas días después ---------- */
+let editCarrito = [];
+let editItemsNuevos = []; // solo lo agregado EN ESTA sesión de edición (para descontar inventario)
+
+function itemsNormalizados(v) {
+  if (v.items && v.items.length && v.items[0] && v.items[0].tipo) return v.items.map(it => ({ ...it }));
+  if (v.tipoVenta === 'maquila' && Array.isArray(v.servicios) && v.servicios.length) {
+    return v.servicios.map(s => ({ tipo: 'maquila', servicio: s.servicio, presentacion: s.presentacion || null, cantidad: s.cantidad, valor: 0 }));
+  }
+  if (v.lote) return [{ tipo: 'cafe', lote: v.lote, presentacion: v.presentacion, cantidad: v.cantidad || 1, valor: v.valor }];
+  return [];
+}
+
 function abrirEdicionVenta(id) {
   const v = state.ventas.find(x => x.id === id); if (!v) return;
+  editCarrito = itemsNormalizados(v);
+  editItemsNuevos = [];
+
+  const gruposMaquila = {};
+  state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
+
   abrirModal(`
-    <h3>Editar venta — ${escapeHtml(v.cliente || 'Venta directa')}</h3>
+    <h3>Editar pedido — ${escapeHtml(v.cliente || 'Venta directa')}</h3>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">Puedes agregarle más líneas ahora (por ejemplo, si la maquila se va haciendo en varios días).</p>
+
+    <div id="em-lista"></div>
+    <div style="text-align:right;font-weight:700;margin:6px 0 10px">Total: <span id="em-total">$0</span></div>
+
+    <h3 class="section-title" style="margin-top:4px">Agregar línea</h3>
     <div class="row">
-      <div class="field"><label>Valor</label><input id="m-valor" type="number" value="${v.valor}"></div>
-      <div class="field"><label>Estado</label><select id="m-estado"><option ${v.estado==='Pagado'?'selected':''}>Pagado</option><option ${v.estado==='Pendiente'?'selected':''}>Pendiente</option></select></div>
+      <div class="field"><label>¿Qué se agrega?</label>
+        <select id="em-ln-tipo" onchange="onEmLineaTipoChange()">
+          <option value="cafe">Café</option>
+          ${Object.keys(gruposMaquila).map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)} (maquila)</option>`).join('')}
+        </select>
+      </div>
     </div>
-    <div class="row"><div class="field"><label>Método de pago</label><select id="m-metodo">${METODOS_PAGO.map(m => `<option ${m===v.metodo?'selected':''}>${m}</option>`).join('')}</select></div></div>
+    <div class="row" id="em-campos-cafe">
+      <div class="field"><label>Lote</label><select id="em-ln-lote" onchange="recalcularEmLinea()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Presentación</label><select id="em-ln-presentacion" onchange="recalcularEmLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select></div>
+      <div class="field"><label>Cantidad</label><input id="em-ln-cantidad-cafe" type="number" value="1" min="1" onchange="recalcularEmLinea()"></div>
+    </div>
+    <div class="row" id="em-campos-maquila-kg" style="display:none">
+      <div class="field"><label>Kilos</label><input id="em-ln-kg" type="number" min="0" step="0.1" placeholder="0" onchange="recalcularEmLinea()"></div>
+    </div>
+    <div class="row" id="em-campos-maquila-pres" style="display:none">
+      <div class="field"><label>Presentación</label><select id="em-ln-presentacion-mq" onchange="recalcularEmLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select></div>
+      <div class="field"><label>Cantidad</label><input id="em-ln-cantidad-mq" type="number" value="1" min="1" onchange="recalcularEmLinea()"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Valor de esta línea</label><input id="em-ln-valor" type="number" placeholder="0"></div>
+    </div>
+    <button class="sec-btn" style="width:100%" onclick="agregarLineaAEdicion()">+ Agregar línea</button>
+
+    <div class="row" style="margin-top:14px">
+      <div class="field"><label>Estado</label><select id="m-estado"><option ${v.estado==='Pagado'?'selected':''}>Pagado</option><option ${v.estado==='Pendiente'?'selected':''}>Pendiente</option></select></div>
+      <div class="field"><label>Método de pago</label><select id="m-metodo">${METODOS_PAGO.map(m => `<option ${m===v.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
+    </div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionVenta(${id})">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
     </div>
   `);
+  onEmLineaTipoChange();
+  pintarEdicionCarrito();
 }
+
+function onEmLineaTipoChange() {
+  const tipo = document.getElementById('em-ln-tipo').value;
+  const esCafe = tipo === 'cafe';
+  const filas = esCafe ? [] : gruposDeServicio(tipo);
+  const esKg = !esCafe && filas.length === 1 && !filas[0].presentacion;
+  document.getElementById('em-campos-cafe').style.display = esCafe ? 'flex' : 'none';
+  document.getElementById('em-campos-maquila-kg').style.display = (!esCafe && esKg) ? 'flex' : 'none';
+  document.getElementById('em-campos-maquila-pres').style.display = (!esCafe && !esKg) ? 'flex' : 'none';
+  recalcularEmLinea();
+}
+
+function recalcularEmLinea() {
+  const tipo = document.getElementById('em-ln-tipo').value;
+  let valor = 0;
+  if (tipo === 'cafe') {
+    const lote = document.getElementById('em-ln-lote').value;
+    const presentacion = document.getElementById('em-ln-presentacion').value;
+    const cantidad = Number(document.getElementById('em-ln-cantidad-cafe').value) || 1;
+    valor = precioSugerido(lote, presentacion) * cantidad;
+  } else {
+    const filas = gruposDeServicio(tipo);
+    const esKg = filas.length === 1 && !filas[0].presentacion;
+    if (esKg) {
+      const kg = Number(document.getElementById('em-ln-kg').value) || 0;
+      valor = kg * (filas[0] ? filas[0].precio : 0);
+    } else {
+      const presentacion = document.getElementById('em-ln-presentacion-mq').value;
+      const cantidad = Number(document.getElementById('em-ln-cantidad-mq').value) || 1;
+      const tarifa = filas.find(f => f.presentacion === presentacion);
+      valor = cantidad * (tarifa ? tarifa.precio : 0);
+    }
+  }
+  document.getElementById('em-ln-valor').value = valor;
+}
+
+function agregarLineaAEdicion() {
+  const tipo = document.getElementById('em-ln-tipo').value;
+  const valor = Number(document.getElementById('em-ln-valor').value) || 0;
+  let item;
+  if (tipo === 'cafe') {
+    item = {
+      tipo: 'cafe',
+      lote: document.getElementById('em-ln-lote').value,
+      presentacion: document.getElementById('em-ln-presentacion').value,
+      cantidad: Number(document.getElementById('em-ln-cantidad-cafe').value) || 1,
+      valor,
+    };
+  } else {
+    const filas = gruposDeServicio(tipo);
+    const esKg = filas.length === 1 && !filas[0].presentacion;
+    item = esKg
+      ? { tipo: 'maquila', servicio: tipo, presentacion: null, cantidad: Number(document.getElementById('em-ln-kg').value) || 0, valor }
+      : { tipo: 'maquila', servicio: tipo, presentacion: document.getElementById('em-ln-presentacion-mq').value, cantidad: Number(document.getElementById('em-ln-cantidad-mq').value) || 1, valor };
+  }
+  if (!item.cantidad) return alert('Pon una cantidad mayor a cero.');
+  editCarrito.push(item);
+  editItemsNuevos.push(item); // mismo objeto: así sabemos que es nuevo de esta sesión
+  pintarEdicionCarrito();
+}
+
+function quitarDeEdicion(i) {
+  const [removido] = editCarrito.splice(i, 1);
+  const j = editItemsNuevos.indexOf(removido);
+  if (j !== -1) editItemsNuevos.splice(j, 1);
+  pintarEdicionCarrito();
+}
+
+function pintarEdicionCarrito() {
+  const lista = document.getElementById('em-lista');
+  if (!lista) return;
+  lista.innerHTML = editCarrito.length
+    ? editCarrito.map((it, i) => `
+      <div class="ledger-row">
+        <div class="main"><div class="title">${it.tipo === 'cafe' ? `${escapeHtml(it.lote)} · ${escapeHtml(it.presentacion)} × ${it.cantidad}` : `${escapeHtml(it.servicio)} ${it.presentacion ? it.cantidad + ' ' + escapeHtml(it.presentacion) : it.cantidad + 'kg'}`}</div></div>
+        <div class="amount pos">${fmt(it.valor)}</div>
+        <div class="acciones"><button onclick="quitarDeEdicion(${i})" title="Quitar">✕</button></div>
+      </div>`).join('')
+    : '<div class="empty">Sin líneas — agrega la primera abajo.</div>';
+  document.getElementById('em-total').textContent = fmt(editCarrito.reduce((s, it) => s + (Number(it.valor) || 0), 0));
+}
+
 async function guardarEdicionVenta(id) {
   const cambios = {
-    valor: Number(document.getElementById('m-valor').value) || 0,
+    items: editCarrito,
+    valor: editCarrito.reduce((s, it) => s + (Number(it.valor) || 0), 0),
     estado: document.getElementById('m-estado').value,
     metodo: document.getElementById('m-metodo').value,
+    nuevosItems: editItemsNuevos, // el backend solo descuenta inventario por estas líneas nuevas
   };
   const v = state.ventas.find(x => x.id === id); Object.assign(v, cambios);
   guardarCacheLocal('ventas'); cerrarModal(); renderTodo();
   await fetch('/api/ventas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios) });
+  sincronizar();
 }
 
 /* ================================================================
