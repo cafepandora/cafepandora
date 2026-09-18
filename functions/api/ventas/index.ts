@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
-const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, metodo, ts';
+const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, guiaEnvio:guia_envio, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
 
 async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre: unknown, tipoCliente: unknown) {
@@ -48,6 +48,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       items,
       valor,
       estado: body.estado,
+      estado_envio: body.estadoEnvio || 'Pendiente',
       metodo: body.metodo || '',
       ts: body.ts || Date.now(),
     })
