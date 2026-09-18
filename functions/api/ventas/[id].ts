@@ -1,5 +1,5 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { kilosVendidos } from '../../_lib/convert.js';
+import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
 const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, metodo, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
@@ -16,9 +16,9 @@ async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre
 }
 
 // Si el body trae "nuevosItems" (líneas que se le agregaron a un pedido ya
-// existente, ej. una maquila que se va completando en varios días), se
-// descuenta el inventario SOLO por esas líneas nuevas — las que ya estaban
-// en el pedido no se vuelven a tocar.
+// existente) se descuenta inventario por esas. Si trae "itemsRemovidos"
+// (líneas originales que se quitaron al editar) se le devuelve el
+// inventario correspondiente. Ambos ajustes son atómicos por lote.
 export const onRequestPatch: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
   const id = context.params.id as string;
@@ -49,21 +49,11 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   const nuevosItems = Array.isArray(body.nuevosItems) ? body.nuevosItems : [];
   if (nuevosItems.length) {
-    const librasPorLote: Record<string, number> = {};
-    for (const it of nuevosItems) {
-      if (it && it.tipo === 'cafe' && it.lote && it.presentacion) {
-        const lb = kilosVendidos(it.presentacion, Number(it.cantidad) || 0);
-        librasPorLote[it.lote] = (librasPorLote[it.lote] || 0) + lb;
-      }
-    }
-    for (const [lote, lb] of Object.entries(librasPorLote)) {
-      if (lb > 0) {
-        const { data: inv } = await supabase.from('inventario').select('id, stock_lb').eq('lote', lote).single();
-        if (inv) {
-          await supabase.from('inventario').update({ stock_lb: Number(inv.stock_lb) - lb, ts: Date.now() }).eq('id', inv.id);
-        }
-      }
-    }
+    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: nuevosItems }), -1);
+  }
+  const itemsRemovidos = Array.isArray(body.itemsRemovidos) ? body.itemsRemovidos : [];
+  if (itemsRemovidos.length) {
+    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: itemsRemovidos }), 1);
   }
 
   return Response.json(row);
@@ -72,7 +62,16 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
   const id = context.params.id as string;
+
+  // Antes de borrar, revisa qué café traía esta venta, para devolverlo al inventario.
+  const { data: venta } = await supabase.from('ventas').select(SELECT_VENTA).eq('id', id).single();
+
   const { error } = await supabase.from('ventas').delete().eq('id', id);
   if (error) return new Response(error.message, { status: 500 });
+
+  if (venta) {
+    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(venta), 1);
+  }
+
   return new Response(null, { status: 204 });
 };
