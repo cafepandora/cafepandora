@@ -238,6 +238,40 @@
   .tarifa-row button { flex: 0 0 auto; }
 
 
+
+  /* ---------- Órdenes en paralelo ---------- */
+  .orden-layout { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 22px; }
+  .orden-menu {
+    flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px;
+    position: sticky; top: 78px;
+  }
+  .orden-menu button {
+    position: relative; width: 46px; height: 46px; border-radius: 14px;
+    background: var(--blanco); border: 1px solid var(--linea); color: var(--cafe-soft);
+    font-family: 'Outfit', sans-serif; font-size: 17px; font-weight: 800; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .orden-menu button.active { background: var(--cafe); color: #fff; border-color: var(--cafe); }
+  .orden-menu button.add-orden { background: var(--verde-bg); color: var(--verde); border-color: var(--verde); font-size: 22px; }
+  .orden-menu .badge {
+    position: absolute; top: -5px; right: -5px; background: var(--terracota); color: #fff;
+    font-size: 11px; font-weight: 800; min-width: 19px; height: 19px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; padding: 0 4px;
+  }
+  .orden-card { flex: 1; min-width: 0; margin-bottom: 0; }
+  .orden-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .cerrar-orden {
+    flex: 0 0 auto; background: none; border: 1px solid var(--linea); color: var(--cafe-soft);
+    font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600;
+    padding: 7px 14px; border-radius: 20px; cursor: pointer;
+  }
+  .cerrar-orden:hover { background: var(--terracota-bg); color: var(--terracota); border-color: var(--terracota); }
+
+  .cliente-hint {
+    font-size: 12.5px; font-weight: 600; color: var(--verde);
+    background: var(--verde-bg); border-radius: 8px; padding: 6px 10px; margin-top: 5px;
+  }
+
   /* ---------- Toasts ---------- */
   #toastWrap {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: 22px;
@@ -382,7 +416,113 @@ const state = {
   ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [], preciosCafe: [],
   tabActiva: 'ventas',
 };
-let carritoActual = [];
+// Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
+// paralelo y saltar entre ellas sin perder lo que llevas armado.
+const ordenVacia = () => ({ items: [], cliente: '', tipoCliente: 'Cliente normal', metodo: '', estado: 'Pagado', valorManual: '' });
+let ordenes = [ordenVacia()];
+let ordenActiva = 0;
+// carritoActual siempre apunta a los items de la orden que estás viendo.
+let carritoActual = ordenes[0].items;
+
+// Lee los campos del formulario y los guarda en la orden activa (para no
+// perderlos al cambiar de orden).
+function guardarOrdenEnMemoria() {
+  const o = ordenes[ordenActiva];
+  if (!o) return;
+  const g = id => document.getElementById(id);
+  if (g('v-cliente')) o.cliente = g('v-cliente').value;
+  if (g('v-tipoCliente')) o.tipoCliente = g('v-tipoCliente').value;
+  if (g('v-metodo')) o.metodo = g('v-metodo').value;
+  if (g('v-estado')) o.estado = g('v-estado').value;
+  if (g('v-valor')) o.valorManual = g('v-valor').value;
+}
+
+function cambiarOrden(i) {
+  guardarOrdenEnMemoria();
+  ordenActiva = i;
+  carritoActual = ordenes[i].items;
+  renderVentas();
+}
+
+function nuevaOrden() {
+  guardarOrdenEnMemoria();
+  ordenes.push(ordenVacia());
+  ordenActiva = ordenes.length - 1;
+  carritoActual = ordenes[ordenActiva].items;
+  renderVentas();
+  toast('Orden ' + ordenes.length + ' abierta');
+}
+
+function cerrarOrden(i) {
+  const o = ordenes[i];
+  const tieneAlgo = o.items.length || (o.cliente || '').trim();
+  if (tieneAlgo && !confirm('¿Descartar esta orden con lo que lleva dentro?')) return;
+  guardarOrdenEnMemoria();
+  ordenes.splice(i, 1);
+  if (!ordenes.length) ordenes.push(ordenVacia());
+  ordenActiva = Math.min(ordenActiva, ordenes.length - 1);
+  carritoActual = ordenes[ordenActiva].items;
+  renderVentas();
+}
+
+// Al terminar una venta, cierra esa orden y deja lista la siguiente.
+function finalizarOrdenActiva() {
+  ordenes.splice(ordenActiva, 1);
+  if (!ordenes.length) ordenes.push(ordenVacia());
+  ordenActiva = Math.min(ordenActiva, ordenes.length - 1);
+  carritoActual = ordenes[ordenActiva].items;
+}
+
+/* ---------- Memoria por cliente ----------
+   Si un cliente ya compró antes, casi siempre le vuelve a pagar a la misma
+   persona. Buscamos su compra más reciente y proponemos ese mismo método. */
+const normalizar = s => String(s || '').trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+function ultimaVentaDeCliente(nombre) {
+  const clave = normalizar(nombre);
+  if (!clave) return null;
+  return state.ventas
+    .filter(v => normalizar(v.cliente) === clave)
+    .sort((a, b) => b.ts - a.ts)[0] || null;
+}
+
+// Devuelve el nombre tal como quedó guardado la primera vez, para que
+// "juan perez", "Juan Perez" y "JUAN PÉREZ" no se conviertan en 3 clientes.
+function nombreCanonico(nombre) {
+  const clave = normalizar(nombre);
+  if (!clave) return String(nombre || '').trim();
+  const existente = state.clientes.find(c => normalizar(c.nombre) === clave);
+  return existente ? existente.nombre : String(nombre || '').trim();
+}
+
+// Se dispara al salir del campo de cliente: normaliza el nombre y precarga
+// el método de pago y el tipo de cliente que usó la última vez.
+function autocompletarDesdeCliente() {
+  const input = document.getElementById('v-cliente');
+  if (!input || !input.value.trim()) return;
+  const canonico = nombreCanonico(input.value);
+  if (canonico !== input.value) input.value = canonico;
+
+  const ultima = ultimaVentaDeCliente(canonico);
+  if (!ultima) return;
+
+  const selMetodo = document.getElementById('v-metodo');
+  if (selMetodo && ultima.metodo && METODOS_PAGO.includes(ultima.metodo)) selMetodo.value = ultima.metodo;
+
+  const selTipo = document.getElementById('v-tipoCliente');
+  if (selTipo && ultima.tipoCliente && TIPOS_CLIENTE.includes(ultima.tipoCliente)) {
+    const cambio = selTipo.value !== ultima.tipoCliente;
+    selTipo.value = ultima.tipoCliente;
+    if (cambio) recalcularLinea();
+  }
+
+  const aviso = document.getElementById('clienteHint');
+  if (aviso) {
+    aviso.style.display = 'block';
+    aviso.textContent = `Cliente conocido · última vez pagó con ${ultima.metodo || 'método sin registrar'}`;
+  }
+}
 let resumenSubTab = 'pagadas';
 const POR_PAGINA = 8;
 const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1 };
@@ -570,17 +710,34 @@ function renderVentas() {
   state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
   const serviciosMaquila = Object.keys(gruposMaquila);
 
+  const orden = ordenes[ordenActiva];
+
   document.getElementById('view-ventas').innerHTML = `
-    <div class="card">
-      <h3 class="section-title" style="margin-top:0">Nuevo pedido</h3>
+    <div class="orden-layout">
+      <div class="orden-menu">
+        ${ordenes.map((o, i) => `
+          <button class="${i === ordenActiva ? 'active' : ''}" onclick="cambiarOrden(${i})" title="${escapeAttr(o.cliente || 'Sin cliente')}">
+            <span class="num">${i + 1}</span>
+            ${o.items.length ? `<span class="badge">${o.items.length}</span>` : ''}
+          </button>`).join('')}
+        <button class="add-orden" onclick="nuevaOrden()" title="Abrir otra orden">+</button>
+      </div>
+
+      <div class="card orden-card">
+        <div class="orden-head">
+          <h3 class="section-title" style="margin:0">Orden ${ordenActiva + 1}${orden.cliente ? ' · ' + escapeHtml(orden.cliente) : ''}</h3>
+          ${ordenes.length > 1 ? `<button class="cerrar-orden" onclick="cerrarOrden(${ordenActiva})">Descartar</button>` : ''}
+        </div>
 
       <div class="row">
         <div class="field"><label>Cliente</label>
-          <input id="v-cliente" list="clientesList" placeholder="Nombre del cliente">
+          <input id="v-cliente" list="clientesList" placeholder="Escribe y elige de la lista" autocomplete="off"
+                 value="${escapeAttr(orden.cliente)}" onchange="autocompletarDesdeCliente()" onblur="autocompletarDesdeCliente()">
           ${datalist}
+          <div id="clienteHint" class="cliente-hint" style="display:none"></div>
         </div>
         <div class="field"><label>Tipo de cliente</label>
-          <select id="v-tipoCliente" onchange="recalcularLinea()">${TIPOS_CLIENTE.map(t => `<option>${t}</option>`).join('')}</select>
+          <select id="v-tipoCliente" onchange="recalcularLinea()">${TIPOS_CLIENTE.map(t => `<option ${t === orden.tipoCliente ? 'selected' : ''}>${t}</option>`).join('')}</select>
         </div>
       </div>
 
@@ -636,10 +793,10 @@ function renderVentas() {
           <input id="v-valor" type="number" placeholder="0" min="0">
         </div>
         <div class="field"><label>Método de pago</label>
-          <select id="v-metodo">${METODOS_PAGO.map(m => `<option>${m}</option>`).join('')}</select>
+          <select id="v-metodo">${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Estado</label>
-          <select id="v-estado"><option>Pagado</option><option>Pendiente</option></select>
+          <select id="v-estado"><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option></select>
         </div>
       </div>
       <div class="row">
@@ -648,6 +805,7 @@ function renderVentas() {
         </div>
       </div>
       <button class="add-btn" onclick="registrarVenta(this)">Registrar venta</button>
+      </div>
     </div>
 
     ${anteriores.length ? `
@@ -662,6 +820,7 @@ function renderVentas() {
   `;
   onLineaTipoChange();
   pintarCarrito();
+  if (orden.cliente) autocompletarDesdeCliente();
 }
 
 /* ---------- Línea nueva (café o un servicio de maquila) ---------- */
@@ -806,7 +965,7 @@ async function registrarVenta(btn) {
 
     const payload = {
       usuario,
-      cliente: document.getElementById('v-cliente').value.trim() || 'Venta directa',
+      cliente: nombreCanonico(document.getElementById('v-cliente').value) || 'Venta directa',
       tipoCliente: document.getElementById('v-tipoCliente').value,
       items: carritoActual,
       valor: Math.max(0, Number(document.getElementById('v-valor').value) || carritoActual.reduce((s, it) => s + (Number(it.valor) || 0), 0)),
@@ -819,7 +978,7 @@ async function registrarVenta(btn) {
     const row = await res.json();
     state.ventas.push(row);
     guardarCacheLocal('ventas');
-    carritoActual = [];
+    finalizarOrdenActiva();
     toast('Venta registrada');
     renderTodo(); // esto reconstruye el botón, ya no hace falta rehabilitarlo a mano
     sincronizar(); // trae de vuelta el descuento de inventario / nuevo cliente calculados en el servidor
