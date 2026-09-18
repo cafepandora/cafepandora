@@ -87,11 +87,13 @@
 
   <div id="catalogo"></div>
 
+  <div id="resumenPedido" style="display:none"></div>
+
   <div class="card">
     <h3 style="margin-top:0">Tus datos</h3>
-    <div class="field"><label>Tu nombre</label><input id="p-nombre" placeholder="Nombre completo"></div>
-    <div class="field"><label>Tu WhatsApp o celular</label><input id="p-telefono" type="tel" placeholder="Ej. 300 000 0000"></div>
-    <div class="field"><label>Notas (opcional)</label><textarea id="p-notas" placeholder="Barrio, punto de entrega, alguna preferencia…"></textarea></div>
+    <div class="field"><label>Tu nombre</label><input id="p-nombre" placeholder="Nombre completo" oninput="guardarBorrador()"></div>
+    <div class="field"><label>Tu WhatsApp o celular</label><input id="p-telefono" type="tel" placeholder="Ej. 300 000 0000" oninput="guardarBorrador()"></div>
+    <div class="field"><label>Notas (opcional)</label><textarea id="p-notas" placeholder="Barrio, punto de entrega, alguna preferencia…" oninput="guardarBorrador()"></textarea></div>
   </div>
 
   <div id="pantallaFinal"></div>
@@ -130,7 +132,9 @@ async function cargarCatalogo() {
   } catch {
     precios = [];
   }
+  recuperarBorrador();
   pintarCatalogo();
+  actualizarBarra();
 }
 
 function precioDe(lote, presentacion) {
@@ -205,6 +209,67 @@ function actualizarBarra() {
   barra.style.display = totalItems ? 'block' : 'none';
   document.getElementById('barra-cantidad').textContent = totalItems + (totalItems === 1 ? ' producto' : ' productos');
   document.getElementById('barra-total').textContent = fmt(totalDinero);
+  pintarResumenPedido(items, totalDinero);
+  guardarBorrador();
+}
+
+// Muestra lo que lleva el carrito ANTES de enviarlo, con un botón para
+// quitar cada línea — así el cliente repasa su pedido, no solo ve un total.
+function pintarResumenPedido(items, totalDinero) {
+  const cont = document.getElementById('resumenPedido');
+  if (!items.length) { cont.style.display = 'none'; return; }
+  cont.style.display = 'block';
+  cont.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0">Tu pedido</h3>
+      ${items.map(it => `
+        <div class="item-linea">
+          <span>${it.cantidad} × ${it.presentacion} de ${it.lote} <span style="color:var(--cafe-soft);font-size:12.5px">(${it.molienda})</span></span>
+          <span style="display:flex;align-items:center;gap:10px">
+            <b>${fmt(it.cantidad * it.precio)}</b>
+            <button onclick="quitarLineaResumen('${it.lote}','${it.presentacion}','${it.molienda}')">Quitar</button>
+          </span>
+        </div>`).join('')}
+      <div class="item-linea" style="border-bottom:none;font-weight:800;padding-top:12px">
+        <span>Total</span><span>${fmt(totalDinero)}</span>
+      </div>
+    </div>`;
+}
+
+function quitarLineaResumen(lote, presentacion, molienda) {
+  const clave = lote + '|' + presentacion + '|' + molienda;
+  delete carrito[clave];
+  const claveBase = lote + '|' + presentacion;
+  const el = document.getElementById('cant-' + idSeguro(claveBase));
+  if (el && (moliendaSeleccionada[claveBase] || 'Molido') === molienda) el.textContent = '0';
+  actualizarBarra();
+}
+
+/* ---------- Guardar y recuperar el pedido a medias (por si se cierra la página) ---------- */
+const CLAVE_BORRADOR = 'cp_pedido_borrador';
+function guardarBorrador() {
+  try {
+    localStorage.setItem(CLAVE_BORRADOR, JSON.stringify({
+      carrito, moliendaSeleccionada,
+      nombre: document.getElementById('p-nombre')?.value || '',
+      telefono: document.getElementById('p-telefono')?.value || '',
+      notas: document.getElementById('p-notas')?.value || '',
+    }));
+  } catch {}
+}
+function recuperarBorrador() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CLAVE_BORRADOR) || 'null');
+    if (!guardado) return;
+    carrito = guardado.carrito || {};
+    moliendaSeleccionada = guardado.moliendaSeleccionada || {};
+    if (guardado.nombre) document.getElementById('p-nombre').value = guardado.nombre;
+    if (guardado.telefono) document.getElementById('p-telefono').value = guardado.telefono;
+    if (guardado.notas) document.getElementById('p-notas').value = guardado.notas;
+  } catch {}
+}
+function borrarBorrador() {
+  try { localStorage.removeItem(CLAVE_BORRADOR); } catch {}
 }
 
 async function enviarPedido() {
@@ -212,8 +277,9 @@ async function enviarPedido() {
   if (!items.length) return;
   const nombre = document.getElementById('p-nombre').value.trim();
   const telefono = document.getElementById('p-telefono').value.trim();
+  const soloDigitos = telefono.replace(/\D/g, '');
   if (!nombre) { mostrarToast('Escribe tu nombre para poder contactarte.'); return; }
-  if (!telefono) { mostrarToast('Escribe tu WhatsApp o celular.'); return; }
+  if (soloDigitos.length < 7) { mostrarToast('Escribe un número de celular válido.'); return; }
 
   const btn = document.getElementById('btnEnviar');
   btn.disabled = true;
@@ -229,6 +295,7 @@ async function enviarPedido() {
     const res = await fetch('/api/pedidos-web', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) throw new Error('No se pudo enviar');
     const total = items.reduce((s, it) => s + it.cantidad * it.precio, 0);
+    borrarBorrador();
     mostrarConfirmacion(nombre, items, total, notas);
   } catch {
     mostrarToast('Hubo un problema enviando el pedido. Intenta de nuevo.');
@@ -238,6 +305,7 @@ async function enviarPedido() {
 
 function mostrarConfirmacion(nombre, items, total, notas) {
   document.getElementById('catalogo').style.display = 'none';
+  document.getElementById('resumenPedido').style.display = 'none';
   document.querySelectorAll('.wrap > .card').forEach(c => c.style.display = 'none');
   document.getElementById('barraCarrito').style.display = 'none';
 
