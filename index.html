@@ -468,10 +468,8 @@
     <button data-tab="maquila">Maquila</button>
     <button data-tab="inventario">Inventario Tostado</button>
     <button data-tab="gastos">Gastos</button>
-    <button data-tab="finca">Finca &amp; Café</button>
-    <button data-tab="trazabilidad">Cosecha &amp; Tueste</button>
     <button data-tab="resumen">Resumen</button>
-    <button data-tab="config">Configuración</button>
+    <button type="button" onclick="abrirMasTabs()">⋯ Más</button>
   </nav>
 
   <section class="view active" id="view-ventas"></section>
@@ -1060,16 +1058,32 @@ async function sincronizar() {
 /* ================================================================
    PESTAÑAS Y FILTROS GLOBALES
 ================================================================ */
-document.querySelectorAll('nav.tabs button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    state.tabActiva = btn.dataset.tab;
-    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b === btn));
-    document.querySelectorAll('section.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + btn.dataset.tab));
-    renderTodo();
-  });
+function irATab(tab) {
+  state.tabActiva = tab;
+  document.querySelectorAll('nav.tabs button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('section.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + tab));
+  cerrarModal();
+  renderTodo();
+}
+document.querySelectorAll('nav.tabs button[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => irATab(btn.dataset.tab));
 });
 document.getElementById('filtroMes').addEventListener('change', renderTodo);
 document.getElementById('filtroBusqueda').addEventListener('input', renderTodo);
+
+// Las pestañas menos frecuentes viven aquí, para que la barra de arriba no
+// se sienta apretada en un celular angosto.
+function abrirMasTabs() {
+  abrirModal(`
+    <h3>Más secciones</h3>
+    <div class="mas-tabs-lista">
+      <button class="sec-btn" style="width:100%;margin-bottom:8px" onclick="irATab('finca')">Finca &amp; Café</button>
+      <button class="sec-btn" style="width:100%;margin-bottom:8px" onclick="irATab('trazabilidad')">Cosecha &amp; Tueste</button>
+      <button class="sec-btn" style="width:100%" onclick="irATab('config')">Configuración</button>
+    </div>
+    <div class="modal-actions"><button class="sec-btn" style="flex:1" onclick="cerrarModal()">Cerrar</button></div>
+  `);
+}
 
 /* ================================================================
    RENDER GENERAL
@@ -3065,7 +3079,7 @@ function renderMejoresClientes() {
         <span>Cliente</span><span>Compras</span><span>Prom. ${etiqueta}</span><span>Kg ${etiqueta}</span>
       </div>
       ${candidatos.map(c => `
-        <div class="fila-cliente">
+        <div class="fila-cliente" style="cursor:pointer" onclick="abrirFichaCliente('${escapeAttr(c.nombre).replace(/'/g,"\\'")}')">
           <span class="nombre">${escapeHtml(c.nombre)}</span>
           <span>${c.compras}</span>
           <span class="dinero">${fmt(c.dineroProm)}</span>
@@ -3281,14 +3295,52 @@ function renderConfig() {
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación.</p>
 
     <h3 class="section-title">Clientes (café)</h3>
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Si un cliente quedó duplicado por errores de escritura, corrígelo aquí — se actualiza en todas sus ventas de una vez.</p>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Toca un cliente para ver su ficha completa. Si quedó duplicado por errores de escritura, corrígelo con ✎ — se actualiza en todas sus ventas de una vez.</p>
     ${listaClientes().map(c => `
       <div class="tarifa-row">
-        <div class="nombre">${escapeHtml(c.nombre)} <span style="font-weight:400;color:var(--cafe-soft);font-size:12px">(${c.compras} compra${c.compras===1?'':'s'})</span></div>
+        <div class="nombre" style="cursor:pointer" onclick="abrirFichaCliente('${escapeAttr(c.nombre).replace(/'/g,"\\'")}')">${escapeHtml(c.nombre)} <span style="font-weight:400;color:var(--cafe-soft);font-size:12px">(${c.compras} compra${c.compras===1?'':'s'})</span></div>
         <button class="sec-btn" onclick="abrirRenombrarCliente('${escapeAttr(c.nombre).replace(/'/g,"\\'")}')">✎ Renombrar</button>
       </div>
     `).join('') || '<div class="empty">Sin clientes todavía.</div>'}
   `;
+}
+
+/* ---------- Ficha de cliente: todo su historial en un solo lugar ---------- */
+function abrirFichaCliente(nombre) {
+  const ventas = state.ventas.filter(v => normalizar(v.cliente) === normalizar(nombre)).sort((a, b) => b.ts - a.ts);
+  const total = ventas.reduce((s, v) => s + (Number(v.valor) || 0), 0);
+  const cobrado = ventas.filter(v => v.estado === 'Pagado').reduce((s, v) => s + (Number(v.valor) || 0), 0);
+  const porCobrar = total - cobrado;
+  const meses = new Set(ventas.map(v => mesDe(v.ts))).size;
+  const pref = ultimaPreferenciaCafe(nombre);
+
+  abrirModal(`
+    <h3>${escapeHtml(nombre)}</h3>
+    <div class="stat-grid" style="margin-bottom:14px">
+      <div class="stat"><div class="n">${ventas.length}</div><div class="l">Compras (${meses} mes${meses===1?'':'es'} distintos)</div></div>
+      <div class="stat"><div class="n">${fmt(total)}</div><div class="l">Total histórico</div></div>
+      <div class="stat"><div class="n pos">${fmt(cobrado)}</div><div class="l">Cobrado</div></div>
+      <div class="stat"><div class="n ${porCobrar>0?'neg':''}">${fmt(porCobrar)}</div><div class="l">Por cobrar</div></div>
+    </div>
+    ${pref ? `<p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">Suele pedir: <b>${escapeHtml(pref.lote)}</b>${pref.molienda ? ', ' + escapeHtml(pref.molienda) : ''}${pref.tueste ? ', Tostión ' + escapeHtml(pref.tueste) : ''}</p>` : ''}
+
+    <h3 class="section-title">Historial de compras</h3>
+    <div class="ledger">
+      ${ventas.length ? ventas.slice(0, 30).map(v => `
+        <div class="ledger-row">
+          <div class="main">
+            <div class="title">${new Date(Number(v.ts)).toLocaleDateString('es-CO')} ${v.origenWeb ? '<span class="badge-web">🌐</span>' : ''}</div>
+            <div class="details">${escapeHtml(detalleVenta(v))}</div>
+          </div>
+          <span class="tag ${v.estado === 'Pagado' ? 'pagado' : 'pendiente'}">${v.estado}</span>
+          <div class="amount pos">${fmt(v.valor)}</div>
+        </div>`).join('') : '<div class="empty">Sin compras todavía.</div>'}
+      ${ventas.length > 30 ? `<div class="empty">… y ${ventas.length - 30} compras más antiguas.</div>` : ''}
+    </div>
+    <div class="modal-actions">
+      <button class="sec-btn" style="flex:1" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
 }
 
 function abrirRenombrarCliente(nombreActual) {
