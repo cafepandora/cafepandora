@@ -496,6 +496,8 @@ const TIPOS_CLIENTE = ['Cliente normal', 'Mayorista', 'Distribuidor', 'Interno']
 const METODOS_PAGO = ['Efectivo', 'Transferencia a Joaquín', 'Transferencia a Inés', 'Juan Nequi', 'Juan Bancolombia'];
 const CATEGORIAS_GASTO = ['Insumos', 'Servicios', 'Nómina', 'Transporte', 'Mano de obra', 'Café verde', 'Otro'];
 const CATEGORIAS_FINCA = ['Insumos', 'Mano de obra', 'Cosecha', 'Otro'];
+const MOLIENDAS = ['Molido', 'En grano'];
+const TUESTES_LAVADO = ['Media', 'Media alta'];
 
 /* ---------- Cadena del café: cereza -> pergamino -> verde -> tostado ----------
    Factores aproximados de Café Pandora. Si con el tiempo ves que tu finca
@@ -743,6 +745,24 @@ function ultimaVentaDeCliente(nombre) {
     .sort((a, b) => b.ts - a.ts)[0] || null;
 }
 
+// Busca, entre TODAS las compras de café de ese cliente (no solo la venta
+// más reciente, que puede haber sido solo maquila), la última línea de café
+// que pidió — para sugerir sola su molienda y tostión habituales.
+function ultimaPreferenciaCafe(nombre) {
+  const clave = normalizar(nombre);
+  if (!clave) return null;
+  const candidatos = [];
+  state.ventas.filter(v => normalizar(v.cliente) === clave).forEach(v => {
+    if (v.items && v.items.length && v.items[0] && v.items[0].tipo) {
+      v.items.filter(it => it.tipo === 'cafe').forEach(it => candidatos.push({ ...it, ts: v.ts }));
+    } else if (v.lote) {
+      candidatos.push({ lote: v.lote, molienda: null, tueste: null, ts: v.ts });
+    }
+  });
+  candidatos.sort((a, b) => b.ts - a.ts);
+  return candidatos[0] || null;
+}
+
 // Devuelve el nombre tal como quedó guardado la primera vez, para que
 // "juan perez", "Juan Perez" y "JUAN PÉREZ" no se conviertan en 3 clientes.
 function nombreCanonico(nombre) {
@@ -753,7 +773,7 @@ function nombreCanonico(nombre) {
 }
 
 // Se dispara al salir del campo de cliente: normaliza el nombre y precarga
-// el método de pago y el tipo de cliente que usó la última vez.
+// el método de pago, el tipo de cliente, y su molienda/tostión habituales.
 function autocompletarDesdeCliente() {
   const input = document.getElementById('v-cliente');
   if (!input || !input.value.trim()) return;
@@ -761,22 +781,36 @@ function autocompletarDesdeCliente() {
   if (canonico !== input.value) input.value = canonico;
 
   const ultima = ultimaVentaDeCliente(canonico);
-  if (!ultima) return;
+  const prefCafe = ultimaPreferenciaCafe(canonico);
+  if (!ultima && !prefCafe) return;
 
-  const selMetodo = document.getElementById('v-metodo');
-  if (selMetodo && ultima.metodo && METODOS_PAGO.includes(ultima.metodo)) selMetodo.value = ultima.metodo;
+  if (ultima) {
+    const selMetodo = document.getElementById('v-metodo');
+    if (selMetodo && ultima.metodo && METODOS_PAGO.includes(ultima.metodo)) selMetodo.value = ultima.metodo;
 
-  const selTipo = document.getElementById('v-tipoCliente');
-  if (selTipo && ultima.tipoCliente && TIPOS_CLIENTE.includes(ultima.tipoCliente)) {
-    const cambio = selTipo.value !== ultima.tipoCliente;
-    selTipo.value = ultima.tipoCliente;
-    if (cambio) recalcularLinea();
+    const selTipo = document.getElementById('v-tipoCliente');
+    if (selTipo && ultima.tipoCliente && TIPOS_CLIENTE.includes(ultima.tipoCliente)) {
+      const cambio = selTipo.value !== ultima.tipoCliente;
+      selTipo.value = ultima.tipoCliente;
+      if (cambio) recalcularLinea();
+    }
+  }
+
+  const detallesHint = [];
+  if (ultima) detallesHint.push('pagó con ' + (ultima.metodo || 'método sin registrar'));
+  if (prefCafe) {
+    const selMolienda = document.getElementById('ln-molienda');
+    if (selMolienda && prefCafe.molienda && MOLIENDAS.includes(prefCafe.molienda)) selMolienda.value = prefCafe.molienda;
+    const selTueste = document.getElementById('ln-tueste');
+    if (selTueste && prefCafe.tueste && TUESTES_LAVADO.includes(prefCafe.tueste)) selTueste.value = prefCafe.tueste;
+    const gustos = [prefCafe.molienda, prefCafe.tueste ? 'Tostión ' + prefCafe.tueste : null].filter(Boolean).join(', ');
+    if (gustos) detallesHint.push('suele pedir ' + gustos);
   }
 
   const aviso = document.getElementById('clienteHint');
-  if (aviso) {
+  if (aviso && detallesHint.length) {
     aviso.style.display = 'block';
-    aviso.textContent = `Cliente conocido · última vez pagó con ${ultima.metodo || 'método sin registrar'}`;
+    aviso.textContent = 'Cliente conocido · ' + detallesHint.join(' · ');
   }
 }
 let resumenSubTab = 'pagadas';
@@ -928,11 +962,11 @@ function renderTodo() {
 }
 
 function renderAlertaStock() {
-  const bajos = state.inventario.filter(i => Number(i.stockLb) < 5);
+  const bajos = state.inventario.filter(i => i.lote === 'Lavado' && Number(i.stockLb) < 5);
   const el = document.getElementById('stockAlert');
   if (bajos.length) {
     el.style.display = 'block';
-    el.textContent = '⚠️ Stock bajo (menos de 5 kg): ' + bajos.map(b => b.lote + ' (' + Number(b.stockLb).toFixed(2) + ' kg)').join(' · ');
+    el.textContent = '⚠️ Stock bajo de Lavado (menos de 5 kg): ' + bajos.map(b => Number(b.stockLb).toFixed(2) + ' kg').join(' · ');
   } else {
     el.style.display = 'none';
   }
@@ -1082,13 +1116,21 @@ function renderVentas() {
 
       <div class="row">
         <div class="field"><label>Lote</label>
-          <select id="ln-lote" onchange="recalcularLinea()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select>
+          <select id="ln-lote" onchange="onLnLoteChange()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Presentación</label>
           <select id="ln-presentacion" onchange="recalcularLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Cantidad</label>
           <input id="ln-cantidad-cafe" type="number" value="1" min="1" onchange="recalcularLinea()">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Molienda</label>
+          <select id="ln-molienda">${MOLIENDAS.map(m => `<option>${m}</option>`).join('')}</select>
+        </div>
+        <div class="field" id="ln-campo-tueste"><label>Tostión</label>
+          <select id="ln-tueste">${TUESTES_LAVADO.map(t => `<option>${t}</option>`).join('')}</select>
         </div>
       </div>
       <div class="row">
@@ -1131,12 +1173,18 @@ function renderVentas() {
       ${paginar(delMes.slice().sort((a,b)=>b.ts-a.ts), 'ventas', v => filaVenta(v, false), 'Sin ventas registradas este mes.')}
     </div>
   `;
-  recalcularLinea();
+  onLnLoteChange();
   pintarCarrito();
   if (orden.cliente) autocompletarDesdeCliente();
 }
 
 /* ---------- Línea nueva (café o un servicio de maquila) ---------- */
+function onLnLoteChange() {
+  const esLavado = document.getElementById('ln-lote').value === 'Lavado';
+  document.getElementById('ln-campo-tueste').style.display = esLavado ? 'flex' : 'none';
+  recalcularLinea();
+}
+
 function recalcularLinea() {
   const lote = document.getElementById('ln-lote').value;
   const presentacion = document.getElementById('ln-presentacion').value;
@@ -1146,12 +1194,15 @@ function recalcularLinea() {
 }
 
 function agregarLineaAlCarrito() {
+  const lote = document.getElementById('ln-lote').value;
   const item = {
     tipo: 'cafe',
-    lote: document.getElementById('ln-lote').value,
+    lote,
     presentacion: document.getElementById('ln-presentacion').value,
     cantidad: Number(document.getElementById('ln-cantidad-cafe').value) || 1,
     valor: Number(document.getElementById('ln-valor').value) || 0,
+    molienda: document.getElementById('ln-molienda').value,
+    tueste: lote === 'Lavado' ? document.getElementById('ln-tueste').value : null,
   };
   if (!item.cantidad) return toast('Pon una cantidad mayor a cero.', 'error');
   carritoActual.push(item);
@@ -1198,11 +1249,16 @@ function lotesDeVenta(v) {
   return [];
 }
 
+function detalleItemCafe(it) {
+  const extras = [it.molienda, it.tueste ? 'Tostión ' + it.tueste : null].filter(Boolean).join(', ');
+  return `${it.lote} ${it.presentacion} x${it.cantidad}` + (extras ? ` (${extras})` : '');
+}
+
 function detalleVenta(v) {
   if (v.items && v.items.length && v.items[0] && v.items[0].tipo) {
     return v.items.map(it => it.tipo === 'maquila'
       ? (it.presentacion ? `${it.servicio} ${it.cantidad} ${it.presentacion}` : `${it.servicio} ${it.cantidad}kg`)
-      : `${it.lote} ${it.presentacion} x${it.cantidad}`
+      : detalleItemCafe(it)
     ).join(' · ');
   }
   if (v.tipoVenta === 'maquila') {
@@ -1443,9 +1499,13 @@ function abrirEdicionVenta(id) {
 
     <h3 class="section-title" style="margin-top:4px">Agregar línea</h3>
     <div class="row">
-      <div class="field"><label>Lote</label><select id="em-ln-lote" onchange="recalcularEmLinea()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Lote</label><select id="em-ln-lote" onchange="onEmLnLoteChange()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
       <div class="field"><label>Presentación</label><select id="em-ln-presentacion" onchange="recalcularEmLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select></div>
       <div class="field"><label>Cantidad</label><input id="em-ln-cantidad-cafe" type="number" value="1" min="1" onchange="recalcularEmLinea()"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Molienda</label><select id="em-ln-molienda">${MOLIENDAS.map(m => `<option>${m}</option>`).join('')}</select></div>
+      <div class="field" id="em-ln-campo-tueste"><label>Tostión</label><select id="em-ln-tueste">${TUESTES_LAVADO.map(t => `<option>${t}</option>`).join('')}</select></div>
     </div>
     <div class="row">
       <div class="field"><label>Valor de esta línea</label><input id="em-ln-valor" type="number" placeholder="0" min="0"></div>
@@ -1461,8 +1521,14 @@ function abrirEdicionVenta(id) {
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
     </div>
   `);
-  recalcularEmLinea();
+  onEmLnLoteChange();
   pintarEdicionCarrito();
+}
+
+function onEmLnLoteChange() {
+  const esLavado = document.getElementById('em-ln-lote').value === 'Lavado';
+  document.getElementById('em-ln-campo-tueste').style.display = esLavado ? 'flex' : 'none';
+  recalcularEmLinea();
 }
 
 function recalcularEmLinea() {
@@ -1473,12 +1539,15 @@ function recalcularEmLinea() {
 }
 
 function agregarLineaAEdicion() {
+  const lote = document.getElementById('em-ln-lote').value;
   const item = {
     tipo: 'cafe',
-    lote: document.getElementById('em-ln-lote').value,
+    lote,
     presentacion: document.getElementById('em-ln-presentacion').value,
     cantidad: Number(document.getElementById('em-ln-cantidad-cafe').value) || 1,
     valor: Number(document.getElementById('em-ln-valor').value) || 0,
+    molienda: document.getElementById('em-ln-molienda').value,
+    tueste: lote === 'Lavado' ? document.getElementById('em-ln-tueste').value : null,
   };
   if (!item.cantidad) return toast('Pon una cantidad mayor a cero.', 'error');
   editCarrito.push(item);
