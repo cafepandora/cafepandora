@@ -1505,6 +1505,7 @@ const ICONOS_LOTE = { Lavado: '💧', Honey: '🍯', Natural: '🌿', Exotico: '
 ================================================================ */
 let carritoMaquila = [];
 let clienteMaquilaActual = '';
+const SERVICIO_TRANSPORTE = 'Transporte';
 
 function renderMaquila() {
   const mes = document.getElementById('filtroMes').value || hoyMes();
@@ -1512,7 +1513,7 @@ function renderMaquila() {
 
   const gruposMaquila = {};
   state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
-  const servicios = Object.keys(gruposMaquila);
+  const servicios = [...Object.keys(gruposMaquila), SERVICIO_TRANSPORTE];
 
   const delMes = state.ordenesMaquila.filter(o => mesDe(o.ts) === mes &&
     (coincide(o.cliente, q) || coincide(detalleOrdenMaquila(o), q)));
@@ -1552,6 +1553,11 @@ function renderMaquila() {
           <input id="mq-cantidad" type="number" value="1" min="1" onchange="recalcularLineaMaquila()">
         </div>
       </div>
+      <div class="row" id="mq-campos-transporte" style="display:none">
+        <div class="field"><label>Trayecto / distancia (opcional)</label>
+          <input id="mq-nota-transporte" placeholder="Ej. Ida y vuelta a la finca en Combia">
+        </div>
+      </div>
       <div class="row">
         <div class="field"><label>Valor de esta línea</label>
           <input id="mq-valor" type="number" placeholder="0" min="0">
@@ -1584,7 +1590,10 @@ function renderMaquila() {
 }
 
 function detalleOrdenMaquila(o) {
-  return (o.items || []).map(it => it.presentacion ? `${it.servicio} ${it.cantidad} ${it.presentacion}` : `${it.servicio} ${it.cantidad}kg`).join(' · ');
+  return (o.items || []).map(it => {
+    if (it.servicio === SERVICIO_TRANSPORTE) return 'Transporte' + (it.nota ? ' (' + it.nota + ')' : '');
+    return it.presentacion ? `${it.servicio} ${it.cantidad} ${it.presentacion}` : `${it.servicio} ${it.cantidad}kg`;
+  }).join(' · ');
 }
 
 function filaOrdenMaquila(o) {
@@ -1629,14 +1638,18 @@ function elegirClienteMaquila(nombre) {
 /* ---------- Línea de servicio ---------- */
 function onMaquilaServicioChange() {
   const servicio = document.getElementById('mq-servicio').value;
-  const filas = gruposDeServicio(servicio);
-  const esKg = filas.length === 1 && !filas[0].presentacion;
+  const esTransporte = servicio === SERVICIO_TRANSPORTE;
+  const filas = esTransporte ? [] : gruposDeServicio(servicio);
+  const esKg = !esTransporte && filas.length === 1 && !filas[0].presentacion;
   document.getElementById('mq-campos-kg').style.display = esKg ? 'flex' : 'none';
-  document.getElementById('mq-campos-pres').style.display = (!esKg && filas.length) ? 'flex' : 'none';
-  recalcularLineaMaquila();
+  document.getElementById('mq-campos-pres').style.display = (!esTransporte && !esKg && filas.length) ? 'flex' : 'none';
+  document.getElementById('mq-campos-transporte').style.display = esTransporte ? 'flex' : 'none';
+  if (esTransporte) document.getElementById('mq-valor').value = ''; // el transporte siempre se escribe a mano
+  else recalcularLineaMaquila();
 }
 function recalcularLineaMaquila() {
   const servicio = document.getElementById('mq-servicio').value;
+  if (servicio === SERVICIO_TRANSPORTE) return; // valor manual, no se recalcula solo
   const filas = gruposDeServicio(servicio);
   if (!filas.length) return;
   const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -1655,13 +1668,21 @@ function recalcularLineaMaquila() {
 function agregarLineaMaquila() {
   const servicio = document.getElementById('mq-servicio').value;
   if (!servicio) return toast('Configura al menos una tarifa de maquila primero.', 'error');
-  const filas = gruposDeServicio(servicio);
-  const esKg = filas.length === 1 && !filas[0].presentacion;
-  const valor = Number(document.getElementById('mq-valor').value) || 0;
-  const item = esKg
-    ? { servicio, presentacion: null, cantidad: Number(document.getElementById('mq-kg').value) || 0, valor }
-    : { servicio, presentacion: document.getElementById('mq-presentacion').value, cantidad: Number(document.getElementById('mq-cantidad').value) || 1, valor };
-  if (!item.cantidad) return toast('Pon una cantidad mayor a cero.', 'error');
+  const valor = Math.max(0, Number(document.getElementById('mq-valor').value) || 0);
+
+  let item;
+  if (servicio === SERVICIO_TRANSPORTE) {
+    if (!valor) return toast('Escribe el valor del transporte.', 'error');
+    const nota = document.getElementById('mq-nota-transporte').value.trim();
+    item = { servicio: SERVICIO_TRANSPORTE, presentacion: null, cantidad: 1, valor, nota: nota || null };
+  } else {
+    const filas = gruposDeServicio(servicio);
+    const esKg = filas.length === 1 && !filas[0].presentacion;
+    item = esKg
+      ? { servicio, presentacion: null, cantidad: Number(document.getElementById('mq-kg').value) || 0, valor }
+      : { servicio, presentacion: document.getElementById('mq-presentacion').value, cantidad: Number(document.getElementById('mq-cantidad').value) || 1, valor };
+    if (!item.cantidad) return toast('Pon una cantidad mayor a cero.', 'error');
+  }
   carritoMaquila.push(item);
   pintarCarritoMaquila();
 }
@@ -1669,13 +1690,17 @@ function quitarDeCarritoMaquila(i) {
   carritoMaquila.splice(i, 1);
   pintarCarritoMaquila();
 }
+function tituloItemMaquila(it) {
+  if (it.servicio === SERVICIO_TRANSPORTE) return 'Transporte' + (it.nota ? ' · ' + escapeHtml(it.nota) : '');
+  return it.presentacion ? `${escapeHtml(it.servicio)} · ${it.cantidad} ${escapeHtml(it.presentacion)}` : `${escapeHtml(it.servicio)} · ${it.cantidad}kg`;
+}
 function pintarCarritoMaquila() {
   const lista = document.getElementById('mq-carrito-lista');
   if (!lista) return;
   lista.innerHTML = carritoMaquila.length
     ? carritoMaquila.map((it, i) => `
       <div class="ledger-row">
-        <div class="main"><div class="title">${it.presentacion ? `${escapeHtml(it.servicio)} · ${it.cantidad} ${escapeHtml(it.presentacion)}` : `${escapeHtml(it.servicio)} · ${it.cantidad}kg`}</div></div>
+        <div class="main"><div class="title">${tituloItemMaquila(it)}</div></div>
         <div class="amount pos">${fmt(it.valor)}</div>
         <div class="acciones"><button onclick="quitarDeCarritoMaquila(${i})" title="Quitar">✕</button></div>
       </div>`).join('')
@@ -1734,7 +1759,7 @@ function abrirEdicionMaquila(id) {
 
   const gruposMaquila = {};
   state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
-  const servicios = Object.keys(gruposMaquila);
+  const servicios = [...Object.keys(gruposMaquila), SERVICIO_TRANSPORTE];
 
   abrirModal(`
     <h3>Orden de maquila — ${escapeHtml(o.cliente)}</h3>
@@ -1755,6 +1780,9 @@ function abrirEdicionMaquila(id) {
       <div class="field"><label>Presentación</label><select id="emq-presentacion" onchange="recalcularEmqLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select></div>
       <div class="field"><label>Cantidad</label><input id="emq-cantidad" type="number" value="1" min="1" onchange="recalcularEmqLinea()"></div>
     </div>
+    <div class="row" id="emq-campos-transporte" style="display:none">
+      <div class="field"><label>Trayecto / distancia (opcional)</label><input id="emq-nota-transporte" placeholder="Ej. Ida y vuelta a la finca en Combia"></div>
+    </div>
     <div class="row">
       <div class="field"><label>Valor de esta línea</label><input id="emq-valor" type="number" placeholder="0" min="0"></div>
     </div>
@@ -1774,14 +1802,19 @@ function abrirEdicionMaquila(id) {
 }
 
 function onEmqServicioChange() {
-  const filas = gruposDeServicio(document.getElementById('emq-servicio').value);
-  const esKg = filas.length === 1 && !filas[0].presentacion;
+  const servicio = document.getElementById('emq-servicio').value;
+  const esTransporte = servicio === SERVICIO_TRANSPORTE;
+  const filas = esTransporte ? [] : gruposDeServicio(servicio);
+  const esKg = !esTransporte && filas.length === 1 && !filas[0].presentacion;
   document.getElementById('emq-campos-kg').style.display = esKg ? 'flex' : 'none';
-  document.getElementById('emq-campos-pres').style.display = (!esKg && filas.length) ? 'flex' : 'none';
-  recalcularEmqLinea();
+  document.getElementById('emq-campos-pres').style.display = (!esTransporte && !esKg && filas.length) ? 'flex' : 'none';
+  document.getElementById('emq-campos-transporte').style.display = esTransporte ? 'flex' : 'none';
+  if (esTransporte) document.getElementById('emq-valor').value = '';
+  else recalcularEmqLinea();
 }
 function recalcularEmqLinea() {
   const servicio = document.getElementById('emq-servicio').value;
+  if (servicio === SERVICIO_TRANSPORTE) return;
   const filas = gruposDeServicio(servicio);
   if (!filas.length) return;
   const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -1798,13 +1831,21 @@ function recalcularEmqLinea() {
 }
 function agregarLineaEmq() {
   const servicio = document.getElementById('emq-servicio').value;
-  const filas = gruposDeServicio(servicio);
-  const esKg = filas.length === 1 && !filas[0].presentacion;
-  const valor = Number(document.getElementById('emq-valor').value) || 0;
-  const item = esKg
-    ? { servicio, presentacion: null, cantidad: Number(document.getElementById('emq-kg').value) || 0, valor }
-    : { servicio, presentacion: document.getElementById('emq-presentacion').value, cantidad: Number(document.getElementById('emq-cantidad').value) || 1, valor };
-  if (!item.cantidad) return toast('Pon una cantidad mayor a cero.', 'error');
+  const valor = Math.max(0, Number(document.getElementById('emq-valor').value) || 0);
+
+  let item;
+  if (servicio === SERVICIO_TRANSPORTE) {
+    if (!valor) return toast('Escribe el valor del transporte.', 'error');
+    const nota = document.getElementById('emq-nota-transporte').value.trim();
+    item = { servicio: SERVICIO_TRANSPORTE, presentacion: null, cantidad: 1, valor, nota: nota || null };
+  } else {
+    const filas = gruposDeServicio(servicio);
+    const esKg = filas.length === 1 && !filas[0].presentacion;
+    item = esKg
+      ? { servicio, presentacion: null, cantidad: Number(document.getElementById('emq-kg').value) || 0, valor }
+      : { servicio, presentacion: document.getElementById('emq-presentacion').value, cantidad: Number(document.getElementById('emq-cantidad').value) || 1, valor };
+    if (!item.cantidad) return toast('Pon una cantidad mayor a cero.', 'error');
+  }
   editCarritoMaquila.push(item);
   pintarEmqCarrito();
 }
@@ -1818,7 +1859,7 @@ function pintarEmqCarrito() {
   lista.innerHTML = editCarritoMaquila.length
     ? editCarritoMaquila.map((it, i) => `
       <div class="ledger-row">
-        <div class="main"><div class="title">${it.presentacion ? `${escapeHtml(it.servicio)} · ${it.cantidad} ${escapeHtml(it.presentacion)}` : `${escapeHtml(it.servicio)} · ${it.cantidad}kg`}</div></div>
+        <div class="main"><div class="title">${tituloItemMaquila(it)}</div></div>
         <div class="amount pos">${fmt(it.valor)}</div>
         <div class="acciones"><button onclick="quitarDeEmqCarrito(${i})" title="Quitar">✕</button></div>
       </div>`).join('')
