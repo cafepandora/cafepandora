@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
-const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, metodo, ts';
+const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, guiaEnvio:guia_envio, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
 
 async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre: unknown, tipoCliente: unknown) {
@@ -36,8 +36,10 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   if (body.items !== undefined) updates.items = body.items;
   if (body.valor !== undefined) updates.valor = Number(body.valor) || 0;
   if (body.estado !== undefined) updates.estado = body.estado;
+  if (body.estadoEnvio !== undefined) updates.estado_envio = body.estadoEnvio;
   if (body.metodo !== undefined) updates.metodo = body.metodo;
   if (body.ts !== undefined) updates.ts = Number(body.ts);
+  if (body.guiaEnvio !== undefined) updates.guia_envio = body.guiaEnvio;
 
   if (Object.keys(updates).length === 0) return new Response('Sin cambios', { status: 400 });
 
