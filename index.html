@@ -23,6 +23,8 @@
     --verde-bg: #E7EDE3;
     --terracota: #AD4B31;
     --terracota-bg: #F6E3DA;
+    --azul: #3E6B8A;
+    --azul-bg: #E2ECF2;
     --linea: #E3D9CC;
     --blanco: #FFFFFF;
   }
@@ -109,6 +111,11 @@
     font-weight: 600; margin-bottom: 14px; display: none; align-items: center; justify-content: space-between; gap: 8px;
   }
   #exportReminder button { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 11.5px; background: var(--cafe); color: #fff; border: none; border-radius: 20px; padding: 6px 12px; cursor: pointer; flex: 0 0 auto; }
+  #envioAlert {
+    display: none; background: var(--azul-bg); border: 1px solid var(--azul);
+    color: var(--azul); border-radius: 8px; padding: 10px 12px; font-size: 12.5px;
+    font-weight: 600; margin-bottom: 14px; cursor: pointer;
+  }
 
   /* ---------- Controles globales ---------- */
   .controles-globales { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -214,6 +221,9 @@
   .tag { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 5px 12px; border-radius: 20px; cursor: pointer; border: none; }
   .tag.pendiente { background: #F2E2C4; color: #8A6A1F; }
   .tag.pagado { background: var(--verde-bg); color: var(--verde); }
+  .tag.envio-pendiente { background: var(--azul-bg); color: var(--azul); }
+  .tag.envio-enviado { background: var(--verde-bg); color: var(--verde); }
+  .ledger-row.envio-pendiente:not(.deuda-anterior) { background: var(--azul-bg); border-radius: 6px; padding: 11px 8px; margin-bottom: 4px; border-bottom: none; }
 
   .empty { text-align: center; color: var(--cafe-soft); font-size: 15px; padding: 32px 12px; }
 
@@ -434,6 +444,7 @@
 
   <div id="stockAlert"></div>
   <div id="exportReminder"></div>
+  <div id="envioAlert"></div>
 
   <div class="controles-globales">
     <input type="month" id="filtroMes">
@@ -903,6 +914,7 @@ document.getElementById('filtroBusqueda').addEventListener('input', renderTodo);
 ================================================================ */
 function renderTodo() {
   renderAlertaStock();
+  renderAlertaEnvios();
   renderRecordatorioExport();
   renderCampanaPedidosWeb();
   renderVentas();
@@ -921,6 +933,19 @@ function renderAlertaStock() {
   if (bajos.length) {
     el.style.display = 'block';
     el.textContent = '⚠️ Stock bajo (menos de 5 kg): ' + bajos.map(b => b.lote + ' (' + Number(b.stockLb).toFixed(2) + ' kg)').join(' · ');
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function renderAlertaEnvios() {
+  const el = document.getElementById('envioAlert');
+  if (!el) return;
+  const pendientes = state.ventas.filter(v => v.estadoEnvio !== 'Enviado');
+  if (pendientes.length) {
+    el.style.display = 'block';
+    el.onclick = () => { document.querySelector('nav.tabs button[data-tab="ventas"]').click(); };
+    el.textContent = `📦 ${pendientes.length} venta${pendientes.length === 1 ? '' : 's'} pendiente${pendientes.length === 1 ? '' : 's'} de envío`;
   } else {
     el.style.display = 'none';
   }
@@ -1189,12 +1214,14 @@ function detalleVenta(v) {
 }
 
 function filaVenta(v, esDeuda) {
+  const envioPendiente = v.estadoEnvio !== 'Enviado';
   return `
-    <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''}">
+    <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''} ${envioPendiente ? 'envio-pendiente' : ''}">
       <div class="main">
         <div class="title">${escapeHtml(v.cliente || 'Venta directa')}</div>
         <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(v.usuario || '')} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
         <div class="details">${escapeHtml(detalleVenta(v))}</div>
+        <div style="margin-top:5px"><button class="tag ${envioPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEnvio(${v.id})">${envioPendiente ? '📦 Pendiente de envío' : '✅ Enviado'}</button></div>
       </div>
       <button class="tag ${v.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoVenta(${v.id})">${v.estado}</button>
       <div class="amount pos">${fmt(v.valor)}</div>
@@ -1204,6 +1231,13 @@ function filaVenta(v, esDeuda) {
         <button onclick="eliminarVenta(${v.id})" title="Eliminar">✕</button>
       </div>
     </div>`;
+}
+
+async function toggleEstadoEnvio(id) {
+  const v = state.ventas.find(x => x.id === id); if (!v) return;
+  const nuevo = v.estadoEnvio === 'Enviado' ? 'Pendiente' : 'Enviado';
+  v.estadoEnvio = nuevo; guardarCacheLocal('ventas'); renderTodo();
+  await fetch('/api/ventas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estadoEnvio: nuevo }) });
 }
 
 async function registrarVenta(btn) {
@@ -2970,10 +3004,10 @@ function exportarExcel() {
   /* ---------- 2) Ventas ---------- */
   const hojaVentas = {
     name: 'Ventas',
-    cols: [22, 24, 34, 16, 14, 20, 14],
+    cols: [22, 24, 34, 16, 14, 16, 20, 14],
     rows: [
-      [HEAD('Fecha'), HEAD('Cliente'), HEAD('Detalle'), HEAD('Valor'), HEAD('Estado'), HEAD('Método'), HEAD('Anotado por')],
-      ...state.ventas.slice().sort((a,b)=>b.ts-a.ts).map(v => [FECHA(v.ts), v.cliente || '', detalleVenta(v), MONEY(v.valor), v.estado, v.metodo || '', v.usuario || '']),
+      [HEAD('Fecha'), HEAD('Cliente'), HEAD('Detalle'), HEAD('Valor'), HEAD('Estado pago'), HEAD('Estado envío'), HEAD('Método'), HEAD('Anotado por')],
+      ...state.ventas.slice().sort((a,b)=>b.ts-a.ts).map(v => [FECHA(v.ts), v.cliente || '', detalleVenta(v), MONEY(v.valor), v.estado, v.estadoEnvio === 'Enviado' ? 'Enviado' : 'Pendiente', v.metodo || '', v.usuario || '']),
       [],
       [BOLD('TOTAL'), null, null, MONEY_B(state.ventas.reduce((s,v)=>s+(Number(v.valor)||0),0))],
     ],
