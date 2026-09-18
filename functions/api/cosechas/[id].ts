@@ -1,0 +1,26 @@
+import { getSupabase, Env } from '../../_lib/supabase.js';
+
+const SELECT = 'id, fecha, kilosCereza:kilos_cereza, proceso, kilosPergaminoReal:kilos_pergamino_real, notas, usuario, ts';
+
+export const onRequestPatch: PagesFunction<Env> = async (context) => {
+  const supabase = getSupabase(context.env);
+  const body: any = await context.request.json();
+  const updates: Record<string, unknown> = {};
+  if (body.fecha !== undefined) updates.fecha = Number(body.fecha);
+  if (body.kilosCereza !== undefined) updates.kilos_cereza = Math.max(0, Number(body.kilosCereza) || 0);
+  if (body.proceso !== undefined) updates.proceso = body.proceso;
+  if (body.kilosPergaminoReal !== undefined) updates.kilos_pergamino_real = body.kilosPergaminoReal === null ? null : Math.max(0, Number(body.kilosPergaminoReal) || 0);
+  if (body.notas !== undefined) updates.notas = body.notas;
+  if (!Object.keys(updates).length) return new Response('Sin cambios', { status: 400 });
+
+  const { data, error } = await supabase.from('cosechas').update(updates).eq('id', context.params.id as string).select(SELECT).single();
+  if (error) return new Response(error.message, { status: 500 });
+  return Response.json(data);
+};
+
+export const onRequestDelete: PagesFunction<Env> = async (context) => {
+  const supabase = getSupabase(context.env);
+  const { error } = await supabase.from('cosechas').delete().eq('id', context.params.id as string);
+  if (error) return new Response(error.message, { status: 500 });
+  return new Response(null, { status: 204 });
+};
