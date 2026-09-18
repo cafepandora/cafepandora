@@ -953,8 +953,8 @@ function precioSugerido(lote, presentacion, tipoCliente) {
    código: ahora las funciones del servidor exigen una sesión válida,
    así que ya no basta con conocer la URL para tocar los datos.
 ================================================================ */
-const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co';     // <-- PON AQUÍ TU URL DE SUPABASE
-const SUPABASE_ANON_KEY = 'PEGA-AQUI-TU-ANON-KEY';           // <-- PON AQUÍ TU "anon public" KEY
+const SUPABASE_URL = 'https://qtnffrfvwqrigzvoivfj.supabase.co';     // <-- PON AQUÍ TU URL DE SUPABASE
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0bmZmcmZ2d3FyaWd6dm9pdmZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2NjczMzcsImV4cCI6MjEwNTI0MzMzN30.1JLH4hI1AMFgb1NUb8hBSJw9T_TPsb27SsiO78ueWA0';           // <-- PON AQUÍ TU "anon public" KEY
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let sesionActual = null;
