@@ -34,6 +34,11 @@
   .pres-fila:first-of-type { border-top: none; }
   .pres-nombre { font-size: 14.5px; font-weight: 600; }
   .pres-precio { font-size: 12.5px; color: var(--cafe-soft); }
+  .molienda-select {
+    font-family: 'Outfit', sans-serif; font-size: 11.5px; font-weight: 600; color: var(--cafe);
+    background: var(--crema-alt); border: 1px solid var(--linea); border-radius: 8px;
+    padding: 3px 6px; margin-top: 4px;
+  }
   .stepper { display: flex; align-items: center; gap: 8px; }
   .stepper button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--linea); background: var(--crema-alt); font-size: 16px; font-weight: 700; cursor: pointer; color: var(--cafe); }
   .stepper span { min-width: 18px; text-align: center; font-weight: 700; }
@@ -111,9 +116,12 @@ const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 const ICONOS_LOTE = { Lavado: '💧', Honey: '🍯', Natural: '🌿', Exotico: '✨' };
 const ORDEN_PRES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
 
+const MOLIENDAS = ['Molido', 'En grano'];
 let precios = [];
-let carrito = {}; // clave "Lote|Presentacion" -> {lote, presentacion, precio, cantidad}
+let carrito = {}; // clave "Lote|Presentacion|Molienda" -> {lote, presentacion, molienda, precio, cantidad}
+let moliendaSeleccionada = {}; // clave "Lote|Presentacion" -> 'Molido' | 'En grano' (lo que se ve elegido ahora mismo)
 const fmt = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO');
+const idSeguro = s => s.replace(/[^a-zA-Z0-9]/g, '_');
 
 async function cargarCatalogo() {
   try {
@@ -139,17 +147,23 @@ function pintarCatalogo() {
       <div class="card">
         <div class="lote-titulo"><div class="icono">${ICONOS_LOTE[lote]}</div><h3>${lote}</h3></div>
         ${filas.map(p => {
-          const clave = lote + '|' + p;
+          const claveBase = lote + '|' + p;
+          const idSafe = idSeguro(claveBase);
+          const molienda = moliendaSeleccionada[claveBase] || 'Molido';
+          const clave = claveBase + '|' + molienda;
           const cant = carrito[clave] ? carrito[clave].cantidad : 0;
           return `
           <div class="pres-fila">
             <div>
               <div class="pres-nombre">${p}</div>
               <div class="pres-precio">${fmt(precioDe(lote, p))}</div>
+              <select class="molienda-select" onchange="cambiarMolienda('${lote}','${p}', this.value)">
+                ${MOLIENDAS.map(m => `<option value="${m}" ${m === molienda ? 'selected' : ''}>${m}</option>`).join('')}
+              </select>
             </div>
             <div class="stepper">
               <button onclick="cambiarCantidad('${lote}','${p}',-1)">−</button>
-              <span id="cant-${clave.replace(/[^a-zA-Z0-9]/g,'_')}">${cant}</span>
+              <span id="cant-${idSafe}">${cant}</span>
               <button onclick="cambiarCantidad('${lote}','${p}',1)">+</button>
             </div>
           </div>`;
@@ -158,13 +172,27 @@ function pintarCatalogo() {
   }).join('') || '<div class="card">No hay productos disponibles ahora mismo. Escríbenos directo por WhatsApp.</div>';
 }
 
+// Si eliges "En grano" para una Libra de Lavado y luego "Molido" para otra
+// Libra de Lavado, quedan como DOS líneas distintas en el carrito — el
+// selector solo decide a cuál de las dos le suman los botones +/− ahora mismo.
+function cambiarMolienda(lote, presentacion, valor) {
+  const claveBase = lote + '|' + presentacion;
+  moliendaSeleccionada[claveBase] = valor;
+  const clave = claveBase + '|' + valor;
+  const cant = carrito[clave] ? carrito[clave].cantidad : 0;
+  const el = document.getElementById('cant-' + idSeguro(claveBase));
+  if (el) el.textContent = cant;
+}
+
 function cambiarCantidad(lote, presentacion, delta) {
-  const clave = lote + '|' + presentacion;
-  const actual = carrito[clave] || { lote, presentacion, precio: precioDe(lote, presentacion), cantidad: 0 };
+  const claveBase = lote + '|' + presentacion;
+  const molienda = moliendaSeleccionada[claveBase] || 'Molido';
+  const clave = claveBase + '|' + molienda;
+  const actual = carrito[clave] || { lote, presentacion, molienda, precio: precioDe(lote, presentacion), cantidad: 0 };
   actual.cantidad = Math.max(0, actual.cantidad + delta);
   if (actual.cantidad === 0) delete carrito[clave];
   else carrito[clave] = actual;
-  const el = document.getElementById('cant-' + clave.replace(/[^a-zA-Z0-9]/g, '_'));
+  const el = document.getElementById('cant-' + idSeguro(claveBase));
   if (el) el.textContent = actual.cantidad;
   actualizarBarra();
 }
@@ -194,7 +222,7 @@ async function enviarPedido() {
     nombreCliente: nombre,
     telefono,
     notas: notas || null,
-    items: items.map(it => ({ lote: it.lote, presentacion: it.presentacion, cantidad: it.cantidad, valor: it.cantidad * it.precio })),
+    items: items.map(it => ({ lote: it.lote, presentacion: it.presentacion, molienda: it.molienda, cantidad: it.cantidad, valor: it.cantidad * it.precio })),
   };
 
   try {
@@ -213,7 +241,7 @@ function mostrarConfirmacion(nombre, items, total, notas) {
   document.querySelectorAll('.wrap > .card').forEach(c => c.style.display = 'none');
   document.getElementById('barraCarrito').style.display = 'none';
 
-  const detalle = items.map(it => `• ${it.cantidad} ${it.presentacion} de ${it.lote}`).join('\n');
+  const detalle = items.map(it => `• ${it.cantidad} ${it.presentacion} de ${it.lote} (${it.molienda})`).join('\n');
   const mensaje = `¡Hola! Soy ${nombre} y quiero hacer este pedido en Café Pandora:\n\n${detalle}\n\nTotal: ${fmt(total)}${notas ? '\n\nNotas: ' + notas : ''}`;
   const linkWa = `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(mensaje)}`;
 
