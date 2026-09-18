@@ -87,6 +87,15 @@
     padding: 6px 10px; border-radius: 6px; cursor: pointer; font-family: 'Outfit', sans-serif;
   }
   .btn-export:hover { background: var(--cafe); color: #fff; }
+  .btn-campana {
+    position: relative; background: var(--blanco); border: 1px solid var(--linea); font-size: 15px;
+    padding: 6px 9px; border-radius: 8px; cursor: pointer;
+  }
+  .campana-badge {
+    position: absolute; top: -6px; right: -6px; background: var(--terracota); color: #fff;
+    font-size: 10px; font-weight: 800; min-width: 17px; height: 17px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; padding: 0 4px;
+  }
 
   /* ---------- Alerta de stock ---------- */
   #stockAlert {
@@ -418,6 +427,7 @@
     </div>
     <div class="top-actions" style="flex-direction:column;align-items:flex-end;gap:4px">
       <span class="sync-indicator" id="syncIndicator"><span class="sync-dot"></span> Sincronizado</span>
+      <button class="btn-campana" onclick="abrirPedidosWeb()" id="btnCampana">🔔<span id="campanaBadge" class="campana-badge" style="display:none">0</span></button>
       <button class="btn-export" onclick="exportarExcel()">Exportar</button>
     </div>
   </header>
@@ -563,6 +573,7 @@ const state = {
   ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [], preciosCafe: [],
   cosechas: [], pergamino: [], tuestes: [],
   ordenesMaquila: [],
+  pedidosWeb: [],
   tabActiva: 'ventas',
 };
 // Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
@@ -820,7 +831,7 @@ if (localStorage.getItem('cp_unlocked') === '1') {
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -838,7 +849,7 @@ async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om] = await Promise.all([
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw] = await Promise.all([
       fetch('/api/ventas').then(r => r.json()),
       fetch('/api/gastos').then(r => r.json()),
       fetch('/api/clientes').then(r => r.json()),
@@ -850,10 +861,11 @@ async function sincronizar() {
       fetch('/api/pergamino').then(r => r.json()),
       fetch('/api/tuestes').then(r => r.json()),
       fetch('/api/ordenes-maquila').then(r => r.json()),
+      fetch('/api/pedidos-web').then(r => r.json()),
     ]);
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
-    state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om;
+    state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -889,6 +901,7 @@ document.getElementById('filtroBusqueda').addEventListener('input', renderTodo);
 function renderTodo() {
   renderAlertaStock();
   renderRecordatorioExport();
+  renderCampanaPedidosWeb();
   renderVentas();
   renderMaquila();
   renderInventario();
@@ -913,6 +926,65 @@ function renderAlertaStock() {
 // No es un respaldo automático real (eso necesita infraestructura aparte) —
 // solo un recordatorio para que no se te pase exportar el Excel de vez en cuando.
 const DIAS_AVISO_EXPORT = 21;
+/* ================================================================
+   PEDIDOS WEB — bandeja de entrada de la página pública de clientes
+================================================================ */
+function renderCampanaPedidosWeb() {
+  const nuevos = state.pedidosWeb.filter(p => p.estado === 'nuevo').length;
+  const badge = document.getElementById('campanaBadge');
+  if (!badge) return;
+  badge.style.display = nuevos ? 'flex' : 'none';
+  badge.textContent = nuevos > 9 ? '9+' : nuevos;
+}
+
+function detallePedidoWeb(p) {
+  return (p.items || []).map(it => `${it.cantidad} ${it.presentacion} de ${it.lote}`).join(' · ');
+}
+
+function abrirPedidosWeb() {
+  const lista = state.pedidosWeb.slice().sort((a, b) => b.ts - a.ts);
+  abrirModal(`
+    <h3>Pedidos desde la página de clientes</h3>
+    <div id="pw-lista">${pintarListaPedidosWeb(lista)}</div>
+    <div class="modal-actions"><button class="sec-btn" style="flex:1" onclick="cerrarModal()">Cerrar</button></div>
+  `);
+}
+
+function pintarListaPedidosWeb(lista) {
+  if (!lista.length) return '<div class="empty">Todavía no ha llegado ningún pedido.</div>';
+  return lista.map(p => `
+    <div class="ledger-row" style="${p.estado === 'nuevo' ? 'background:var(--terracota-bg);border-radius:8px;padding:11px 8px' : ''}">
+      <div class="main">
+        <div class="title">${escapeHtml(p.nombreCliente)} ${p.telefono ? '· ' + escapeHtml(p.telefono) : ''}</div>
+        <div class="meta">${new Date(Number(p.ts)).toLocaleString('es-CO')} · ${p.estado}</div>
+        <div class="details">${escapeHtml(detallePedidoWeb(p))}${p.notas ? ' — ' + escapeHtml(p.notas) : ''}</div>
+      </div>
+      <div class="amount pos">${fmt(p.valorTotal)}</div>
+      <div class="acciones">
+        ${p.estado === 'nuevo' ? `<button onclick="marcarPedidoWeb(${p.id},'visto')" title="Marcar visto">👁️</button>` : ''}
+        <button onclick="marcarPedidoWeb(${p.id},'convertido')" title="Ya lo pasé a Ventas">✅</button>
+        <button onclick="eliminarPedidoWeb(${p.id})" title="Descartar">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+async function marcarPedidoWeb(id, estado) {
+  const p = state.pedidosWeb.find(x => x.id === id); if (p) p.estado = estado;
+  guardarCacheLocal('pedidosWeb'); renderCampanaPedidosWeb();
+  const cont = document.getElementById('pw-lista');
+  if (cont) cont.innerHTML = pintarListaPedidosWeb(state.pedidosWeb.slice().sort((a,b)=>b.ts-a.ts));
+  await fetch('/api/pedidos-web/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado }) });
+}
+
+async function eliminarPedidoWeb(id) {
+  if (!confirm('¿Descartar este pedido de la bandeja?')) return;
+  state.pedidosWeb = state.pedidosWeb.filter(x => x.id !== id);
+  guardarCacheLocal('pedidosWeb'); renderCampanaPedidosWeb();
+  const cont = document.getElementById('pw-lista');
+  if (cont) cont.innerHTML = pintarListaPedidosWeb(state.pedidosWeb.slice().sort((a,b)=>b.ts-a.ts));
+  await fetch('/api/pedidos-web/' + id, { method: 'DELETE' });
+}
+
 function renderRecordatorioExport() {
   const el = document.getElementById('exportReminder');
   const ultimo = Number(localStorage.getItem('cp_ultimo_export') || 0);
