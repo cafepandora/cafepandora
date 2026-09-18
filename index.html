@@ -887,8 +887,9 @@ function autocompletarDesdeCliente() {
   }
 }
 let resumenSubTab = 'pagadas';
+let ventasSubTab = 'porEnviar';
 const POR_PAGINA = 8;
-const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1 };
+const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1, ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1 };
 
 // Corta una lista ya ordenada a la página actual y devuelve el HTML de las
 // filas visibles más los controles de "Anterior / Siguiente".
@@ -1217,7 +1218,10 @@ function renderVentas() {
   const delMes = state.ventas.filter(v => mesDe(v.ts) === mes && (coincide(v.cliente, q) || coincide(v.lote, q) || coincide(v.usuario, q) || coincide(detalleVenta(v), q)));
   const anteriores = state.ventas.filter(v => v.estado === 'Pendiente' && mesDe(v.ts) < mes && (coincide(v.cliente, q) || coincide(v.lote, q)));
 
-
+  const delMesOrdenadas = delMes.slice().sort((a, b) => b.ts - a.ts);
+  const porEnviar = delMesOrdenadas.filter(v => v.estadoEnvio !== 'Enviado');
+  const pagadasDelMes = delMesOrdenadas.filter(v => v.estado === 'Pagado');
+  const porPagarDelMes = delMesOrdenadas.filter(v => v.estado !== 'Pagado');
 
   const orden = ordenes[ordenActiva];
 
@@ -1310,13 +1314,25 @@ function renderVentas() {
     ` : ''}
 
     <h3 class="section-title">Ventas de ${mes}</h3>
+    <div class="subtabs">
+      <button class="${ventasSubTab==='porEnviar'?'active':''}" onclick="cambiarVentasSubTab('porEnviar')">📦 Por enviar (${porEnviar.length})</button>
+      <button class="${ventasSubTab==='pagadas'?'active':''}" onclick="cambiarVentasSubTab('pagadas')">Pagadas (${pagadasDelMes.length})</button>
+      <button class="${ventasSubTab==='porPagar'?'active':''}" onclick="cambiarVentasSubTab('porPagar')">Por pagar (${porPagarDelMes.length})</button>
+    </div>
     <div class="ledger">
-      ${paginar(delMes.slice().sort((a,b)=>b.ts-a.ts), 'ventas', v => filaVenta(v, false), 'Sin ventas registradas este mes.')}
+      ${ventasSubTab === 'porEnviar' ? paginar(porEnviar, 'ventasPorEnviar', v => filaVenta(v, false), 'Nada pendiente de envío este mes.') : ''}
+      ${ventasSubTab === 'pagadas' ? paginar(pagadasDelMes, 'ventasPagadas', v => filaVenta(v, false), 'Sin ventas pagadas este mes.') : ''}
+      ${ventasSubTab === 'porPagar' ? paginar(porPagarDelMes, 'ventasPorPagar', v => filaVenta(v, false), 'Sin ventas por pagar este mes.') : ''}
     </div>
   `;
   onLnLoteChange();
   pintarCarrito();
   if (orden.cliente) autocompletarDesdeCliente();
+}
+
+function cambiarVentasSubTab(tab) {
+  ventasSubTab = tab;
+  renderTodo();
 }
 
 /* ---------- Línea nueva (café o un servicio de maquila) ---------- */
