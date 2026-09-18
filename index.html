@@ -2759,54 +2759,197 @@ function exportarExcel() {
   const MONEY = v => ({ v: Number(v) || 0, s: 'money' });
   const MONEY_B = v => ({ v: Number(v) || 0, s: 'money-b' });
   const BOLD = v => ({ v, s: 'b' });
+  const NUM2 = v => ({ v: Math.round((Number(v) || 0) * 100) / 100, s: 'num2' });
+  const FECHA = ts => ({ v: new Date(Number(ts)), s: 'date' });
+  const PCT = v => (Number(v) * 100).toFixed(1) + '%';
 
+  /* ---------- 1) Resumen mensual: todo el negocio, mes a mes ---------- */
+  const meses = [...new Set([
+    ...state.ventas.map(v => mesDe(v.ts)),
+    ...state.gastos.map(g => mesDe(g.ts)),
+    ...state.finca.map(f => mesDe(f.ts)),
+    ...state.ordenesMaquila.map(o => mesDe(o.ts)),
+  ])].sort();
+
+  const hojaResumen = {
+    name: 'Resumen mensual',
+    cols: [10, 16, 16, 16, 16, 14, 16, 14, 16],
+    rows: [
+      [HEAD('Mes'), HEAD('Ventas café'), HEAD('Maquila'), HEAD('Total facturado'), HEAD('Cobrado'), HEAD('Por cobrar'), HEAD('Gastos'), HEAD('Finca'), HEAD('Balance')],
+      ...meses.map(mm => {
+        const vMes = state.ventas.filter(v => mesDe(v.ts) === mm);
+        const oMes = state.ordenesMaquila.filter(o => mesDe(o.ts) === mm);
+        const gMes = state.gastos.filter(g => mesDe(g.ts) === mm);
+        const fMes = state.finca.filter(f => mesDe(f.ts) === mm);
+        const factVentas = vMes.reduce((s,v)=>s+(Number(v.valor)||0),0);
+        const factMaquila = oMes.reduce((s,o)=>s+(Number(o.valor)||0),0);
+        const cobrado = vMes.filter(v=>v.estado==='Pagado').reduce((s,v)=>s+(Number(v.valor)||0),0)
+                       + oMes.filter(o=>o.estado==='Pagado').reduce((s,o)=>s+(Number(o.valor)||0),0);
+        const totalGastos = gMes.reduce((s,g)=>s+(Number(g.monto)||0),0);
+        const totalFinca = fMes.reduce((s,f)=>s+(Number(f.monto)||0),0);
+        const facturado = factVentas + factMaquila;
+        return [mm, MONEY(factVentas), MONEY(factMaquila), MONEY_B(facturado), MONEY(cobrado), MONEY(facturado-cobrado), MONEY(totalGastos), MONEY(totalFinca), MONEY_B(cobrado-totalGastos-totalFinca)];
+      }),
+    ],
+  };
+
+  /* ---------- 2) Ventas ---------- */
   const hojaVentas = {
     name: 'Ventas',
-    cols: [22, 24, 30, 16, 14, 14],
+    cols: [22, 24, 34, 16, 14, 20, 14],
     rows: [
-      [HEAD('Fecha'), HEAD('Cliente'), HEAD('Detalle'), HEAD('Valor'), HEAD('Estado'), HEAD('Anotado por')],
-      ...state.ventas.sort((a,b)=>b.ts-a.ts).map(v => [
-        { v: new Date(Number(v.ts)), s: 'date' },
-        v.cliente || '',
-        detalleVenta(v),
-        MONEY(v.valor), v.estado, v.usuario || '',
-      ]),
+      [HEAD('Fecha'), HEAD('Cliente'), HEAD('Detalle'), HEAD('Valor'), HEAD('Estado'), HEAD('Método'), HEAD('Anotado por')],
+      ...state.ventas.slice().sort((a,b)=>b.ts-a.ts).map(v => [FECHA(v.ts), v.cliente || '', detalleVenta(v), MONEY(v.valor), v.estado, v.metodo || '', v.usuario || '']),
       [],
       [BOLD('TOTAL'), null, null, MONEY_B(state.ventas.reduce((s,v)=>s+(Number(v.valor)||0),0))],
     ],
   };
+
+  /* ---------- 3) Maquila ---------- */
+  const hojaMaquila = {
+    name: 'Maquila',
+    cols: [22, 24, 34, 16, 14, 20],
+    rows: [
+      [HEAD('Fecha'), HEAD('Cliente'), HEAD('Detalle'), HEAD('Valor'), HEAD('Estado'), HEAD('Método')],
+      ...state.ordenesMaquila.slice().sort((a,b)=>b.ts-a.ts).map(o => [FECHA(o.ts), o.cliente || '', detalleOrdenMaquila(o), MONEY(o.valor), o.estado, o.metodo || '']),
+      [],
+      [BOLD('TOTAL'), null, null, MONEY_B(state.ordenesMaquila.reduce((s,o)=>s+(Number(o.valor)||0),0))],
+    ],
+  };
+
+  /* ---------- 4) Gastos ---------- */
   const hojaGastos = {
     name: 'Gastos',
-    cols: [22, 30, 18, 14, 14],
+    cols: [22, 30, 18, 14, 14, 16],
     rows: [
-      [HEAD('Fecha'), HEAD('Concepto'), HEAD('Categoría'), HEAD('Monto'), HEAD('Estado')],
-      ...state.gastos.sort((a,b)=>b.ts-a.ts).map(g => [{ v: new Date(Number(g.ts)), s: 'date' }, g.concepto, g.categoria, MONEY(g.monto), g.estado]),
+      [HEAD('Fecha'), HEAD('Concepto'), HEAD('Categoría'), HEAD('Monto'), HEAD('Estado'), HEAD('Anotado por')],
+      ...state.gastos.slice().sort((a,b)=>b.ts-a.ts).map(g => [FECHA(g.ts), g.concepto, g.categoria, MONEY(g.monto), g.estado, g.usuario || '']),
       [],
       [BOLD('TOTAL'), null, null, MONEY_B(state.gastos.reduce((s,g)=>s+(Number(g.monto)||0),0))],
     ],
   };
+
+  /* ---------- 5) Finca (gastos de finca) ---------- */
   const hojaFinca = {
     name: 'Finca',
     cols: [22, 30, 18, 14, 14],
     rows: [
       [HEAD('Fecha'), HEAD('Concepto'), HEAD('Categoría'), HEAD('Monto'), HEAD('Estado')],
-      ...state.finca.sort((a,b)=>b.ts-a.ts).map(f => [{ v: new Date(Number(f.ts)), s: 'date' }, f.concepto, f.categoria, MONEY(f.monto), f.estado]),
+      ...state.finca.slice().sort((a,b)=>b.ts-a.ts).map(f => [FECHA(f.ts), f.concepto, f.categoria, MONEY(f.monto), f.estado]),
       [],
       [BOLD('TOTAL'), null, null, MONEY_B(state.finca.reduce((s,f)=>s+(Number(f.monto)||0),0))],
     ],
   };
+
+  /* ---------- 6) Café disponible (inventario actual) ---------- */
   const hojaInventario = {
-    name: 'Inventario',
-    cols: [22, 16],
-    rows: [[HEAD('Lote'), HEAD('Stock (kg)')], ...state.inventario.map(i => [i.lote, { v: Number(i.stockLb).toFixed(2), s: 'num2' }])],
+    name: 'Café disponible',
+    cols: [16, 16, 16],
+    rows: [
+      [HEAD('Lote'), HEAD('Stock (kg)'), HEAD('Alerta')],
+      ...state.inventario.map(i => [i.lote, NUM2(i.stockLb), Number(i.stockLb) < 5 ? 'Bajo (<5 kg)' : 'Normal']),
+    ],
+  };
+
+  /* ---------- 7) Rendimientos y mermas reales ---------- */
+  const r = rendimientosReales();
+  const hojaMermas = {
+    name: 'Mermas y rendimientos',
+    cols: [26, 16, 16, 16, 30],
+    rows: [
+      [HEAD('Etapa'), HEAD('Tu rendimiento'), HEAD('Genérico'), HEAD('Muestras'), HEAD('Estado')],
+      ['Cereza → pergamino', PCT(r.cerezaAPergamino.valor), PCT(r.cerezaAPergamino.generico), r.cerezaAPergamino.muestras, r.cerezaAPergamino.real!=null ? 'Calculado con tus datos' : `Genérico (faltan ${r.cerezaAPergamino.faltan})`],
+      ['Pergamino → verde', PCT(r.pergaminoAVerde.valor), PCT(r.pergaminoAVerde.generico), r.pergaminoAVerde.muestras, r.pergaminoAVerde.real!=null ? 'Calculado con tus datos' : `Genérico (faltan ${r.pergaminoAVerde.faltan})`],
+      ['Merma de tueste', PCT(r.mermaTueste.valor), PCT(r.mermaTueste.generico), r.mermaTueste.muestras, r.mermaTueste.real!=null ? 'Calculado con tus datos' : `Genérico (faltan ${r.mermaTueste.faltan})`],
+    ],
+  };
+
+  /* ---------- 8) Cosechas ---------- */
+  const hojaCosechas = {
+    name: 'Cosechas',
+    cols: [16, 14, 14, 18, 16, 30],
+    rows: [
+      [HEAD('Fecha'), HEAD('Kg cereza'), HEAD('Proceso'), HEAD('Kg pergamino real'), HEAD('Kg pergamino esperado'), HEAD('Notas')],
+      ...state.cosechas.slice().sort((a,b)=>b.fecha-a.fecha).map(c => {
+        const p = proyectarDesdeCereza(c.kilosCereza);
+        return [FECHA(c.fecha), NUM2(c.kilosCereza), c.proceso, c.kilosPergaminoReal!=null ? NUM2(c.kilosPergaminoReal) : '', NUM2(p.pergamino), c.notas || ''];
+      }),
+    ],
+  };
+
+  /* ---------- 9) Pergamino comprado ---------- */
+  const hojaPergamino = {
+    name: 'Pergamino comprado',
+    cols: [16, 22, 14, 14, 16, 14],
+    rows: [
+      [HEAD('Fecha'), HEAD('Proveedor'), HEAD('Kg pergamino'), HEAD('Proceso'), HEAD('Kg verde real'), HEAD('Costo')],
+      ...state.pergamino.slice().sort((a,b)=>b.fecha-a.fecha).map(p => [FECHA(p.fecha), p.proveedor || '', NUM2(p.kilosPergamino), p.proceso, p.kilosVerdeReal!=null ? NUM2(p.kilosVerdeReal) : '', MONEY(p.costo)]),
+      [],
+      [BOLD('TOTAL'), null, null, null, null, MONEY_B(state.pergamino.reduce((s,p)=>s+(Number(p.costo)||0),0))],
+    ],
+  };
+
+  /* ---------- 10) Tuestes ---------- */
+  const hojaTuestes = {
+    name: 'Tuestes',
+    cols: [16, 14, 14, 14, 14, 14, 30],
+    rows: [
+      [HEAD('Fecha'), HEAD('Lote'), HEAD('Kg verde'), HEAD('Kg tostado'), HEAD('Merma'), HEAD('Origen'), HEAD('Notas de cata')],
+      ...state.tuestes.slice().sort((a,b)=>b.fecha-a.fecha).map(t => {
+        const merma = t.kilosVerde > 0 ? 1 - t.kilosTostado / t.kilosVerde : 0;
+        return [FECHA(t.fecha), t.lote, NUM2(t.kilosVerde), NUM2(t.kilosTostado), PCT(merma), t.origen || '', t.notasCata || ''];
+      }),
+      [],
+      [BOLD('TOTAL'), null, NUM2(state.tuestes.reduce((s,t)=>s+(Number(t.kilosVerde)||0),0)), NUM2(state.tuestes.reduce((s,t)=>s+(Number(t.kilosTostado)||0),0))],
+    ],
+  };
+
+  /* ---------- 11) Mejores clientes ---------- */
+  const clientesConDatos = listaClientes().filter(c => c.compras > 0).sort((a,b) => b.total - a.total);
+  const hojaClientes = {
+    name: 'Clientes',
+    cols: [26, 12, 16, 16, 22],
+    rows: [
+      [HEAD('Cliente'), HEAD('Compras'), HEAD('Total comprado'), HEAD('Promedio por compra'), HEAD('Última compra')],
+      ...clientesConDatos.map(c => [c.nombre, c.compras, MONEY(c.total), MONEY(c.promedio), c.ultima ? new Date(Number(c.ultima.ts)).toLocaleDateString('es-CO') : '']),
+    ],
+  };
+
+  /* ---------- 12) Precios de café vigentes ---------- */
+  const ordenPres = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
+  const hojaPrecios = {
+    name: 'Precios de café',
+    cols: [14, 16, 16, 16],
+    rows: [
+      [HEAD('Lote'), HEAD('Presentación'), HEAD('Precio normal'), HEAD('Precio distribuidor')],
+      ...LOTES.map(lote => ordenPres.map(p => {
+        const n = state.preciosCafe.find(x => x.lote === lote && x.presentacion === p && x.tipoCliente === 'normal');
+        const d = state.preciosCafe.find(x => x.lote === lote && x.presentacion === p && x.tipoCliente === 'distribuidor');
+        return [lote, p, MONEY(n ? n.precio : 0), MONEY(d ? d.precio : 0)];
+      })).flat(),
+    ],
+  };
+
+  /* ---------- 13) Tarifas de maquila vigentes ---------- */
+  const hojaTarifasMaquila = {
+    name: 'Tarifas maquila',
+    cols: [20, 16, 16],
+    rows: [
+      [HEAD('Servicio'), HEAD('Presentación')  , HEAD('Precio')],
+      ...state.maquila.slice().sort((a,b)=>a.servicio.localeCompare(b.servicio)).map(t => [t.servicio, t.presentacion || 'por kg', MONEY(t.precio)]),
+    ],
   };
 
   const nombre = 'CafePandora_' + new Date().toISOString().split('T')[0] + '.xlsx';
   try {
-    XLSXLite.download([hojaVentas, hojaGastos, hojaFinca, hojaInventario], nombre);
+    XLSXLite.download([
+      hojaResumen, hojaVentas, hojaMaquila, hojaGastos, hojaFinca, hojaInventario,
+      hojaMermas, hojaCosechas, hojaPergamino, hojaTuestes, hojaClientes,
+      hojaPrecios, hojaTarifasMaquila,
+    ], nombre);
     localStorage.setItem('cp_ultimo_export', String(Date.now()));
     renderRecordatorioExport();
-    toast('Respaldo exportado');
+    toast('Respaldo completo exportado');
   } catch (err) {
     toast('No se pudo generar el Excel: ' + err.message, 'error');
   }
