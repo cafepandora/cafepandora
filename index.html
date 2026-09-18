@@ -241,6 +241,19 @@
 
 
 
+
+  /* ---------- Cadena de proyección del café ---------- */
+  .preview-cadena:not(:empty) {
+    background: var(--verde-bg); border: 1px solid var(--verde); border-radius: 12px;
+    padding: 12px 14px; margin: 4px 0 12px;
+  }
+  .cadena { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--verde); }
+  .cadena b { font-size: 16px; }
+  .cadena i { font-style: normal; opacity: .5; font-weight: 700; }
+  .cadena .destacado { background: var(--verde); color: #fff; padding: 3px 12px; border-radius: 20px; }
+  .cadena-nota { font-size: 12.5px; color: var(--verde); margin-top: 8px; font-weight: 600; opacity: .85; }
+  .cadena-nota.alerta { color: var(--terracota); opacity: 1; }
+
   /* ---------- Tabla de mejores clientes ---------- */
   .tabla-clientes { background: var(--blanco); border: 1px solid var(--linea); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
   .fila-cliente {
@@ -403,6 +416,7 @@
     <button data-tab="inventario">Inventario Tostado</button>
     <button data-tab="gastos">Gastos</button>
     <button data-tab="finca">Finca &amp; Café</button>
+    <button data-tab="trazabilidad">Cosecha &amp; Tueste</button>
     <button data-tab="resumen">Resumen</button>
     <button data-tab="config">Configuración</button>
   </nav>
@@ -411,6 +425,7 @@
   <section class="view" id="view-inventario"></section>
   <section class="view" id="view-gastos"></section>
   <section class="view" id="view-finca"></section>
+  <section class="view" id="view-trazabilidad"></section>
   <section class="view" id="view-resumen"></section>
   <section class="view" id="view-config"></section>
 
@@ -437,6 +452,38 @@ const METODOS_PAGO = ['Efectivo', 'Transferencia a Joaquín', 'Transferencia a I
 const CATEGORIAS_GASTO = ['Insumos', 'Servicios', 'Nómina', 'Transporte', 'Mano de obra', 'Café verde', 'Otro'];
 const CATEGORIAS_FINCA = ['Insumos', 'Mano de obra', 'Cosecha', 'Otro'];
 
+/* ---------- Cadena del café: cereza -> pergamino -> verde -> tostado ----------
+   Factores aproximados de Café Pandora. Si con el tiempo ves que tu finca
+   rinde distinto, se cambian aquí (o pídeme que los haga editables desde
+   Configuración). */
+const RENDIMIENTO = {
+  cerezaAPergamino: 12.5 / 60,  // 60 kg de cereza dan ~12,5 kg de pergamino seco
+  pergaminoAVerde: 10.4 / 12.5, // al trillar, de 12,5 kg salen ~10,4 kg de verde
+  mermaTueste: 0.13,            // el tueste pierde ~13% del peso
+};
+const KG_POR_LIBRA_VENTA = 0.5; // la "libra" de Café Pandora son 500 g exactos
+
+// Días aproximados de secado desde la cosecha, según el proceso.
+const DIAS_SECADO = { Lavado: 7, Honey: 21, Natural: 35, Exotico: 35 };
+
+// Proyecta toda la cadena a partir de kilos de cereza recién cosechada.
+function proyectarDesdeCereza(kilosCereza) {
+  const pergamino = (Number(kilosCereza) || 0) * RENDIMIENTO.cerezaAPergamino;
+  return { pergamino, ...proyectarDesdePergamino(pergamino) };
+}
+// Proyecta desde pergamino (sirve igual para el café comprado).
+function proyectarDesdePergamino(kilosPergamino) {
+  const verde = (Number(kilosPergamino) || 0) * RENDIMIENTO.pergaminoAVerde;
+  const tostado = verde * (1 - RENDIMIENTO.mermaTueste);
+  return { verde, tostado, libras: tostado / KG_POR_LIBRA_VENTA };
+}
+function fechaSecadoEstimada(fechaCosecha, proceso) {
+  const dias = DIAS_SECADO[proceso] ?? 21;
+  return new Date(Number(fechaCosecha) + dias * 86400000);
+}
+const fechaCorta = ts => new Date(Number(ts)).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+const hoyISO = () => new Date().toISOString().split('T')[0];
+
 const QUICK_ADD = [
   { lote: 'Lavado', presentacion: 'Libra', tipoCliente: null },
   { lote: 'Lavado', presentacion: 'Media lb', tipoCliente: null },
@@ -445,6 +492,7 @@ const QUICK_ADD = [
 
 const state = {
   ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [], preciosCafe: [],
+  cosechas: [], pergamino: [], tuestes: [],
   tabActiva: 'ventas',
 };
 // Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
@@ -627,7 +675,7 @@ function autocompletarDesdeCliente() {
 }
 let resumenSubTab = 'pagadas';
 const POR_PAGINA = 8;
-const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1 };
+const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1 };
 
 // Corta una lista ya ordenada a la página actual y devuelve el HTML de las
 // filas visibles más los controles de "Anterior / Siguiente".
@@ -691,7 +739,7 @@ if (localStorage.getItem('cp_unlocked') === '1') {
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -709,7 +757,7 @@ async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
   try {
-    const [v, g, c, i, m, f, pc] = await Promise.all([
+    const [v, g, c, i, m, f, pc, co, pe, tu] = await Promise.all([
       fetch('/api/ventas').then(r => r.json()),
       fetch('/api/gastos').then(r => r.json()),
       fetch('/api/clientes').then(r => r.json()),
@@ -717,9 +765,13 @@ async function sincronizar() {
       fetch('/api/maquila').then(r => r.json()),
       fetch('/api/finca').then(r => r.json()),
       fetch('/api/precios-cafe').then(r => r.json()),
+      fetch('/api/cosechas').then(r => r.json()),
+      fetch('/api/pergamino').then(r => r.json()),
+      fetch('/api/tuestes').then(r => r.json()),
     ]);
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
+    state.cosechas = co; state.pergamino = pe; state.tuestes = tu;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -759,6 +811,7 @@ function renderTodo() {
   renderInventario();
   renderGastos();
   renderFinca();
+  renderTrazabilidad();
   renderResumen();
   renderConfig();
 }
@@ -1471,6 +1524,349 @@ async function eliminarFinca(id) {
   if (!confirm('¿Eliminar este registro de finca?')) return;
   state.finca = state.finca.filter(x => x.id !== id); guardarCacheLocal('finca'); renderTodo();
   await fetch('/api/finca/' + id, { method: 'DELETE' });
+}
+
+/* ================================================================
+   COSECHA & TUESTE (trazabilidad)
+   Cierra el ciclo del inventario: todo lo demás resta stock,
+   el tueste es lo único que suma.
+================================================================ */
+let trazaSubTab = 'cosechas';
+function cambiarTrazaSubTab(t) { trazaSubTab = t; renderTrazabilidad(); }
+
+function renderTrazabilidad() {
+  const cont = document.getElementById('view-trazabilidad');
+  if (!cont) return;
+
+  // --- Proyección global: qué café se espera tener ---
+  const cosechasPend = state.cosechas.filter(c => c.kilosPergaminoReal == null);
+  const pergaminoDeCosechas = state.cosechas.reduce((s, c) =>
+    s + (c.kilosPergaminoReal != null ? Number(c.kilosPergaminoReal) : proyectarDesdeCereza(c.kilosCereza).pergamino), 0);
+  const pergaminoComprado = state.pergamino.reduce((s, p) => s + Number(p.kilosPergamino || 0), 0);
+  const pergaminoTotal = pergaminoDeCosechas + pergaminoComprado;
+  const proy = proyectarDesdePergamino(pergaminoTotal);
+  const yaTostado = state.tuestes.reduce((s, t) => s + Number(t.kilosTostado || 0), 0);
+
+  cont.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="n">${pergaminoTotal.toFixed(1)} kg</div><div class="l">Pergamino acumulado (finca + comprado)</div></div>
+      <div class="stat"><div class="n">${proy.verde.toFixed(1)} kg</div><div class="l">Verde esperado al trillar</div></div>
+      <div class="stat"><div class="n pos">${Math.round(proy.libras)}</div><div class="l">Libras de 500 g esperadas</div></div>
+      <div class="stat"><div class="n">${yaTostado.toFixed(1)} kg</div><div class="l">Ya tostado a la fecha</div></div>
+    </div>
+
+    <div class="subtabs">
+      <button class="${trazaSubTab==='cosechas'?'active':''}" onclick="cambiarTrazaSubTab('cosechas')">Cosechas (${state.cosechas.length})</button>
+      <button class="${trazaSubTab==='comprado'?'active':''}" onclick="cambiarTrazaSubTab('comprado')">Comprado (${state.pergamino.length})</button>
+      <button class="${trazaSubTab==='tueste'?'active':''}" onclick="cambiarTrazaSubTab('tueste')">Tueste (${state.tuestes.length})</button>
+    </div>
+
+    ${trazaSubTab === 'cosechas' ? vistaCosechas(cosechasPend) : ''}
+    ${trazaSubTab === 'comprado' ? vistaPergamino() : ''}
+    ${trazaSubTab === 'tueste' ? vistaTueste() : ''}
+  `;
+}
+
+/* ---------- Cosechas ---------- */
+function vistaCosechas(pendientes) {
+  const hoy = Date.now();
+  const listas = pendientes.filter(c => fechaSecadoEstimada(c.fecha, c.proceso).getTime() <= hoy);
+
+  return `
+    <div class="card">
+      <h3 class="section-title" style="margin-top:0">Registrar cosecha</h3>
+      <div class="row">
+        <div class="field"><label>Fecha de recolección</label>
+          <input id="co-fecha" type="date" value="${hoyISO()}"></div>
+        <div class="field"><label>Kilos en cereza</label>
+          <input id="co-kilos" type="number" min="0" step="0.1" placeholder="0" oninput="previsualizarCosecha()"></div>
+        <div class="field"><label>Proceso</label>
+          <select id="co-proceso" onchange="previsualizarCosecha()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+      </div>
+      <div id="co-preview" class="preview-cadena"></div>
+      <div class="row"><div class="field"><label>Notas</label>
+        <input id="co-notas" placeholder="Lote, sector de la finca, observaciones…"></div></div>
+      <button class="add-btn" onclick="registrarCosecha(this)">Registrar cosecha</button>
+    </div>
+
+    ${listas.length ? `<div id="stockAlert" style="display:block;background:var(--verde-bg);border-color:var(--verde);color:var(--verde)">
+      ✅ ${listas.length} cosecha${listas.length===1?'':'s'} ya deberían estar secas — pesa el pergamino y anótalo con el botón ⚖️
+    </div>` : ''}
+
+    <h3 class="section-title">Historial de cosechas</h3>
+    <div class="ledger">
+      ${paginar(state.cosechas.slice().sort((a,b)=>b.fecha-a.fecha), 'cosechas', c => {
+        const p = proyectarDesdeCereza(c.kilosCereza);
+        const seco = fechaSecadoEstimada(c.fecha, c.proceso);
+        const yaSeco = seco.getTime() <= Date.now();
+        const real = c.kilosPergaminoReal != null;
+        return `
+        <div class="ledger-row">
+          <div class="main">
+            <div class="title">${Number(c.kilosCereza).toFixed(1)} kg cereza · ${escapeHtml(c.proceso)}</div>
+            <div class="meta">Cosechado ${fechaCorta(c.fecha)} · ${real
+              ? 'pergamino real: ' + Number(c.kilosPergaminoReal).toFixed(1) + ' kg'
+              : (yaSeco ? 'secado estimado listo' : 'seco aprox. ' + fechaCorta(seco.getTime()))}</div>
+            <div class="details">≈ ${p.pergamino.toFixed(1)} kg pergamino → ${p.verde.toFixed(1)} kg verde → ${Math.round(p.libras)} libras</div>
+          </div>
+          <div class="acciones">
+            <button onclick="abrirPesarPergamino(${c.id})" title="Anotar pergamino real">⚖️</button>
+            <button onclick="eliminarCosecha(${c.id})" title="Eliminar">✕</button>
+          </div>
+        </div>`;
+      }, 'Todavía no hay cosechas registradas.')}
+    </div>`;
+}
+
+function previsualizarCosecha() {
+  const el = document.getElementById('co-preview');
+  if (!el) return;
+  const kg = Number(document.getElementById('co-kilos').value) || 0;
+  const proceso = document.getElementById('co-proceso').value;
+  if (!kg) { el.innerHTML = ''; return; }
+  const p = proyectarDesdeCereza(kg);
+  const seco = fechaSecadoEstimada(Date.now(), proceso);
+  el.innerHTML = `
+    <div class="cadena">
+      <span><b>${kg.toFixed(1)}</b> kg cereza</span><i>→</i>
+      <span><b>${p.pergamino.toFixed(1)}</b> kg pergamino</span><i>→</i>
+      <span><b>${p.verde.toFixed(1)}</b> kg verde</span><i>→</i>
+      <span><b>${p.tostado.toFixed(1)}</b> kg tostado</span><i>=</i>
+      <span class="destacado"><b>${Math.round(p.libras)}</b> libras</span>
+    </div>
+    <div class="cadena-nota">Secado estimado para el ${seco.toLocaleDateString('es-CO', { day:'2-digit', month:'long' })} (${DIAS_SECADO[proceso]} días de ${proceso})</div>`;
+}
+
+async function registrarCosecha(btn) {
+  const kilosCereza = Number(document.getElementById('co-kilos').value) || 0;
+  if (!kilosCereza) return toast('Escribe cuántos kilos de cereza se cosecharon.', 'error');
+  btn.disabled = true;
+  try {
+    const payload = {
+      fecha: new Date(document.getElementById('co-fecha').value + 'T12:00:00').getTime(),
+      kilosCereza,
+      proceso: document.getElementById('co-proceso').value,
+      notas: document.getElementById('co-notas').value.trim() || null,
+      usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+    };
+    const res = await fetch('/api/cosechas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    state.cosechas.push(await res.json());
+    guardarCacheLocal('cosechas');
+    toast('Cosecha registrada');
+    renderTrazabilidad();
+  } finally { btn.disabled = false; }
+}
+
+function abrirPesarPergamino(id) {
+  const c = state.cosechas.find(x => x.id === id); if (!c) return;
+  const p = proyectarDesdeCereza(c.kilosCereza);
+  abrirModal(`
+    <h3>Pergamino real de la cosecha</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">
+      ${Number(c.kilosCereza).toFixed(1)} kg de cereza del ${fechaCorta(c.fecha)} · estimado ${p.pergamino.toFixed(1)} kg</p>
+    <div class="row"><div class="field"><label>Kilos de pergamino seco (pesados)</label>
+      <input id="pp-kilos" type="number" min="0" step="0.1" value="${c.kilosPergaminoReal ?? p.pergamino.toFixed(1)}"></div></div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarPergaminoReal(${id}, this)">Guardar</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>`);
+}
+
+async function guardarPergaminoReal(id, btn) {
+  btn.disabled = true;
+  const kilosPergaminoReal = Math.max(0, Number(document.getElementById('pp-kilos').value) || 0);
+  const c = state.cosechas.find(x => x.id === id);
+  if (c) c.kilosPergaminoReal = kilosPergaminoReal;
+  guardarCacheLocal('cosechas');
+  cerrarModal();
+  renderTrazabilidad();
+  await fetch('/api/cosechas/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kilosPergaminoReal }) });
+  toast('Pergamino real anotado');
+}
+
+async function eliminarCosecha(id) {
+  if (!confirm('¿Eliminar este registro de cosecha?')) return;
+  state.cosechas = state.cosechas.filter(x => x.id !== id);
+  guardarCacheLocal('cosechas'); renderTrazabilidad();
+  await fetch('/api/cosechas/' + id, { method:'DELETE' });
+}
+
+/* ---------- Pergamino comprado ---------- */
+function vistaPergamino() {
+  return `
+    <div class="card">
+      <h3 class="section-title" style="margin-top:0">Registrar compra de pergamino</h3>
+      <div class="row">
+        <div class="field"><label>Fecha</label><input id="pg-fecha" type="date" value="${hoyISO()}"></div>
+        <div class="field"><label>Proveedor</label><input id="pg-proveedor" placeholder="A quién se le compró"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Kilos de pergamino</label>
+          <input id="pg-kilos" type="number" min="0" step="0.1" placeholder="0" oninput="previsualizarPergamino()"></div>
+        <div class="field"><label>Proceso</label>
+          <select id="pg-proceso">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+        <div class="field"><label>Costo total</label>
+          <input id="pg-costo" type="number" min="0" placeholder="0"></div>
+      </div>
+      <div id="pg-preview" class="preview-cadena"></div>
+      <div class="row"><div class="field"><label>Notas</label><input id="pg-notas" placeholder="Origen, finca, observaciones…"></div></div>
+      <button class="add-btn" onclick="registrarPergamino(this)">Registrar compra</button>
+    </div>
+
+    <h3 class="section-title">Pergamino comprado</h3>
+    <div class="ledger">
+      ${paginar(state.pergamino.slice().sort((a,b)=>b.fecha-a.fecha), 'pergamino', p => {
+        const pr = proyectarDesdePergamino(p.kilosPergamino);
+        return `
+        <div class="ledger-row">
+          <div class="main">
+            <div class="title">${Number(p.kilosPergamino).toFixed(1)} kg · ${escapeHtml(p.proveedor || 'Sin proveedor')}</div>
+            <div class="meta">${fechaCorta(p.fecha)} · ${escapeHtml(p.proceso)}${p.costo ? ' · ' + fmt(p.costo) : ''}</div>
+            <div class="details">≈ ${pr.verde.toFixed(1)} kg verde → ${Math.round(pr.libras)} libras tostadas</div>
+          </div>
+          <div class="acciones"><button onclick="eliminarPergamino(${p.id})" title="Eliminar">✕</button></div>
+        </div>`;
+      }, 'Todavía no hay compras de pergamino.')}
+    </div>`;
+}
+
+function previsualizarPergamino() {
+  const el = document.getElementById('pg-preview');
+  if (!el) return;
+  const kg = Number(document.getElementById('pg-kilos').value) || 0;
+  if (!kg) { el.innerHTML = ''; return; }
+  const p = proyectarDesdePergamino(kg);
+  el.innerHTML = `
+    <div class="cadena">
+      <span><b>${kg.toFixed(1)}</b> kg pergamino</span><i>→</i>
+      <span><b>${p.verde.toFixed(1)}</b> kg verde</span><i>→</i>
+      <span><b>${p.tostado.toFixed(1)}</b> kg tostado</span><i>=</i>
+      <span class="destacado"><b>${Math.round(p.libras)}</b> libras</span>
+    </div>`;
+}
+
+async function registrarPergamino(btn) {
+  const kilosPergamino = Number(document.getElementById('pg-kilos').value) || 0;
+  if (!kilosPergamino) return toast('Escribe cuántos kilos de pergamino se compraron.', 'error');
+  btn.disabled = true;
+  try {
+    const payload = {
+      fecha: new Date(document.getElementById('pg-fecha').value + 'T12:00:00').getTime(),
+      proveedor: document.getElementById('pg-proveedor').value.trim() || 'Sin proveedor',
+      kilosPergamino,
+      proceso: document.getElementById('pg-proceso').value,
+      costo: Math.max(0, Number(document.getElementById('pg-costo').value) || 0),
+      notas: document.getElementById('pg-notas').value.trim() || null,
+      usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+    };
+    const res = await fetch('/api/pergamino', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    state.pergamino.push(await res.json());
+    guardarCacheLocal('pergamino');
+    toast('Compra registrada');
+    renderTrazabilidad();
+  } finally { btn.disabled = false; }
+}
+
+async function eliminarPergamino(id) {
+  if (!confirm('¿Eliminar esta compra de pergamino?')) return;
+  state.pergamino = state.pergamino.filter(x => x.id !== id);
+  guardarCacheLocal('pergamino'); renderTrazabilidad();
+  await fetch('/api/pergamino/' + id, { method:'DELETE' });
+}
+
+/* ---------- Tueste ---------- */
+function vistaTueste() {
+  return `
+    <div class="card">
+      <h3 class="section-title" style="margin-top:0">Registrar tanda de tueste</h3>
+      <p style="font-size:13px;color:var(--cafe-soft);margin:-6px 0 12px">
+        Esto <b>suma</b> los kilos tostados al inventario del lote — es la única entrada de stock del sistema.</p>
+      <div class="row">
+        <div class="field"><label>Fecha</label><input id="tu-fecha" type="date" value="${hoyISO()}"></div>
+        <div class="field"><label>Lote</label>
+          <select id="tu-lote">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+        <div class="field"><label>Origen</label>
+          <select id="tu-origen"><option>Finca</option><option>Comprado</option></select></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Kilos verde que entran</label>
+          <input id="tu-verde" type="number" min="0" step="0.1" placeholder="0" oninput="previsualizarTueste()"></div>
+        <div class="field"><label>Kilos tostados que salen</label>
+          <input id="tu-tostado" type="number" min="0" step="0.1" placeholder="se calcula solo" oninput="previsualizarTueste(true)"></div>
+      </div>
+      <div id="tu-preview" class="preview-cadena"></div>
+      <div class="row"><div class="field"><label>Notas de cata</label>
+        <input id="tu-notas" placeholder="Perfil, notas de taza, curva…"></div></div>
+      <button class="add-btn" onclick="registrarTueste(this)">Registrar tueste</button>
+    </div>
+
+    <h3 class="section-title">Historial de tuestes</h3>
+    <div class="ledger">
+      ${paginar(state.tuestes.slice().sort((a,b)=>b.fecha-a.fecha), 'tuestes', t => {
+        const merma = t.kilosVerde > 0 ? (1 - t.kilosTostado / t.kilosVerde) * 100 : 0;
+        return `
+        <div class="ledger-row">
+          <div class="main">
+            <div class="title">${escapeHtml(t.lote)} · ${Number(t.kilosTostado).toFixed(1)} kg tostados</div>
+            <div class="meta">${fechaCorta(t.fecha)} · ${Number(t.kilosVerde).toFixed(1)} kg verde · merma ${merma.toFixed(1)}%${t.origen ? ' · ' + escapeHtml(t.origen) : ''}</div>
+            ${t.notasCata ? `<div class="details">${escapeHtml(t.notasCata)}</div>` : ''}
+          </div>
+          <div class="amount pos">+${Math.round(Number(t.kilosTostado) / KG_POR_LIBRA_VENTA)} lb</div>
+          <div class="acciones"><button onclick="eliminarTueste(${t.id})" title="Eliminar">✕</button></div>
+        </div>`;
+      }, 'Todavía no hay tuestes registrados.')}
+    </div>`;
+}
+
+function previsualizarTueste(manual) {
+  const el = document.getElementById('tu-preview');
+  if (!el) return;
+  const verde = Number(document.getElementById('tu-verde').value) || 0;
+  const campoTostado = document.getElementById('tu-tostado');
+  // Si no has escrito el peso real de salida, se propone el teórico (merma 13%).
+  if (!manual && verde) campoTostado.value = (verde * (1 - RENDIMIENTO.mermaTueste)).toFixed(1);
+  const tostado = Number(campoTostado.value) || 0;
+  if (!verde && !tostado) { el.innerHTML = ''; return; }
+  const merma = verde > 0 ? (1 - tostado / verde) * 100 : 0;
+  const fueraDeRango = verde > 0 && (merma < 8 || merma > 22);
+  el.innerHTML = `
+    <div class="cadena">
+      <span><b>${verde.toFixed(1)}</b> kg verde</span><i>→</i>
+      <span><b>${tostado.toFixed(1)}</b> kg tostado</span><i>=</i>
+      <span class="destacado"><b>${Math.round(tostado / KG_POR_LIBRA_VENTA)}</b> libras</span>
+    </div>
+    <div class="cadena-nota${fueraDeRango ? ' alerta' : ''}">Merma: ${merma.toFixed(1)}%${fueraDeRango ? ' — revisa los pesos, lo normal ronda el 13%' : ''}</div>`;
+}
+
+async function registrarTueste(btn) {
+  const kilosVerde = Number(document.getElementById('tu-verde').value) || 0;
+  const kilosTostado = Number(document.getElementById('tu-tostado').value) || 0;
+  if (!kilosVerde || !kilosTostado) return toast('Escribe los kilos de entrada y de salida.', 'error');
+  if (kilosTostado > kilosVerde) return toast('El tostado no puede pesar más que el verde.', 'error');
+  btn.disabled = true;
+  try {
+    const payload = {
+      fecha: new Date(document.getElementById('tu-fecha').value + 'T12:00:00').getTime(),
+      lote: document.getElementById('tu-lote').value,
+      kilosVerde, kilosTostado,
+      origen: document.getElementById('tu-origen').value,
+      notasCata: document.getElementById('tu-notas').value.trim() || null,
+      usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+    };
+    const res = await fetch('/api/tuestes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    state.tuestes.push(await res.json());
+    guardarCacheLocal('tuestes');
+    toast(`Tueste registrado · +${kilosTostado.toFixed(1)} kg al inventario`);
+    await sincronizar(); // trae el inventario ya actualizado
+  } finally { btn.disabled = false; }
+}
+
+async function eliminarTueste(id) {
+  if (!confirm('¿Eliminar este tueste? Los kilos que sumó se descuentan del inventario.')) return;
+  state.tuestes = state.tuestes.filter(x => x.id !== id);
+  guardarCacheLocal('tuestes'); renderTrazabilidad();
+  await fetch('/api/tuestes/' + id, { method:'DELETE' });
+  sincronizar();
 }
 
 /* ================================================================
