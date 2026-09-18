@@ -239,6 +239,37 @@
 
 
 
+
+
+  /* ---------- Tabla de mejores clientes ---------- */
+  .tabla-clientes { background: var(--blanco); border: 1px solid var(--linea); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+  .fila-cliente {
+    display: grid; grid-template-columns: 1.6fr .7fr 1.1fr .9fr; gap: 8px;
+    padding: 12px 14px; border-bottom: 1px solid var(--linea); font-size: 14px; align-items: center;
+  }
+  .fila-cliente:last-child { border-bottom: none; }
+  .fila-cliente.encabezado { background: var(--crema-alt); font-size: 12.5px; font-weight: 700; color: var(--cafe-soft); }
+  .fila-cliente .nombre { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+  .fila-cliente .dinero { font-weight: 700; color: var(--verde); font-variant-numeric: tabular-nums; }
+
+  /* ---------- Autocompletado de clientes ---------- */
+  .autocomplete-wrap { position: relative; }
+  .sugerencias {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40;
+    background: var(--blanco); border: 1px solid var(--linea); border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(62,39,35,.16); max-height: 280px; overflow-y: auto;
+  }
+  .sugerencias button {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    width: 100%; text-align: left; background: none; border: none;
+    border-bottom: 1px solid var(--linea); padding: 11px 14px; cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+  }
+  .sugerencias button:last-child { border-bottom: none; }
+  .sugerencias button:hover { background: var(--crema-alt); }
+  .sugerencias .sug-nombre { font-size: 15px; font-weight: 700; color: var(--cafe); }
+  .sugerencias .sug-detalle { font-size: 12.5px; color: var(--cafe-soft); font-weight: 600; }
+
   /* ---------- Órdenes en paralelo ---------- */
   .orden-layout { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 22px; }
   .orden-menu {
@@ -473,6 +504,77 @@ function finalizarOrdenActiva() {
   carritoActual = ordenes[ordenActiva].items;
 }
 
+/* ---------- Directorio de clientes ----------
+   Los nombres NO salen solo de la tabla "clientes" (que se llena al registrar
+   ventas nuevas): se arman también con todos los nombres que aparecen en el
+   historial de ventas, para que salga absolutamente todo el que ya compró. */
+function listaClientes() {
+  const mapa = new Map(); // clave normalizada -> { nombre, ventas: [] }
+  const meter = (nombre) => {
+    const clave = normalizar(nombre);
+    if (!clave || GENERICOS_CLIENTE.includes(clave)) return null;
+    if (!mapa.has(clave)) mapa.set(clave, { nombre: String(nombre).trim(), ventas: [] });
+    return mapa.get(clave);
+  };
+  // El nombre "oficial" lo manda la tabla clientes; las ventas aportan el resto.
+  state.clientes.forEach(c => meter(c.nombre));
+  state.ventas.forEach(v => { const e = meter(v.cliente); if (e) e.ventas.push(v); });
+
+  return [...mapa.values()].map(e => {
+    const ordenadas = e.ventas.slice().sort((a, b) => b.ts - a.ts);
+    const total = ordenadas.reduce((s, v) => s + (Number(v.valor) || 0), 0);
+    return {
+      nombre: e.nombre,
+      compras: ordenadas.length,
+      total,
+      promedio: ordenadas.length ? total / ordenadas.length : 0,
+      ultima: ordenadas[0] || null,
+    };
+  }).sort((a, b) => b.compras - a.compras || a.nombre.localeCompare(b.nombre));
+}
+
+const GENERICOS_CLIENTE = ['', 'venta directa', 'n/a', '-'];
+
+function filtrarSugerenciasCliente() {
+  const input = document.getElementById('v-cliente');
+  const caja = document.getElementById('clienteSugerencias');
+  if (!input || !caja) return;
+  const q = normalizar(input.value);
+  const todos = listaClientes();
+  const coinciden = (q ? todos.filter(c => normalizar(c.nombre).includes(q)) : todos).slice(0, 10);
+
+  if (!coinciden.length) { caja.style.display = 'none'; return; }
+  caja.innerHTML = coinciden.map(c => {
+    const metodo = c.ultima && c.ultima.metodo ? c.ultima.metodo : '';
+    const detalle = c.compras
+      ? `${c.compras} compra${c.compras === 1 ? '' : 's'}${metodo ? ' · ' + escapeHtml(metodo) : ''}`
+      : 'sin compras registradas';
+    return `<button type="button" onmousedown="elegirCliente('${escapeAttr(c.nombre).replace(/'/g, "\\'")}')">
+      <span class="sug-nombre">${escapeHtml(c.nombre)}</span>
+      <span class="sug-detalle">${detalle}</span>
+    </button>`;
+  }).join('');
+  caja.style.display = 'block';
+}
+
+function cerrarSugerenciasCliente() {
+  // pequeño retardo para que alcance a registrarse el clic en una sugerencia
+  setTimeout(() => {
+    const caja = document.getElementById('clienteSugerencias');
+    if (caja) caja.style.display = 'none';
+    autocompletarDesdeCliente();
+  }, 150);
+}
+
+function elegirCliente(nombre) {
+  const input = document.getElementById('v-cliente');
+  if (!input) return;
+  input.value = nombre;
+  const caja = document.getElementById('clienteSugerencias');
+  if (caja) caja.style.display = 'none';
+  autocompletarDesdeCliente();
+}
+
 /* ---------- Memoria por cliente ----------
    Si un cliente ya compró antes, casi siempre le vuelve a pagar a la misma
    persona. Buscamos su compra más reciente y proponemos ese mismo método. */
@@ -492,7 +594,7 @@ function ultimaVentaDeCliente(nombre) {
 function nombreCanonico(nombre) {
   const clave = normalizar(nombre);
   if (!clave) return String(nombre || '').trim();
-  const existente = state.clientes.find(c => normalizar(c.nombre) === clave);
+  const existente = listaClientes().find(c => normalizar(c.nombre) === clave);
   return existente ? existente.nombre : String(nombre || '').trim();
 }
 
@@ -704,7 +806,7 @@ function renderVentas() {
   const delMes = state.ventas.filter(v => mesDe(v.ts) === mes && (coincide(v.cliente, q) || coincide(v.lote, q) || coincide(v.usuario, q) || coincide(detalleVenta(v), q)));
   const anteriores = state.ventas.filter(v => v.estado === 'Pendiente' && mesDe(v.ts) < mes && (coincide(v.cliente, q) || coincide(v.lote, q)));
 
-  const datalist = '<datalist id="clientesList">' + state.clientes.map(c => `<option value="${escapeAttr(c.nombre)}">`).join('') + '</datalist>';
+
 
   const gruposMaquila = {};
   state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
@@ -731,9 +833,13 @@ function renderVentas() {
 
       <div class="row">
         <div class="field"><label>Cliente</label>
-          <input id="v-cliente" list="clientesList" placeholder="Escribe y elige de la lista" autocomplete="off"
-                 value="${escapeAttr(orden.cliente)}" onchange="autocompletarDesdeCliente()" onblur="autocompletarDesdeCliente()">
-          ${datalist}
+          <div class="autocomplete-wrap">
+            <input id="v-cliente" placeholder="Escribe el nombre del cliente" autocomplete="off"
+                   value="${escapeAttr(orden.cliente)}"
+                   oninput="filtrarSugerenciasCliente()" onfocus="filtrarSugerenciasCliente()"
+                   onblur="cerrarSugerenciasCliente()">
+            <div id="clienteSugerencias" class="sugerencias" style="display:none"></div>
+          </div>
           <div id="clienteHint" class="cliente-hint" style="display:none"></div>
         </div>
         <div class="field"><label>Tipo de cliente</label>
@@ -1438,6 +1544,13 @@ function renderResumen() {
       <div class="chart-box"><canvas id="chartLotes"></canvas></div>
     </div>
 
+    <h3 class="section-title">Mejores clientes</h3>
+    <div class="rangos">
+      ${[['semana','Semanal'],['mes','Mensual'],['ano','Anual']].map(([k,l]) =>
+        `<button class="${periodoClientes===k?'active':''}" onclick="cambiarPeriodoClientes('${k}')">${l}</button>`).join('')}
+    </div>
+    <div id="bloqueMejoresClientes"></div>
+
     <h3 class="section-title">Detalle de ${mes}</h3>
     <div class="subtabs">
       <button class="${resumenSubTab==='pagadas'?'active':''}" onclick="cambiarResumenSubTab('pagadas')">Pagadas (${pagadas.length})</button>
@@ -1451,6 +1564,7 @@ function renderResumen() {
     </div>
   `;
   dibujarGraficos(mes);
+  renderMejoresClientes();
 }
 function cambiarResumenSubTab(tab) { resumenSubTab = tab; paginas.resumen = 1; renderResumen(); }
 
@@ -1460,6 +1574,120 @@ function cambiarResumenSubTab(tab) { resumenSubTab = tab; paginas.resumen = 1; r
 let rangoMeses = 6;
 const graficos = {};
 function cambiarRango(n) { rangoMeses = n; renderResumen(); }
+
+/* ================================================================
+   MEJORES CLIENTES
+   Solo aparecen los clientes que llevan 2 o más meses distintos
+   comprando — un cliente de una sola vez todavía no es un patrón.
+================================================================ */
+let periodoClientes = 'mes';
+const MIN_MESES_CLIENTE = 2;
+function cambiarPeriodoClientes(p) { periodoClientes = p; renderResumen(); }
+
+// Cuántos kilos de café lleva una venta (ignora las líneas de maquila).
+function kilosDeVenta(v) {
+  if (v.items && v.items.length && v.items[0] && v.items[0].tipo) {
+    return v.items.filter(it => it.tipo === 'cafe' && it.presentacion)
+      .reduce((s, it) => s + (KG_PRESENTACION[it.presentacion] || 0) * (Number(it.cantidad) || 0), 0);
+  }
+  if (v.tipoVenta !== 'maquila' && v.presentacion) {
+    return (KG_PRESENTACION[v.presentacion] || 0) * (Number(v.cantidad) || 1);
+  }
+  return 0;
+}
+const KG_PRESENTACION = { 'Media lb': 0.25, 'Libra': 0.5, 'Kilo': 1, 'Cuarterón': 2.5 };
+
+// Cuántos periodos (semanas/meses/años) distintos cubre el historial de un
+// cliente — sirve para promediar "por periodo" y no por compra suelta.
+function clavePeriodo(ts, periodo) {
+  const d = new Date(Number(ts));
+  if (periodo === 'ano') return String(d.getFullYear());
+  if (periodo === 'mes') return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  // semana ISO aproximada: año + número de semana
+  const inicio = new Date(d.getFullYear(), 0, 1);
+  const semana = Math.ceil((((d - inicio) / 86400000) + inicio.getDay() + 1) / 7);
+  return d.getFullYear() + '-S' + String(semana).padStart(2, '0');
+}
+
+function renderMejoresClientes() {
+  const cont = document.getElementById('bloqueMejoresClientes');
+  if (!cont) return;
+
+  const candidatos = listaClientes()
+    .filter(c => c.compras > 0)
+    .map(c => {
+      const ventas = state.ventas.filter(v => normalizar(v.cliente) === normalizar(c.nombre));
+      const mesesDistintos = new Set(ventas.map(v => mesDe(v.ts))).size;
+      const periodos = new Set(ventas.map(v => clavePeriodo(v.ts, periodoClientes))).size || 1;
+      const dinero = ventas.reduce((s, v) => s + (Number(v.valor) || 0), 0);
+      const kilos = ventas.reduce((s, v) => s + kilosDeVenta(v), 0);
+      return {
+        nombre: c.nombre, mesesDistintos, compras: ventas.length,
+        dineroTotal: dinero, kilosTotal: kilos,
+        dineroProm: dinero / periodos, kilosProm: kilos / periodos,
+      };
+    })
+    .filter(c => c.mesesDistintos >= MIN_MESES_CLIENTE)
+    .sort((a, b) => b.dineroProm - a.dineroProm)
+    .slice(0, 8);
+
+  if (!candidatos.length) {
+    cont.innerHTML = `<div class="empty">Todavía no hay clientes con ${MIN_MESES_CLIENTE} o más meses de compras.<br>Esta tabla se llena sola a medida que se repitan.</div>`;
+    graficos.clientes?.destroy();
+    graficos.clientes = null;
+    return;
+  }
+
+  const etiqueta = { semana: 'por semana', mes: 'por mes', ano: 'por año' }[periodoClientes];
+  cont.innerHTML = `
+    <div class="chart-card">
+      <h4>Promedio de compra ${etiqueta}</h4>
+      <div class="chart-box"><canvas id="chartClientes"></canvas></div>
+    </div>
+    <div class="tabla-clientes">
+      <div class="fila-cliente encabezado">
+        <span>Cliente</span><span>Compras</span><span>Prom. ${etiqueta}</span><span>Kg ${etiqueta}</span>
+      </div>
+      ${candidatos.map(c => `
+        <div class="fila-cliente">
+          <span class="nombre">${escapeHtml(c.nombre)}</span>
+          <span>${c.compras}</span>
+          <span class="dinero">${fmt(c.dineroProm)}</span>
+          <span>${c.kilosProm.toFixed(2)} kg</span>
+        </div>`).join('')}
+    </div>`;
+
+  if (typeof Chart === 'undefined') return;
+  const css = getComputedStyle(document.documentElement);
+  graficos.clientes?.destroy();
+  graficos.clientes = new Chart(document.getElementById('chartClientes'), {
+    type: 'bar',
+    data: {
+      labels: candidatos.map(c => c.nombre),
+      datasets: [{
+        label: 'Promedio ' + etiqueta,
+        data: candidatos.map(c => Math.round(c.dineroProm)),
+        backgroundColor: css.getPropertyValue('--verde').trim(),
+        borderRadius: 6, maxBarThickness: 34,
+      }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => '$' + Math.round(c.parsed.x).toLocaleString('es-CO'),
+          afterLabel: c => candidatos[c.dataIndex].kilosProm.toFixed(2) + ' kg ' + etiqueta,
+        } },
+      },
+      scales: {
+        x: { grid: { color: css.getPropertyValue('--linea').trim() }, border: { display: false },
+             ticks: { callback: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : (v/1000).toFixed(0)+'k' } },
+        y: { grid: { display: false }, border: { display: false } },
+      },
+    },
+  });
+}
 
 // Devuelve las claves de mes ('2026-09') hacia atrás desde el mes elegido.
 function mesesDelRango(mesBase, cantidad) {
