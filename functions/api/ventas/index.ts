@@ -1,5 +1,5 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { kilosVendidos } from '../../_lib/convert.js';
+import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
 const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, metodo, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
@@ -58,23 +58,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   await registrarCliente(supabase, body.cliente, body.tipoCliente);
 
-  // Suma cuántas libras se venden de cada lote en este pedido (puede tener
-  // varias líneas del mismo lote) y descuenta el inventario una sola vez por lote.
-  const librasPorLote: Record<string, number> = {};
-  for (const it of items) {
-    if (it && it.tipo === 'cafe' && it.lote && it.presentacion) {
-      const lb = kilosVendidos(it.presentacion, Number(it.cantidad) || 0);
-      librasPorLote[it.lote] = (librasPorLote[it.lote] || 0) + lb;
-    }
-  }
-  for (const [lote, lb] of Object.entries(librasPorLote)) {
-    if (lb > 0) {
-      const { data: inv } = await supabase.from('inventario').select('id, stock_lb').eq('lote', lote).single();
-      if (inv) {
-        await supabase.from('inventario').update({ stock_lb: Number(inv.stock_lb) - lb, ts: Date.now() }).eq('id', inv.id);
-      }
-    }
-  }
+  // Descuenta el inventario de cada lote de café que traiga el pedido, de
+  // forma atómica (no se pierde nada aunque otro celular venda al mismo tiempo).
+  await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(row), -1);
 
   return Response.json(row, { status: 201 });
 };
