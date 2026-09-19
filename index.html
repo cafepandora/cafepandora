@@ -1222,7 +1222,15 @@ function renderCampanaPedidosWeb() {
 }
 
 function detallePedidoWeb(p) {
-  return (p.items || []).map(it => `${it.cantidad} ${it.presentacion} de ${it.lote}${it.molienda ? ' (' + it.molienda + ')' : ''}`).join(' · ');
+  return (p.items || []).map(it => {
+    const metodos = (it.metodos || []).filter(Boolean);
+    let sufijo = '';
+    if (metodos.length) {
+      const todosIguales = metodos.every(m => m === metodos[0]);
+      sufijo = todosIguales ? ` [${metodos[0]}]` : ` [${metodos.map((m, i) => `u${i + 1}: ${m}`).join(', ')}]`;
+    }
+    return `${it.cantidad} ${it.presentacion} de ${it.lote}${it.molienda ? ' (' + it.molienda + ')' : ''}${sufijo}`;
+  }).join(' · ');
 }
 
 function abrirPedidosWeb() {
