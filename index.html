@@ -1166,7 +1166,19 @@ async function sincronizar() {
 // oculta para no parecer roto cuando escribir ahí no hace nada.
 const TABS_CON_BUSQUEDA = new Set(['ventas', 'maquila', 'gastos', 'finca', 'cuentas-cobro', 'config']);
 
+// Configuración modifica precios y el directorio de clientes para todo el
+// equipo — pide la clave cada vez que se abre la app, para que entrar ahí
+// sea siempre una decisión consciente y no un toque sin querer.
+const CLAVE_CONFIG = 'pandora2026';
+let configDesbloqueado = false;
+
 function irATab(tab) {
+  if (tab === 'config' && !configDesbloqueado) {
+    const clave = prompt('Configuración cambia precios y clientes para todo el equipo.\nEscribe la clave para entrar:');
+    if (clave === null) return;
+    if (clave !== CLAVE_CONFIG) { toast('Clave incorrecta.', 'error'); return; }
+    configDesbloqueado = true;
+  }
   state.tabActiva = tab;
   document.querySelectorAll('button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('section.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + tab));
