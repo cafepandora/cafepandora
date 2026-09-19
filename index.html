@@ -658,6 +658,11 @@ const CATEGORIA_RETIRO = 'Retiro de cuenta';
 // de quien paga (pagadoPor) a quien recibe (transferidoA), sin pasar por
 // Efectivo. Igual que un "Retiro de cuenta" pero con destino elegible.
 const CATEGORIA_TRANSFERENCIA = 'Transferencia entre cuentas';
+// Retiro/Transferencia no son plata que sale del negocio, es plata que
+// cambia de bolsillo — no deben sumarse a "gastos del negocio" en
+// Resumen/gráficas/Excel (sí siguen contando en el balance de cada
+// persona, eso lo maneja calcularBalancePersonas aparte).
+const esGastoOperativo = g => g.categoria !== CATEGORIA_RETIRO && g.categoria !== CATEGORIA_TRANSFERENCIA;
 const CATEGORIAS_FINCA = ['Insumos', 'Mano de obra', 'Cosecha', 'Otro'];
 const MOLIENDAS = ['Molido', 'En grano'];
 const TUESTES_LAVADO = ['Media', 'Media alta'];
@@ -2033,13 +2038,17 @@ async function toggleEstadoEnvio(id) {
 
 async function registrarVenta(btn) {
   if (!carritoActual.length) return toast('Agrega al menos un producto o servicio al pedido.', 'error');
+  // El método de pago ya dice quién recibió en los 4 casos con nombre
+  // propio (Transferencia a X, X Nequi, X Bancolombia) — solo Efectivo
+  // pide elegirlo aparte, porque ese sí lo puede tener cualquiera.
+  const metodo = document.getElementById('v-metodo').value;
+  const recibidoPor = personaDeMetodo(metodo) || document.getElementById('v-recibio').value || null;
+  const estado = document.getElementById('v-estado').value;
+  // Si queda Pagado sin dueño, no cuadra en el balance de nadie — mejor
+  // pedirlo ahora que dejar la venta huérfana en silencio.
+  if (estado === 'Pagado' && !recibidoPor) return toast('Elige quién recibió el pago.', 'error');
   if (btn) btn.disabled = true;
   try {
-    // El método de pago ya dice quién recibió en los 4 casos con nombre
-    // propio (Transferencia a X, X Nequi, X Bancolombia) — solo Efectivo
-    // pide elegirlo aparte, porque ese sí lo puede tener cualquiera.
-    const metodo = document.getElementById('v-metodo').value;
-    const recibidoPor = personaDeMetodo(metodo) || document.getElementById('v-recibio').value || null;
     const usuario = recibidoPor || 'Equipo';
     localStorage.setItem('cp_usuario', usuario);
     const ordenEnCurso = ordenes[ordenActiva];
@@ -2052,7 +2061,7 @@ async function registrarVenta(btn) {
       valor: Math.max(0, Number(document.getElementById('v-valor').value) || carritoActual.reduce((s, it) => s + (Number(it.valor) || 0), 0)),
       metodo,
       recibidoPor,
-      estado: document.getElementById('v-estado').value,
+      estado,
       origenWeb: !!ordenEnCurso.origenWeb,
       ts: Date.now(),
     };
@@ -2087,6 +2096,10 @@ async function registrarVenta(btn) {
 async function toggleEstadoVenta(id) {
   const v = state.ventas.find(x => x.id === id); if (!v) return;
   const nuevo = v.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
+  if (nuevo === 'Pagado' && !personaDeMetodo(v.metodo) && !v.recibidoPor) {
+    toast('Antes de marcar como pagada, elige quién recibió el pago.', 'error');
+    return abrirEdicionVenta(id);
+  }
   v.estado = nuevo; guardarCacheLocal('ventas'); renderTodo();
   await apiFetch('/api/ventas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: nuevo }) });
 }
@@ -2341,13 +2354,16 @@ function pintarEdicionCarrito() {
 }
 
 async function guardarEdicionVenta(id, btn) {
+  const estado = document.getElementById('m-estado').value;
+  const recibidoPor = personaDeMetodo(document.getElementById('m-metodo').value) || document.getElementById('m-recibio').value || null;
+  if (estado === 'Pagado' && !recibidoPor) return toast('Elige quién recibió el pago.', 'error');
   if (btn) btn.disabled = true;
   const cambios = {
     items: editCarrito,
     valor: editCarrito.reduce((s, it) => s + (Number(it.valor) || 0), 0),
-    estado: document.getElementById('m-estado').value,
+    estado,
     metodo: document.getElementById('m-metodo').value,
-    recibidoPor: personaDeMetodo(document.getElementById('m-metodo').value) || document.getElementById('m-recibio').value || null,
+    recibidoPor,
     nuevosItems: editItemsNuevos, // el backend descuenta inventario por estas líneas nuevas
     itemsRemovidos: editItemsRemovidos, // y le devuelve inventario a las líneas originales que quitaste
   };
@@ -2645,16 +2661,18 @@ async function registrarOrdenMaquila(btn) {
   const cliente = nombreCanonicoMaquila(document.getElementById('mq-cliente').value) || '';
   if (!cliente) return toast('Escribe el nombre del cliente.', 'error');
   if (!carritoMaquila.length) return toast('Agrega al menos un servicio.', 'error');
+  const metodo = document.getElementById('mq-metodo').value;
+  const recibidoPor = personaDeMetodo(metodo) || document.getElementById('mq-recibio').value || null;
+  const estado = document.getElementById('mq-estado').value;
+  if (estado === 'Pagado' && !recibidoPor) return toast('Elige quién recibió el pago.', 'error');
   btn.disabled = true;
   try {
-    const metodo = document.getElementById('mq-metodo').value;
-    const recibidoPor = personaDeMetodo(metodo) || document.getElementById('mq-recibio').value || null;
     const payload = {
       cliente,
       usuario: recibidoPor || localStorage.getItem('cp_usuario') || 'Equipo',
       items: carritoMaquila,
       valor: carritoMaquila.reduce((s, it) => s + (Number(it.valor) || 0), 0),
-      estado: document.getElementById('mq-estado').value,
+      estado,
       metodo,
       recibidoPor,
       ts: Date.now(),
@@ -2675,9 +2693,13 @@ async function registrarOrdenMaquila(btn) {
 
 async function toggleEstadoOrdenMaquila(id) {
   const o = state.ordenesMaquila.find(x => x.id === id); if (!o) return;
-  o.estado = o.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
-  guardarCacheLocal('ordenesMaquila'); renderTodo();
-  await apiFetch('/api/ordenes-maquila/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: o.estado }) });
+  const nuevo = o.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
+  if (nuevo === 'Pagado' && !personaDeMetodo(o.metodo) && !o.recibidoPor) {
+    toast('Antes de marcar como pagada, elige quién recibió el pago.', 'error');
+    return abrirEdicionMaquila(id);
+  }
+  o.estado = nuevo; guardarCacheLocal('ordenesMaquila'); renderTodo();
+  await apiFetch('/api/ordenes-maquila/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: nuevo }) });
 }
 
 async function eliminarOrdenMaquila(id) {
@@ -2810,13 +2832,16 @@ function pintarEmqCarrito() {
 }
 
 async function guardarEdicionMaquila(id, btn) {
+  const estado = document.getElementById('m-estado').value;
+  const recibidoPor = personaDeMetodo(document.getElementById('m-metodo').value) || document.getElementById('m-recibio').value || null;
+  if (estado === 'Pagado' && !recibidoPor) return toast('Elige quién recibió el pago.', 'error');
   btn.disabled = true;
   const cambios = {
     items: editCarritoMaquila,
     valor: editCarritoMaquila.reduce((s, it) => s + (Number(it.valor) || 0), 0),
-    estado: document.getElementById('m-estado').value,
+    estado,
     metodo: document.getElementById('m-metodo').value,
-    recibidoPor: personaDeMetodo(document.getElementById('m-metodo').value) || document.getElementById('m-recibio').value || null,
+    recibidoPor,
   };
   const o = state.ordenesMaquila.find(x => x.id === id); if (o) Object.assign(o, cambios);
   guardarCacheLocal('ordenesMaquila'); cerrarModal(); renderTodo();
@@ -2911,6 +2936,10 @@ async function registrarGasto(btn) {
     if (!pagadoPor) return toast('Elige quién transfiere.', 'error');
     if (!transferidoA) return toast('Elige a quién se transfiere.', 'error');
     if (pagadoPor === transferidoA) return toast('El origen y el destino de la transferencia no pueden ser la misma persona.', 'error');
+  } else if (!pagadoPor) {
+    // Sin esto, un gasto puede quedar Pagado sin dueño y no cuadra en el
+    // balance de nadie — mismo problema que tuvimos con ventas viejas.
+    return toast('Elige quién pagó.', 'error');
   }
   const payload = {
     usuario: pagadoPor || 'Equipo',
@@ -2938,9 +2967,13 @@ async function registrarGasto(btn) {
 }
 async function toggleEstadoGasto(id) {
   const g = state.gastos.find(x => x.id === id); if (!g) return;
-  g.estado = g.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
-  guardarCacheLocal('gastos'); renderTodo();
-  await apiFetch('/api/gastos/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: g.estado }) });
+  const nuevo = g.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
+  if (nuevo === 'Pagado' && !g.pagadoPor) {
+    toast('Este gasto no tiene quién pagó — corrígelo con ✎ antes de marcarlo Pagado.', 'error');
+    return abrirEdicionGasto(id);
+  }
+  g.estado = nuevo; guardarCacheLocal('gastos'); renderTodo();
+  await apiFetch('/api/gastos/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: nuevo }) });
 }
 async function eliminarGasto(id) {
   if (!confirm('¿Eliminar este gasto?')) return;
@@ -2961,7 +2994,9 @@ function abrirEdicionGasto(id) {
   `);
 }
 async function guardarEdicionGasto(id) {
-  const cambios = { concepto: document.getElementById('m-concepto').value.trim(), monto: Number(document.getElementById('m-monto').value) || 0, pagadoPor: document.getElementById('m-pago').value || null };
+  const pagadoPor = document.getElementById('m-pago').value || null;
+  if (!pagadoPor) return toast('Elige quién pagó.', 'error');
+  const cambios = { concepto: document.getElementById('m-concepto').value.trim(), monto: Number(document.getElementById('m-monto').value) || 0, pagadoPor };
   const g = state.gastos.find(x => x.id === id); Object.assign(g, cambios);
   guardarCacheLocal('gastos'); cerrarModal(); renderTodo();
   await apiFetch('/api/gastos/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios) });
@@ -3019,6 +3054,9 @@ async function registrarFinca(btn) {
     ts: Date.now(),
   };
   if (!payload.concepto) return toast('Escribe el concepto.', 'error');
+  // Finca no tiene modal de edición — si esto queda sin dueño, no hay
+  // forma de corregirlo después salvo borrar y volver a anotarlo.
+  if (!payload.pagadoPor) return toast('Elige quién pagó.', 'error');
   if (payload.pagadoPor) { localStorage.setItem('cp_pago', payload.pagadoPor); localStorage.setItem('cp_usuario', payload.pagadoPor); }
   if (btn) btn.disabled = true;
   try {
@@ -3033,9 +3071,12 @@ async function registrarFinca(btn) {
 }
 async function toggleEstadoFinca(id) {
   const f = state.finca.find(x => x.id === id); if (!f) return;
-  f.estado = f.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
-  guardarCacheLocal('finca'); renderTodo();
-  await apiFetch('/api/finca/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: f.estado }) });
+  const nuevo = f.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
+  if (nuevo === 'Pagado' && !f.pagadoPor) {
+    return toast('Este registro de finca no tiene quién pagó — no se puede editar, bórralo y vuelve a anotarlo.', 'error');
+  }
+  f.estado = nuevo; guardarCacheLocal('finca'); renderTodo();
+  await apiFetch('/api/finca/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: nuevo }) });
 }
 async function eliminarFinca(id) {
   if (!confirm('¿Eliminar este registro de finca?')) return;
@@ -3417,7 +3458,11 @@ function previsualizarCerezaComprada() {
 async function registrarCerezaComprada(btn) {
   const kilosCereza = Number(document.getElementById('cz-kilos').value) || 0;
   if (!kilosCereza) return toast('Escribe cuántos kilos de cereza se compraron.', 'error');
+  const costo = Math.max(0, Number(document.getElementById('cz-costo').value) || 0);
   const pagadoPor = document.getElementById('cz-pago').value || null;
+  // Si tuvo costo, alguien lo pagó — sin dueño no cuadra en el balance de
+  // nadie (no hay modal de edición aquí, así que mejor pedirlo ya).
+  if (costo > 0 && !pagadoPor) return toast('Elige quién pagó.', 'error');
   btn.disabled = true;
   try {
     const payload = {
@@ -3425,7 +3470,7 @@ async function registrarCerezaComprada(btn) {
       proveedor: document.getElementById('cz-proveedor').value.trim() || null,
       kilosCereza,
       proceso: document.getElementById('cz-proceso').value,
-      costo: Math.max(0, Number(document.getElementById('cz-costo').value) || 0),
+      costo,
       pagadoPor,
       notas: document.getElementById('cz-notas').value.trim() || null,
       usuario: localStorage.getItem('cp_usuario') || 'Equipo',
@@ -3804,7 +3849,8 @@ function renderResumen() {
   const facturado = facturadoVentas + facturadoMaquila;
   const cobrado = cobradoVentas + cobradoMaquila;
   const porCobrar = facturado - cobrado;
-  const totalGastos = gastosMes.reduce((s, g) => s + (Number(g.monto) || 0), 0);
+  const totalGastos = gastosMes.filter(esGastoOperativo).reduce((s, g) => s + (Number(g.monto) || 0), 0);
+  const totalMovimientosInternos = gastosMes.filter(g => !esGastoOperativo(g)).reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const totalFinca = fincaMes.reduce((s, f) => s + (Number(f.monto) || 0), 0);
   const balance = cobrado - totalGastos - totalFinca;
 
@@ -3845,7 +3891,7 @@ function renderResumen() {
       <div class="stat"><div class="n">${fmt(facturado)}</div><div class="l">Total facturado (café + maquila)</div></div>
       <div class="stat"><div class="n pos">${fmt(cobrado)}</div><div class="l">Cobrado</div></div>
       <div class="stat"><div class="n">${fmt(porCobrar)}</div><div class="l">Por cobrar</div></div>
-      <div class="stat"><div class="n neg">${fmt(totalGastos + totalFinca)}</div><div class="l">Gastos + Finca</div></div>
+      <div class="stat"><div class="n neg">${fmt(totalGastos + totalFinca)}</div><div class="l">Gastos + Finca${totalMovimientosInternos ? ` <span style="opacity:.65">(no incluye ${fmt(totalMovimientosInternos)} en retiros/transferencias — eso no sale del negocio)</span>` : ''}</div></div>
     </div>
     <div class="stat-grid" style="margin-bottom:18px">
       <div class="stat"><div class="n ${balance >= 0 ? 'pos' : 'neg'}">${fmt(balance)}</div><div class="l">Balance real del mes (cobrado − gastos − finca)</div></div>
@@ -3970,6 +4016,20 @@ function calcularBalancePersonas() {
   });
 }
 
+// Registros "Pagado" (o cereza con costo) sin quién recibió/pagó — no
+// cuadran en el balance de nadie. El formulario y los botones de estado ya
+// no dejan crear más de estos, pero esto avisa si queda alguno viejo (o
+// alguno que se coló por otro camino) para que se corrija a mano.
+function contarHuerfanos() {
+  return {
+    ventas: state.ventas.filter(v => v.estado === 'Pagado' && !v.recibidoPor).length,
+    maquila: state.ordenesMaquila.filter(o => o.estado === 'Pagado' && !o.recibidoPor).length,
+    gastos: state.gastos.filter(g => g.estado === 'Pagado' && !g.pagadoPor).length,
+    finca: state.finca.filter(f => f.estado === 'Pagado' && !f.pagadoPor).length,
+    cereza: state.cerezaComprada.filter(c => (Number(c.costo) || 0) > 0 && !c.pagadoPor).length,
+  };
+}
+
 // Cuánta plata (ya pagada) quedó en cada modalidad/cuenta — Efectivo,
 // Transferencia a Joaquín, Juan Nequi, etc. — sin importar quién la recibió.
 function calcularBalancePorModalidad() {
@@ -3985,7 +4045,15 @@ function renderBalancePersonas() {
   if (!cont) return;
   const balances = calcularBalancePersonas();
   const modalidades = calcularBalancePorModalidad();
+  const huerfanos = contarHuerfanos();
+  const etiquetasHuerfanos = { ventas: 'venta', maquila: 'orden de maquila', gastos: 'gasto', finca: 'movimiento de finca', cereza: 'compra de cereza' };
+  const avisoHuerfanos = Object.entries(huerfanos).filter(([, n]) => n > 0)
+    .map(([k, n]) => `${n} ${etiquetasHuerfanos[k]}${n === 1 ? '' : 's'}`).join(', ');
   cont.innerHTML = `
+    ${avisoHuerfanos ? `
+      <div style="background:#fdf1ea;border:1px solid var(--terracota);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cafe)">
+        ⚠️ Quedan pagos sin dueño y no cuadran en el balance de nadie: ${avisoHuerfanos} — corrígelos con ✎ (los de finca, si no tienen ✎, bórralos y vuelve a anotarlos).
+      </div>` : ''}
     <div class="tabla-clientes">
       <div class="fila-cliente encabezado">
         <span>Persona</span><span>Recibió</span><span>Gastó</span><span>Balance</span>
@@ -4199,11 +4267,13 @@ function dibujarGraficos(mesBase) {
   };
 
   // --- 1. Ingresos cobrados vs egresos, mes a mes ---
-  const ingresos = meses.map(mm => state.ventas
-    .filter(v => mesDe(v.ts) === mm && v.estado === 'Pagado')
-    .reduce((s, v) => s + (Number(v.valor) || 0), 0));
+  // Ingresos junta café + maquila (igual que el "Cobrado" de arriba); los
+  // egresos NO cuentan retiros/transferencias, esos no salen del negocio.
+  const ingresos = meses.map(mm =>
+    state.ventas.filter(v => mesDe(v.ts) === mm && v.estado === 'Pagado').reduce((s, v) => s + (Number(v.valor) || 0), 0) +
+    state.ordenesMaquila.filter(o => mesDe(o.ts) === mm && o.estado === 'Pagado').reduce((s, o) => s + (Number(o.valor) || 0), 0));
   const egresos = meses.map(mm =>
-    state.gastos.filter(g => mesDe(g.ts) === mm).reduce((s, g) => s + (Number(g.monto) || 0), 0) +
+    state.gastos.filter(g => mesDe(g.ts) === mm && esGastoOperativo(g)).reduce((s, g) => s + (Number(g.monto) || 0), 0) +
     state.finca.filter(f => mesDe(f.ts) === mm).reduce((s, f) => s + (Number(f.monto) || 0), 0));
 
   graficos.flujo?.destroy();
@@ -4227,8 +4297,10 @@ function dibujarGraficos(mesBase) {
   });
 
   // --- 2. Egresos por categoría (gastos + finca juntos) en todo el rango ---
+  // Retiros/transferencias no son categorías de gasto real, no entran aquí
+  // (ya tienen su propia gráfica en "Balance de cuentas").
   const porCategoria = {};
-  state.gastos.filter(g => meses.includes(mesDe(g.ts)))
+  state.gastos.filter(g => meses.includes(mesDe(g.ts)) && esGastoOperativo(g))
     .forEach(g => { porCategoria[g.categoria || 'Otro'] = (porCategoria[g.categoria || 'Otro'] || 0) + (Number(g.monto) || 0); });
   state.finca.filter(f => meses.includes(mesDe(f.ts)))
     .forEach(f => { const k = 'Finca: ' + (f.categoria || 'Otro'); porCategoria[k] = (porCategoria[k] || 0) + (Number(f.monto) || 0); });
@@ -4506,7 +4578,7 @@ function exportarExcel() {
         const factMaquila = oMes.reduce((s,o)=>s+(Number(o.valor)||0),0);
         const cobrado = vMes.filter(v=>v.estado==='Pagado').reduce((s,v)=>s+(Number(v.valor)||0),0)
                        + oMes.filter(o=>o.estado==='Pagado').reduce((s,o)=>s+(Number(o.valor)||0),0);
-        const totalGastos = gMes.reduce((s,g)=>s+(Number(g.monto)||0),0);
+        const totalGastos = gMes.filter(esGastoOperativo).reduce((s,g)=>s+(Number(g.monto)||0),0);
         const totalFinca = fMes.reduce((s,f)=>s+(Number(f.monto)||0),0);
         const facturado = factVentas + factMaquila;
         return [mm, MONEY(factVentas), MONEY(factMaquila), MONEY_B(facturado), MONEY(cobrado), MONEY(facturado-cobrado), MONEY(totalGastos), MONEY(totalFinca), MONEY_B(cobrado-totalGastos-totalFinca)];
@@ -4546,7 +4618,8 @@ function exportarExcel() {
       [HEAD('Fecha'), HEAD('Concepto'), HEAD('Categoría'), HEAD('Monto'), HEAD('Estado'), HEAD('Anotado por')],
       ...state.gastos.slice().sort((a,b)=>b.ts-a.ts).map(g => [FECHA(g.ts), g.concepto, g.categoria, MONEY(g.monto), g.estado, g.usuario || '']),
       [],
-      [BOLD('TOTAL'), null, null, MONEY_B(state.gastos.reduce((s,g)=>s+(Number(g.monto)||0),0))],
+      [BOLD('TOTAL gastos operativos'), null, null, MONEY_B(state.gastos.filter(esGastoOperativo).reduce((s,g)=>s+(Number(g.monto)||0),0))],
+      [BOLD('TOTAL retiros/transferencias'), null, null, MONEY_B(state.gastos.filter(g=>!esGastoOperativo(g)).reduce((s,g)=>s+(Number(g.monto)||0),0))],
     ],
   };
 

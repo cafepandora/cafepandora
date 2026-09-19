@@ -230,9 +230,8 @@ mano; negativo = el negocio le debe.
 `metodo` (Efectivo, Transferencia a Joaquín, Juan Nequi, etc.), sin
 importar quién lo recibió. Ambos se ven en Resumen (tarjeta "Balance de
 cuentas", tabla + gráfica) y en el Excel (hoja "Balance de cuentas") —
-`migracion_balance_cuentas.sql` agrega las columnas base, y
-`migracion_transferencia_cuentas.sql` agrega `transferido_a` — **falta
-correr esta última en producción**.
+`migracion_balance_cuentas.sql` y `migracion_transferencia_cuentas.sql`
+(agrega `transferido_a`) ya están corridas en producción.
 
 La tarjeta "Balance de cuentas" en Resumen tiene, además de las tablas,
 dos gráficas (`renderBalancePersonas()` → `dibujarGraficosBalance()`,
@@ -245,13 +244,44 @@ distribución por modalidad de pago.
 derivar del método de pago después de que ya existían ventas/órdenes
 pagadas en producción, así que esas filas viejas no contaban en el balance
 de nadie y las cuentas no cuadraban con la plata real.
-`migracion_backfill_recibido_por.sql` (data-fix, no cambia el schema)
-rellena `recibido_por` en las filas viejas cuyo `metodo` ya nombra a
-alguien (Transferencia a X, X Nequi, X Bancolombia); las que se pagaron en
-Efectivo no se pueden deducir del método — esas quedan sin dueño hasta que
-alguien las corrija a mano desde el botón ✎ (el archivo trae al final las
-dos consultas para encontrarlas). **Falta correr esta migración en
-producción.**
+`migracion_backfill_recibido_por.sql` (data-fix, no cambia el schema, ya
+corrida en producción) rellenó `recibido_por` en las filas viejas cuyo
+`metodo` ya nombraba a alguien (Transferencia a X, X Nequi, X Bancolombia,
+y el valor viejo "Transferencia a Juan" que ya no está en el desplegable
+actual pero seguía en filas antiguas). Las que se pagaron en Efectivo no
+se pudieron deducir del método — esas quedaron sin dueño hasta corregirlas
+a mano con ✎ (el archivo trae al final las consultas para encontrarlas).
+
+**Retiro de cuenta / Transferencia entre cuentas NO son gasto real del
+negocio** — `esGastoOperativo(g)` (excluye esas dos categorías) filtra
+todos los totales que miden gasto/egreso del negocio: "Gastos + Finca" y
+"Balance real del mes" en Resumen, las gráficas "Ingresos cobrados vs.
+egresos" y "Egresos por categoría", y la hoja Excel "Resumen mensual". La
+hoja Excel "Gastos" sigue listando cada fila (nada se oculta) pero separa
+el TOTAL en "gastos operativos" vs. "retiros/transferencias" para no
+confundir. La gráfica "Ingresos cobrados vs. egresos" también se corrigió
+para sumar maquila además de ventas (antes solo contaba café, y
+subestimaba los ingresos reales del mes en la gráfica aunque el stat
+"Cobrado" de arriba sí incluía maquila).
+
+**Nada puede quedar "Pagado" sin dueño desde ahora**: `registrarVenta`,
+`guardarEdicionVenta`, `registrarOrdenMaquila`, `guardarEdicionMaquila`
+exigen `recibidoPor` si el estado final es Pagado; `registrarGasto`,
+`guardarEdicionGasto`, `registrarFinca` (sin modal de edición, así que se
+exige siempre al crear) y `registrarCerezaComprada` (si tuvo costo) exigen
+`pagadoPor`. Los botones de un clic que marcan "Pagado"
+(`toggleEstadoVenta`, `toggleEstadoOrdenMaquila`, `toggleEstadoGasto`,
+`toggleEstadoFinca`) tienen el mismo guardarraíl — si falta el dueño,
+bloquean el cambio y (para venta/maquila/gasto) abren el modal de edición
+para corregirlo ahí mismo. Antes de esto, un solo clic en la etiqueta de
+estado podía marcar algo Pagado sin dueño en silencio — así se generaron
+las ventas viejas que hubo que rellenar con el backfill.
+
+**`contarHuerfanos()`** revisa, en cada `renderTodo()`, si queda algo
+Pagado (o cereza con costo) sin `recibidoPor`/`pagadoPor` — por dato
+viejo o algún camino que se escape de los guardarraíles de arriba — y
+muestra un aviso ⚠️ arriba de la tabla de "Balance de cuentas" con el
+conteo por tipo, para que nunca se pierda de vista silenciosamente.
 
 ## Cereza comprada a terceros
 
@@ -293,19 +323,13 @@ cada orden hay un botón 📋 que prellena el formulario).
 
 ## Pendiente / a medias
 
-- **Transferencia entre cuentas — falta correr la migración**: el código
-  ya está (ver "Balance de cuentas por persona" arriba), pero hasta que no
-  se corra `migracion_transferencia_cuentas.sql` en Supabase, registrar un
-  gasto con categoría "Transferencia entre cuentas" va a fallar (columna
-  `transferido_a` inexistente) — sí se va a ver el aviso rojo del error en
-  vez de quedarse callado, pero igual hay que correr la migración.
-  (`migracion_balance_cuentas.sql`, la de Efectivo/Retiro de cuenta y la de
-  cereza comprada, ya están corridas en producción.)
-- **Backfill de "quién recibió" en ventas/maquila viejas — falta
-  correrlo**: `migracion_backfill_recibido_por.sql` (ver "Balance de
-  cuentas por persona" arriba) rellena `recibido_por` en ventas/órdenes de
-  maquila pagadas ANTES de que ese campo se derivara del método de pago —
-  sin correrla, esas filas viejas no cuadran en el balance de nadie.
+- **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
+  (`migracion_backfill_recibido_por.sql`, ya corrida) solo pudo rellenar
+  `recibido_por` en filas cuyo `metodo` ya nombraba a alguien — las que se
+  pagaron en Efectivo quedaron sin dueño (no hay forma de deducirlo) y
+  siguen pendientes de corregir a mano con ✎. El aviso ⚠️ en "Balance de
+  cuentas" (`contarHuerfanos()`) las señala en tiempo real, así que se
+  puede ir revisando esa lista sin necesidad de volver al SQL Editor.
 - **Alerta de fermentación por WhatsApp — falta la configuración de Juan**:
   el código ya está (ver sección "Fermentación en caneca" arriba), pero no
   manda nada real hasta que Juan: 1) corra `migracion_fermentacion.sql` en
