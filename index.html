@@ -120,28 +120,34 @@
     .sidebar.collapsed .sidebar-quick-actions { flex-direction: row; justify-content: flex-end; }
     .sidebar-toggle { display: none; }
     .mobile-menu-btn {
-      display: flex; align-items: center; justify-content: center; position: sticky; top: 12px; left: 12px;
+      display: flex; align-items: center; justify-content: center; position: sticky;
+      top: calc(66px + env(safe-area-inset-top)); left: 12px;
       width: 40px; height: 40px; border-radius: 10px; background: var(--blanco); border: 1px solid var(--linea);
       font-size: 18px; cursor: pointer; z-index: 40; margin: 12px 0 0 12px;
     }
     .sidebar-overlay.show {
       display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 55;
     }
-    .app-main { padding: 8px 14px 86px; }
+    .app-main { padding: calc(66px + env(safe-area-inset-top)) 14px 24px; }
+    .controles-globales input[type="month"] { flex-basis: 128px; }
 
     /* Accesos directos a lo que más se usa en celular, para no tener que
-       abrir el cajón lateral cada vez que se cambia de sección. */
+       abrir el cajón lateral cada vez que se cambia de sección. Arriba en
+       vez de abajo para no chocar con la barra de gestos/menú del celular. */
     .bottom-nav-movil {
-      display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-      background: var(--blanco); border-top: 1px solid var(--linea);
-      box-shadow: 0 -4px 16px rgba(0,0,0,.08);
-      padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+      display: flex; position: fixed; left: 0; right: 0; top: 0; z-index: 56;
+      background: var(--blanco); border-bottom: 1px solid var(--linea);
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+      padding: calc(4px + env(safe-area-inset-top)) 4px 4px;
     }
     .bottom-nav-movil button {
-      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
       background: none; border: none; font-family: 'Outfit', sans-serif;
-      font-size: 10.5px; font-weight: 600; color: var(--cafe-soft); padding: 6px 2px; border-radius: 10px;
-      position: relative;
+      font-size: 10px; font-weight: 600; color: var(--cafe-soft); padding: 6px 1px; border-radius: 10px;
+      position: relative; overflow: hidden;
+    }
+    .bottom-nav-movil button span:last-child {
+      display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .bottom-nav-movil button.active { color: var(--cafe); background: var(--crema-alt); }
     .bottom-nav-movil button .ico { font-size: 19px; position: relative; }
@@ -200,7 +206,7 @@
     font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco); color: var(--cafe);
   }
   .controles-globales input[type="search"] {
-    flex: 1; padding: 12px 12px; border: 1px solid var(--linea); border-radius: 10px;
+    flex: 1; min-width: 0; padding: 12px 12px; border: 1px solid var(--linea); border-radius: 10px;
     font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco);
   }
 
