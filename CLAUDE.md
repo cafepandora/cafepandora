@@ -317,16 +317,29 @@ Pestaña "Cuentas de cobro" en el sidebar, independiente de los recibos
 simples de venta. Sirve tanto para clientes de café como de maquila (desde
 cada orden hay un botón 📋 que prellena el formulario).
 
-- El PDF reproduce exactamente el membrete real de Juan: logo gris (recorte
-  del PDF que compartió, `LOGO_CUENTA_COBRO_B64`), datos de contacto,
-  cliente que debe / "DEBE A" con los datos de Juan, el monto en letras
+- El PDF reproduce el membrete real: logo gris (recorte del PDF que Juan
+  compartió, `LOGO_CUENTA_COBRO_B64`), datos de contacto del NEGOCIO
+  (dirección/ciudad/teléfono/email — `EMISOR_DIRECCION` etc., no cambian
+  con el titular), cliente que debe / "DEBE A", el monto en letras
   (función `numeroALetras()`, formato legal colombiano tipo "VEINTIÚN MIL
-  PESOS MCTE"), tabla de conceptos, datos bancarios, y una **firma
-  escaneada real** (`FIRMA_B64`, recortada del mismo PDF — incluye la
-  rúbrica + nombre + cédula, no se escribe aparte).
+  PESOS MCTE"), tabla de conceptos, y datos bancarios.
+- **Se puede emitir a nombre de Juan David o de Inés** — selector "A
+  nombre de" (`cc-titular`) en el formulario, guardado en
+  `cuentas_cobro.titular` (`'juan'`/`'ines'`, `migracion_titular_cuenta_cobro.sql`;
+  filas viejas sin valor se tratan como `'juan'`). `TITULARES_CUENTA_COBRO`
+  en `index.html` tiene el nombre/cédula/cuenta bancaria de cada uno —
+  eso es lo único que cambia por titular en el "DEBE A" y en los datos
+  bancarios del PDF. Juan tiene **firma escaneada real** (`FIRMA_B64`,
+  recortada del mismo PDF — incluye la rúbrica + nombre + cédula, no se
+  escribe aparte); Inés todavía no tiene firma escaneada, así que en su
+  PDF se escribe el nombre + cédula en el espacio de la firma en vez de
+  una imagen (`titular.firmaImagen === false` en `generarPdfCuentaCobro()`)
+  — si más adelante Juan pasa una foto de la firma de Inés, se recorta
+  igual que la de él y se agrega como imagen.
 - Cada cuenta de cobro queda numerada (el `id` autoincremental de la tabla
   `cuentas_cobro`) y guardada en un historial con botón para volver a
-  descargar el PDF sin tener que rehacerlo.
+  descargar el PDF sin tener que rehacerlo — la fila del historial muestra
+  a nombre de quién quedó cada una.
 - El NIT/cédula se guarda en `clientes.nit_cedula` la primera vez y se
   sugiere solo la próxima vez que se escribe el mismo nombre — sin pisar el
   `tipo_cliente` (normal/distribuidor) si el cliente ya existía.
@@ -339,6 +352,14 @@ cada orden hay un botón 📋 que prellena el formulario).
 
 ## Pendiente / a medias
 
+- **Cuenta de cobro a nombre de Inés — falta correr la migración y la
+  firma escaneada**: el código ya está (ver "Cuentas de cobro" arriba),
+  pero hasta que no se corra `migracion_titular_cuenta_cobro.sql` en
+  Supabase, guardar con "A nombre de: Inés" va a fallar (columna
+  `titular` inexistente). Además, sus cuentas de cobro salen con el
+  nombre/cédula escritos en vez de una firma escaneada real — si Juan
+  pasa una foto de la firma de Inés, se puede recortar y agregar igual
+  que se hizo con la de él.
 - **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
   (`migracion_backfill_recibido_por.sql`, ya corrida) solo pudo rellenar
   `recibido_por` en filas cuyo `metodo` ya nombraba a alguien — las que se
