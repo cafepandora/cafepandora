@@ -1,0 +1,199 @@
+# Café Pandora — App de gestión interna + página de pedidos
+
+Contexto completo del proyecto para retomarlo. Léelo entero antes de tocar
+código — hay convenciones y decisiones de negocio que no son obvias solo
+mirando los archivos.
+
+## Qué es esto
+
+Dos apps separadas, un mismo repo, un mismo despliegue de Cloudflare Pages:
+
+1. **App interna** (`index.html`, raíz del repo) — la usan Juan, Inés y
+   Joaquín para registrar ventas de café, órdenes de maquila, gastos,
+   trazabilidad de cosecha/tueste, y ver el resumen financiero del negocio.
+   Requiere login.
+2. **Página pública de pedidos** (`pedidos/index.html`) — la ven los
+   clientes, sin login, para armar un pedido de café y mandarlo por
+   WhatsApp. URL: `cafepandora.pages.dev/pedidos/`.
+
+Café Pandora es un negocio de café colombiano: cultivan, procesan
+(Lavado/Honey/Natural/Exótico), tuestan y venden su propio café — y además
+ofrecen **maquila** (trillar/tostar/empacar café que trae el cliente, un
+servicio, no un producto del inventario propio).
+
+## Stack
+
+- **Frontend**: un solo `index.html` sin build step, JS vanilla, Chart.js y
+  jsPDF por CDN. Igual `pedidos/index.html`, independiente.
+- **Backend**: Cloudflare Pages Functions (`functions/api/**/*.ts`), cada
+  carpeta = un recurso REST (`index.ts` para GET/POST de la colección,
+  `[id].ts` para PATCH/DELETE de un registro).
+- **DB**: Supabase (Postgres). El cliente en `functions/_lib/supabase.ts`
+  usa la `service_role key` — nunca se expone al navegador.
+- **Auth**: Supabase Auth, **una sola cuenta compartida** para todo el
+  equipo (no hay roles ni usuarios individuales — así lo pidió Juan).
+  `functions/_lib/auth.ts` exporta `requireAuth()`, que casi todas las
+  funciones llaman al inicio. Las únicas rutas públicas (sin auth) son
+  `GET /api/catalogo-publico` y `POST /api/pedidos-web` — las que usa la
+  página de pedidos sin login.
+- **Hosting**: Cloudflare Pages, redeploy automático al hacer push/subir a
+  la rama `main` de GitHub.
+
+## Cómo se despliega
+
+Push a `main` en GitHub → Cloudflare Pages redespliega solo (1-2 min). No
+hay paso de build: los `.ts` de `functions/` los compila Cloudflare al
+vuelo. Cambios en Supabase (tablas nuevas, columnas nuevas) se corren a
+mano en el SQL Editor de Supabase — **no hay migraciones automáticas**,
+cada archivo `migracion_*.sql` en la raíz es uno que ya se corrió una vez
+en producción. Si vas a agregar una tabla o columna nueva, crea un
+`migracion_<algo>.sql` nuevo y avisa que hay que correrlo — no asumas que
+el schema ya lo tiene.
+
+## Variables de entorno
+
+- **Cloudflare Pages** (Settings → Environment variables), usadas por
+  `functions/_lib/supabase.ts`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+- **Hardcodeadas en `index.html`** (son públicas, no son secreto):
+  `SUPABASE_URL`, `SUPABASE_ANON_KEY` — las usa el navegador para el login
+  con Supabase Auth. Ya están puestas con los valores reales.
+
+## Convenciones importantes del código
+
+- **Sin framework, sin build**: todo el HTML/CSS/JS vive en un solo
+  `<script>` dentro de `index.html`. Las vistas se arman con template
+  literals (`renderVentas()`, `renderMaquila()`, etc.) que reemplazan el
+  `innerHTML` de su `<section>`. Sigue ese mismo patrón al agregar cosas.
+- **`apiFetch(url, options)`** envuelve `fetch` agregando el header
+  `Authorization: Bearer <token de sesión>`. Usa SIEMPRE `apiFetch` para
+  llamadas a `/api/...` desde `index.html` — nunca `fetch` directo (rompe
+  el login). En `pedidos/index.html` sí se usa `fetch` normal, porque esas
+  dos rutas son públicas.
+- **Ventas vs. Maquila están separados a propósito**: son audiencias y
+  flujos de negocio distintos (producto vs. servicio). Tienen tablas
+  (`ventas` / `ordenes_maquila`), directorios de clientes
+  (`listaClientes()` / `listaClientesMaquila()`), y funciones de
+  autocompletado independientes. No los vuelvas a mezclar.
+- **Inventario solo se toca en dos lugares**: al vender café (descuenta) y
+  al anotar la salida de un tueste (suma). Ver
+  `functions/_lib/convert.ts` (factores de conversión) y la función SQL
+  `ajustar_stock_inventario(p_lote, p_delta)` en Supabase — los ajustes
+  siempre pasan por ahí, nunca por un UPDATE directo a `inventario`, para
+  que quede atómico.
+- **Tueste es de dos pasos**: se registra la entrada de verde
+  (`POST /api/tuestes`, `kilosTostado` opcional/null), y DESPUÉS se anota
+  la salida (`PATCH /api/tuestes/:id`) — ahí es cuando se ajusta el
+  inventario, por la *diferencia* con lo que ya tenía, no por el valor
+  absoluto (para que corregir un dato no descuadre el stock). Mismo patrón
+  para cosechas (⚖️ pesar pergamino real) y pergamino comprado (🌾 pesar
+  verde real).
+- **Multi-orden en Ventas**: se pueden tener varias órdenes abiertas en
+  paralelo (pestañas dentro de la tarjeta), para atender varios clientes
+  sin perder el progreso. Ver `ordenes[]`, `ordenActiva`, `nuevaOrden()`.
+- **Pedidos web → venta**: un pedido que llega por la página pública
+  (`pedidos_web`) se convierte en una venta real con
+  `convertirPedidoWebAVenta(id)`, que abre una orden nueva pre-cargada; al
+  registrar la venta, automáticamente marca `pedidos_web.estado =
+  'convertido'` y la venta queda con `origen_web = true` (se ve con el
+  badge 🌐 en la lista).
+- **Precios en tres tarifas**: `precios_cafe.tipo_cliente` puede ser
+  `normal`, `distribuidor` o `web` — las tres viven en la misma tabla, se
+  editan por separado en Configuración. `web` es la que usa
+  `/api/catalogo-publico`, independiente de las otras dos (clientes nuevos
+  por la página pueden tener un precio distinto a los de siempre).
+- **Molienda y tostión**: cada línea de café en una venta puede llevar
+  `molienda` ('Molido'/'En grano') y, solo si `lote === 'Lavado'`,
+  `tueste` ('Media'/'Media alta') — es la preferencia del CLIENTE al
+  comprar, no confundir con el tueste de producción (`lotes_tueste`, la
+  tabla de trazabilidad). `ultimaPreferenciaCafe(nombre)` busca la última
+  compra de café real de un cliente (aunque su venta más reciente haya
+  sido pura maquila) para sugerir molienda/tueste solos.
+
+## Estructura del repo
+
+```
+index.html                         # app interna completa
+pedidos/index.html                 # página pública de pedidos
+xlsx-lite.js                       # generador de .xlsx sin dependencias
+functions/_lib/supabase.ts         # cliente Supabase (service role)
+functions/_lib/auth.ts             # requireAuth() — valida sesión Supabase
+functions/_lib/convert.ts          # factores de conversión kg/presentación
+functions/api/ventas/              # ventas de café (multi-línea)
+functions/api/ordenes-maquila/     # órdenes de maquila (separado de ventas)
+functions/api/maquila/             # tarifas de maquila (config, no órdenes)
+functions/api/clientes/            # directorio de clientes de café (incluye nit_cedula)
+functions/api/clientes-unificar/   # fusiona/renombra variantes de un cliente
+functions/api/cuentas-cobro/       # historial de cuentas de cobro formales (numeradas)
+functions/api/inventario/          # stock de café tostado (kg)
+functions/api/gastos/              # gastos operativos
+functions/api/finca/               # gastos/labores de finca
+functions/api/precios-cafe/        # precios normal/distribuidor/web
+functions/api/cosechas/            # cereza → pergamino
+functions/api/pergamino/           # pergamino comprado a terceros
+functions/api/tuestes/             # verde → tostado (trazabilidad)
+functions/api/pedidos-web/         # bandeja de pedidos de la página pública
+functions/api/catalogo-publico/    # GET público de precios "web"
+migracion_*.sql, migration.sql     # todas ya corridas en producción
+```
+
+## Cuentas de cobro (módulo formal, con membrete)
+
+Pestaña "Cuentas de cobro" en el sidebar, independiente de los recibos
+simples de venta. Sirve tanto para clientes de café como de maquila (desde
+cada orden hay un botón 📋 que prellena el formulario).
+
+- El PDF reproduce exactamente el membrete real de Juan: logo gris (recorte
+  del PDF que compartió, `LOGO_CUENTA_COBRO_B64`), datos de contacto,
+  cliente que debe / "DEBE A" con los datos de Juan, el monto en letras
+  (función `numeroALetras()`, formato legal colombiano tipo "VEINTIÚN MIL
+  PESOS MCTE"), tabla de conceptos, datos bancarios, y una **firma
+  escaneada real** (`FIRMA_B64`, recortada del mismo PDF — incluye la
+  rúbrica + nombre + cédula, no se escribe aparte).
+- Cada cuenta de cobro queda numerada (el `id` autoincremental de la tabla
+  `cuentas_cobro`) y guardada en un historial con botón para volver a
+  descargar el PDF sin tener que rehacerlo.
+- El NIT/cédula se guarda en `clientes.nit_cedula` la primera vez y se
+  sugiere solo la próxima vez que se escribe el mismo nombre — sin pisar el
+  `tipo_cliente` (normal/distribuidor) si el cliente ya existía.
+- El directorio de sugerencias del campo "Cliente" combina
+  `listaClientes()` + `listaClientesMaquila()` (función
+  `listaClientesTodos()`), pero el nombre no tiene que existir en ninguno
+  de los dos — sirve para clientes institucionales que solo piden cuenta
+  de cobro (como el caso de prueba de Juan, FUCAI).
+
+
+## Pendiente / a medias
+
+- **Rediseño de la página pública con la carta real**: Juan compartió su
+  lista de precios 2026 (Lavado con las 4 presentaciones, Honey y Natural
+  solo en Media libra, Exóticos $35-40k "preguntar disponibilidad"). Falta:
+  actualizar la tarifa `web` en `precios_cafe` con esos valores reales
+  (dejar Honey/Natural en 0 para Libra/Kilo/Cuarterón así no aparecen, y
+  probablemente excluir Exótico del catálogo automático por ser bajo
+  disponibilidad), y rediseñar `pedidos/index.html` para que cada lote se
+  vea con la foto de su bolsa — se pueden recortar directo de la imagen de
+  la carta que Juan subió, en vez de pedirle fotos nuevas.
+- **Del audit original, sin hacer todavía** (baja prioridad, cosmético):
+  nada más pendiente por ahora — todo lo demás de la auditoría (carrito
+  persistente, resumen de pedido, validación de teléfono, ficha de
+  cliente, menú agrupado) ya está hecho.
+
+## Gotchas ya vividos (para no repetirlos)
+
+- El sidebar (`<nav class="sidebar">`) tiene **una sola fila de íconos
+  rápidos** (`.sidebar-quick-actions`: 🔔 campana, 📄 exportar, 🚪 cerrar
+  sesión) arriba del todo, antes del logo — no hay una segunda copia en el
+  footer. Si agregas un botón de acción global nuevo, va ahí, no crees un
+  `sidebar-footer-actions` de nuevo (esa clase ya no existe).
+
+- El editor de texto de GitHub a veces **corta el contenido al pegar**
+  archivos grandes (`index.html` pesa ~660 KB) — pasó una vez y rompió
+  toda la app con un `SyntaxError` silencioso. Con Claude Code esto ya no
+  debería pasar (push por git, no copiar/pegar) — pero si algo similar
+  vuelve a pasar, correr `node --check` sobre el contenido del
+  `<script>` extraído es la forma más rápida de confirmar que el JS es
+  válido antes de dar por bueno un cambio.
+- Todas las funciones de `functions/api/` (menos las 2 públicas) exigen
+  login — si pruebas un endpoint con `curl`/Postman sin el header
+  `Authorization: Bearer <token>`, va a responder 401. Para probar así hay
+  que sacar un token real (login vía Supabase Auth) primero.
