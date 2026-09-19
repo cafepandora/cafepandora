@@ -57,6 +57,9 @@ el schema ya lo tiene.
 - **Hardcodeadas en `index.html`** (son públicas, no son secreto):
   `SUPABASE_URL`, `SUPABASE_ANON_KEY` — las usa el navegador para el login
   con Supabase Auth. Ya están puestas con los valores reales.
+- **Cloudflare Pages**, usadas solo por `functions/api/cron/fermentacion.ts`
+  (alerta de WhatsApp — ver sección "Fermentación en caneca" más abajo):
+  `CALLMEBOT_PHONE`, `CALLMEBOT_APIKEY`, `CRON_SECRET`.
 
 ## Convenciones importantes del código
 
@@ -128,13 +131,49 @@ functions/api/inventario/          # stock de café tostado (kg)
 functions/api/gastos/              # gastos operativos
 functions/api/finca/               # gastos/labores de finca
 functions/api/precios-cafe/        # precios normal/distribuidor/web
-functions/api/cosechas/            # cereza → pergamino
+functions/api/cosechas/            # cereza → pergamino (incluye fermentación en caneca)
 functions/api/pergamino/           # pergamino comprado a terceros
 functions/api/tuestes/             # verde → tostado (trazabilidad)
 functions/api/pedidos-web/         # bandeja de pedidos de la página pública
 functions/api/catalogo-publico/    # GET público de precios "web"
+functions/api/cron/fermentacion.ts # alerta de WhatsApp — la llama un cron externo, no la app
 migracion_*.sql, migration.sql     # todas ya corridas en producción
 ```
+
+## Fermentación en caneca (Honey/Natural) + alerta de WhatsApp
+
+En "Cosecha & Tueste" → Cosechas, al registrar (o editar, botón ⏱️) una
+cosecha de **Honey o Natural** se puede poner cuándo empezó a fermentar en
+caneca y cuántas horas se va a dejar (`fermentacion_inicio`,
+`fermentacion_horas` en la tabla `cosechas` — ver
+`migracion_fermentacion.sql`). Lavado y Exótico no muestran estos campos,
+no fermentan en caneca de la misma forma.
+
+Mientras no se haya pesado el pergamino real, la fila de esa cosecha
+muestra cuánto falta ("🧪 Fermentando · termina en Xh Ym") o que ya se
+cumplió ("✅ Fermentación cumplida — revisa la caneca"),
+`estadoFermentacion()` en `index.html`.
+
+**La alerta de WhatsApp NO la manda la app** — la app solo guarda los datos.
+Un endpoint público (`functions/api/cron/fermentacion.ts`) revisa cada
+cosecha de Honey/Natural sin pesar todavía, y si le faltan 2 horas o menos
+(`UMBRAL_HORAS`) le manda un WhatsApp a Juan por
+[CallMeBot](https://www.callmebot.com/blog/free-api-whatsapp-messages/) y
+marca `fermentacion_alertado = true` para no repetir el aviso (se resetea
+solo si se corrige el inicio/horas desde ⏱️). Ese endpoint hay que llamarlo
+desde **afuera** cada 15-30 min — con un cron gratis de
+[cron-job.org](https://cron-job.org) apuntando a:
+
+```
+https://cafepandora.pages.dev/api/cron/fermentacion?clave=<CRON_SECRET>
+```
+
+Requiere 3 variables de entorno en Cloudflare Pages (ver sección de arriba):
+`CALLMEBOT_PHONE` (el número de Juan, con indicativo y sin +), 
+`CALLMEBOT_APIKEY` (se consigue agregando el contacto de CallMeBot en
+WhatsApp y mandándole "I allow callmebot to send me messages" — el bot
+responde con la clave), y `CRON_SECRET` (una palabra larga inventada, para
+que nadie más pueda llamar esa URL pública y gastar mensajes).
 
 ## Cuentas de cobro (módulo formal, con membrete)
 
@@ -164,6 +203,14 @@ cada orden hay un botón 📋 que prellena el formulario).
 
 ## Pendiente / a medias
 
+- **Alerta de fermentación por WhatsApp — falta la configuración de Juan**:
+  el código ya está (ver sección "Fermentación en caneca" arriba), pero no
+  manda nada real hasta que Juan: 1) corra `migracion_fermentacion.sql` en
+  Supabase, 2) active CallMeBot y ponga `CALLMEBOT_PHONE`/`CALLMEBOT_APIKEY`
+  en Cloudflare, 3) invente una palabra para `CRON_SECRET` y la ponga
+  también en Cloudflare, y 4) cree el cron en cron-job.org apuntando al
+  endpoint con esa clave. Sin esos 4 pasos, los campos de fermentación se
+  guardan bien pero nadie recibe el aviso.
 - **Fotos de bolsa en `pedidos/index.html`**: las tarjetas de lote
   (Lavado/Honey/Natural) mostraban una foto de la bolsa recortada de la
   carta, pero se veían pixeladas en celulares con pantalla retina (fotos
