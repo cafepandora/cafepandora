@@ -2285,13 +2285,67 @@ const ICONOS_LOTE = { Lavado: '💧', Honey: '🍯', Natural: '🌿', Exotico: '
    orden se puede ir completando en varios días (hoy solo trillado,
    mañana tueste, luego empaque) igual que hicimos con ventas.
 ================================================================ */
-let carritoMaquila = [];
-let clienteMaquilaActual = '';
+// Varias órdenes de maquila abiertas a la vez, igual que en Ventas — para
+// poder atender dos clientes en paralelo (ej. Adrián y Alejandro) sin perder
+// lo que lleva cada uno.
+const ordenMaquilaVacia = () => ({ items: [], cliente: '', estado: 'Pendiente', metodo: '' });
+let ordenesMaquilaAbiertas = [ordenMaquilaVacia()];
+let ordenMaquilaActiva = 0;
+// carritoMaquila siempre apunta a los items de la orden que estás viendo.
+let carritoMaquila = ordenesMaquilaAbiertas[0].items;
 const SERVICIO_TRANSPORTE = 'Transporte';
+
+// Lee los campos del formulario y los guarda en la orden activa (para no
+// perderlos al cambiar de orden).
+function guardarOrdenMaquilaEnMemoria() {
+  const o = ordenesMaquilaAbiertas[ordenMaquilaActiva];
+  if (!o) return;
+  const g = id => document.getElementById(id);
+  if (g('mq-cliente')) o.cliente = g('mq-cliente').value;
+  if (g('mq-estado')) o.estado = g('mq-estado').value;
+  if (g('mq-metodo')) o.metodo = g('mq-metodo').value;
+}
+
+function cambiarOrdenMaquila(i) {
+  guardarOrdenMaquilaEnMemoria();
+  ordenMaquilaActiva = i;
+  carritoMaquila = ordenesMaquilaAbiertas[i].items;
+  renderMaquila();
+}
+
+function nuevaOrdenMaquila() {
+  guardarOrdenMaquilaEnMemoria();
+  ordenesMaquilaAbiertas.push(ordenMaquilaVacia());
+  ordenMaquilaActiva = ordenesMaquilaAbiertas.length - 1;
+  carritoMaquila = ordenesMaquilaAbiertas[ordenMaquilaActiva].items;
+  renderMaquila();
+  toast('Orden ' + ordenesMaquilaAbiertas.length + ' abierta');
+}
+
+function cerrarOrdenMaquila(i) {
+  const o = ordenesMaquilaAbiertas[i];
+  const tieneAlgo = o.items.length || (o.cliente || '').trim();
+  if (tieneAlgo && !confirm('¿Descartar esta orden con lo que lleva dentro?')) return;
+  guardarOrdenMaquilaEnMemoria();
+  ordenesMaquilaAbiertas.splice(i, 1);
+  if (!ordenesMaquilaAbiertas.length) ordenesMaquilaAbiertas.push(ordenMaquilaVacia());
+  ordenMaquilaActiva = Math.min(ordenMaquilaActiva, ordenesMaquilaAbiertas.length - 1);
+  carritoMaquila = ordenesMaquilaAbiertas[ordenMaquilaActiva].items;
+  renderMaquila();
+}
+
+// Al registrar una orden, cierra esa pestaña y deja abiertas las demás.
+function finalizarOrdenMaquilaActiva() {
+  ordenesMaquilaAbiertas.splice(ordenMaquilaActiva, 1);
+  if (!ordenesMaquilaAbiertas.length) ordenesMaquilaAbiertas.push(ordenMaquilaVacia());
+  ordenMaquilaActiva = Math.min(ordenMaquilaActiva, ordenesMaquilaAbiertas.length - 1);
+  carritoMaquila = ordenesMaquilaAbiertas[ordenMaquilaActiva].items;
+}
 
 function renderMaquila() {
   const mes = document.getElementById('filtroMes').value || hoyMes();
   const q = document.getElementById('filtroBusqueda').value;
+  const orden = ordenesMaquilaAbiertas[ordenMaquilaActiva];
 
   const gruposMaquila = {};
   state.maquila.forEach(t => { (gruposMaquila[t.servicio] ||= []).push(t); });
@@ -2301,13 +2355,23 @@ function renderMaquila() {
     (coincide(o.cliente, q) || coincide(detalleOrdenMaquila(o), q)));
 
   document.getElementById('view-maquila').innerHTML = `
-    <div class="card">
-      <h3 class="section-title" style="margin-top:0">Nueva orden de maquila</h3>
+    <div class="card orden-card">
+      <div class="orden-tabs">
+        ${ordenesMaquilaAbiertas.map((o, i) => `
+          <button class="${i === ordenMaquilaActiva ? 'active' : ''}" onclick="cambiarOrdenMaquila(${i})" title="${escapeAttr(o.cliente || 'Sin cliente')}">
+            Orden ${i + 1}${o.items.length ? `<span class="badge">${o.items.length}</span>` : ''}
+          </button>`).join('')}
+        <button class="add-orden" onclick="nuevaOrdenMaquila()" title="Abrir otra orden">+</button>
+      </div>
+      <div class="orden-head">
+        <h3 class="section-title" style="margin:0">${orden.cliente ? escapeHtml(orden.cliente) : 'Nueva orden de maquila'}</h3>
+        ${ordenesMaquilaAbiertas.length > 1 ? `<button class="cerrar-orden" onclick="cerrarOrdenMaquila(${ordenMaquilaActiva})">Descartar</button>` : ''}
+      </div>
       <div class="row">
         <div class="field"><label>Cliente</label>
           <div class="autocomplete-wrap">
             <input id="mq-cliente" placeholder="Escribe el nombre del cliente" autocomplete="off"
-                   value="${escapeAttr(clienteMaquilaActual)}"
+                   value="${escapeAttr(orden.cliente)}"
                    oninput="filtrarSugerenciasClienteMaquila()" onfocus="filtrarSugerenciasClienteMaquila()"
                    onblur="setTimeout(()=>{const c=document.getElementById('mqSugerencias'); if(c) c.style.display='none';},150)">
             <div id="mqSugerencias" class="sugerencias" style="display:none"></div>
@@ -2353,10 +2417,10 @@ function renderMaquila() {
 
       <div class="row" style="margin-top:10px">
         <div class="field"><label>Estado</label>
-          <select id="mq-estado"><option>Pendiente</option><option>Pagado</option></select>
+          <select id="mq-estado"><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option></select>
         </div>
         <div class="field"><label>Método de pago</label>
-          <select id="mq-metodo"><option value="">—</option>${METODOS_PAGO.map(m => `<option>${m}</option>`).join('')}</select>
+          <select id="mq-metodo"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
         </div>
       </div>
       <button class="add-btn" onclick="registrarOrdenMaquila(this)">Registrar orden</button>
@@ -2509,8 +2573,7 @@ async function registrarOrdenMaquila(btn) {
     const res = await apiFetch('/api/ordenes-maquila', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     state.ordenesMaquila.push(await res.json());
     guardarCacheLocal('ordenesMaquila');
-    carritoMaquila = [];
-    clienteMaquilaActual = '';
+    finalizarOrdenMaquilaActiva();
     toast('Orden de maquila registrada');
     renderTodo();
     sincronizar();
