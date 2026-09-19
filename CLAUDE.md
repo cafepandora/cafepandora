@@ -164,15 +164,30 @@ cada orden hay un botón 📋 que prellena el formulario).
 
 ## Pendiente / a medias
 
-- **Rediseño de la página pública con la carta real**: Juan compartió su
-  lista de precios 2026 (Lavado con las 4 presentaciones, Honey y Natural
-  solo en Media libra, Exóticos $35-40k "preguntar disponibilidad"). Falta:
-  actualizar la tarifa `web` en `precios_cafe` con esos valores reales
-  (dejar Honey/Natural en 0 para Libra/Kilo/Cuarterón así no aparecen, y
-  probablemente excluir Exótico del catálogo automático por ser bajo
-  disponibilidad), y rediseñar `pedidos/index.html` para que cada lote se
-  vea con la foto de su bolsa — se pueden recortar directo de la imagen de
-  la carta que Juan subió, en vez de pedirle fotos nuevas.
+- **Fotos de bolsa en `pedidos/index.html`**: las tarjetas de lote
+  (Lavado/Honey/Natural) mostraban una foto de la bolsa recortada de la
+  carta, pero se veían pixeladas en celulares con pantalla retina (fotos
+  de solo ~220px de ancho estiradas a 260px) y un par de clientes se
+  quejaron. Se reemplazaron por tarjetas tipográficas (nombre del lote en
+  grande, fuente Baloo 2 — la más parecida a la del logo en Google Fonts —
+  con un color de acento distinto por lote) mientras Juan decide si más
+  adelante quiere volver a meter fotos reales, ya en buena resolución y
+  comprimidas (no las que ya había, que pesaban ~230KB en base64 cada
+  una). La tarifa `web` en `precios_cafe` con los precios reales del 2026
+  ya está corrida en producción (ver `migracion_precios_carta_2026.sql` y
+  `migracion_exoticos_web_inicial.sql`) — ojo que los valores que quedaron
+  ahí para Honey/Natural/Exótico se editaron después a mano desde
+  Configuración y ya no coinciden exactamente con esos dos archivos; lo
+  que hay en Supabase ahora mismo es lo vigente.
+- **Método de preparación en pedidos molidos**: `pedidos/index.html` ahora
+  pregunta con qué método prepara el cliente su café molido (Prensa
+  francesa/Gruesa, V60/Media, Cafetera eléctrica/Media fina, Moka/Fina) —
+  uno solo para todo el pedido salvo que marquen que necesitan moliendas
+  distintas por unidad. Viaja en el `items[].metodos` que se guarda en
+  `pedidos_web` y se ve tanto en el mensaje de WhatsApp como en la
+  bandeja de pedidos de la app interna. No se toca `ordenes_maquila` ni el
+  schema de `ventas` — es solo una instrucción de fulfillment, no queda
+  guardado en la venta cuando se convierte el pedido.
 - **Del audit original, sin hacer todavía** (baja prioridad, cosmético):
   nada más pendiente por ahora — todo lo demás de la auditoría (carrito
   persistente, resumen de pedido, validación de teléfono, ficha de
