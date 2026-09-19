@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
-const SELECT = 'id, fecha, kilosCereza:kilos_cereza, proceso, kilosPergaminoReal:kilos_pergamino_real, kilosVerdeReal:kilos_verde_real, notas, usuario, ts, fermentacionInicio:fermentacion_inicio, fermentacionHoras:fermentacion_horas, fermentacionAlertado:fermentacion_alertado';
+const SELECT = 'id, fecha, kilosCereza:kilos_cereza, proceso, kilosPergaminoReal:kilos_pergamino_real, kilosVerdeReal:kilos_verde_real, notas, usuario, ts, fermentacionInicio:fermentacion_inicio, fermentacionFin:fermentacion_fin, fermentacionAlertado:fermentacion_alertado';
 
 export const onRequestPatch: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -20,8 +20,8 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
     updates.fermentacion_inicio = body.fermentacionInicio === null ? null : Number(body.fermentacionInicio);
     updates.fermentacion_alertado = false; // si se corrige el inicio, la alerta se vuelve a evaluar
   }
-  if (body.fermentacionHoras !== undefined) {
-    updates.fermentacion_horas = body.fermentacionHoras === null ? null : Number(body.fermentacionHoras);
+  if (body.fermentacionFin !== undefined) {
+    updates.fermentacion_fin = body.fermentacionFin === null ? null : Number(body.fermentacionFin);
     updates.fermentacion_alertado = false;
   }
   if (!Object.keys(updates).length) return new Response('Sin cambios', { status: 400 });

@@ -17,7 +17,7 @@ import { getSupabase, Env } from '../../_lib/supabase.js';
 //                        nadie más pueda llamar esta URL y gastarte mensajes
 const UMBRAL_HORAS = 2;
 
-const SELECT = 'id, fecha, proceso, fermentacionInicio:fermentacion_inicio, fermentacionHoras:fermentacion_horas';
+const SELECT = 'id, fecha, proceso, fermentacionFin:fermentacion_fin';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { env, request } = context;
@@ -36,8 +36,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     .in('proceso', ['Honey', 'Natural'])
     .is('kilos_pergamino_real', null)
     .eq('fermentacion_alertado', false)
-    .not('fermentacion_inicio', 'is', null)
-    .not('fermentacion_horas', 'is', null);
+    .not('fermentacion_fin', 'is', null);
   if (error) return new Response(error.message, { status: 500 });
 
   const ahora = Date.now();
@@ -45,7 +44,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const avisadas: number[] = [];
 
   for (const c of data || []) {
-    const fin = Number(c.fermentacionInicio) + Number(c.fermentacionHoras) * 3600000;
+    const fin = Number(c.fermentacionFin);
     if (fin - ahora > umbralMs) continue; // todavía falta más de UMBRAL_HORAS, no toca avisar aún
 
     const horasFaltantes = Math.max(0, (fin - ahora) / 3600000);

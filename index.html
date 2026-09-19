@@ -3025,8 +3025,8 @@ function vistaCosechas(pendientes) {
       <div class="row" id="co-fermentacion-campos" style="display:none">
         <div class="field"><label>Inicio de fermentación</label>
           <input id="co-ferm-inicio" type="datetime-local"></div>
-        <div class="field"><label>Horas en caneca</label>
-          <input id="co-ferm-horas" type="number" min="0" step="0.5" placeholder="Ej. 36"></div>
+        <div class="field"><label>Fin de fermentación</label>
+          <input id="co-ferm-fin" type="datetime-local"></div>
       </div>
       <div class="row"><div class="field"><label>Notas</label>
         <input id="co-notas" placeholder="Lote, sector de la finca, observaciones…"></div></div>
@@ -3093,11 +3093,11 @@ function fechaLocalInput(ts) {
 }
 
 // Cuánto falta para que se cumpla la fermentación de esta cosecha (o null
-// si no se le puso inicio/horas todavía). El cron de WhatsApp usa la misma
-// cuenta — esto es solo lo que se ve en la app.
+// si no se le puso fecha de fin todavía). El cron de WhatsApp usa el mismo
+// dato — esto es solo lo que se ve en la app.
 function estadoFermentacion(c) {
-  if (!c.fermentacionInicio || !c.fermentacionHoras) return null;
-  const fin = Number(c.fermentacionInicio) + Number(c.fermentacionHoras) * 3600000;
+  if (!c.fermentacionFin) return null;
+  const fin = Number(c.fermentacionFin);
   const restanteMs = fin - Date.now();
   if (restanteMs <= 0) return { texto: '✅ Fermentación cumplida — revisa la caneca', vencida: true };
   const horas = Math.floor(restanteMs / 3600000);
@@ -3108,14 +3108,15 @@ function estadoFermentacion(c) {
 function abrirFermentacion(id) {
   const c = state.cosechas.find(x => x.id === id); if (!c) return;
   const inicioValor = fechaLocalInput(c.fermentacionInicio || Date.now());
+  const finValor = c.fermentacionFin ? fechaLocalInput(c.fermentacionFin) : '';
   abrirModal(`
     <h3>Fermentación en caneca</h3>
     <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">${escapeHtml(c.proceso)} · cosecha del ${fechaCorta(c.fecha)}</p>
     <div class="row">
       <div class="field"><label>Inicio de fermentación</label>
         <input id="fm-inicio" type="datetime-local" value="${inicioValor}"></div>
-      <div class="field"><label>Horas en caneca</label>
-        <input id="fm-horas" type="number" min="0" step="0.5" value="${c.fermentacionHoras ?? ''}" placeholder="Ej. 36"></div>
+      <div class="field"><label>Fin de fermentación</label>
+        <input id="fm-fin" type="datetime-local" value="${finValor}"></div>
     </div>
     <p style="font-size:12.5px;color:var(--cafe-soft)">Cuando falten 2 horas para cumplirse, llega un WhatsApp avisando.</p>
     <div class="modal-actions">
@@ -3127,15 +3128,15 @@ function abrirFermentacion(id) {
 async function guardarFermentacion(id, btn) {
   btn.disabled = true;
   const inicioVal = document.getElementById('fm-inicio').value;
-  const horasVal = document.getElementById('fm-horas').value;
+  const finVal = document.getElementById('fm-fin').value;
   const fermentacionInicio = inicioVal ? new Date(inicioVal).getTime() : null;
-  const fermentacionHoras = horasVal ? Number(horasVal) : null;
+  const fermentacionFin = finVal ? new Date(finVal).getTime() : null;
   const c = state.cosechas.find(x => x.id === id);
-  if (c) { c.fermentacionInicio = fermentacionInicio; c.fermentacionHoras = fermentacionHoras; c.fermentacionAlertado = false; }
+  if (c) { c.fermentacionInicio = fermentacionInicio; c.fermentacionFin = fermentacionFin; c.fermentacionAlertado = false; }
   guardarCacheLocal('cosechas');
   cerrarModal();
   renderTrazabilidad();
-  await apiFetch('/api/cosechas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fermentacionInicio, fermentacionHoras }) });
+  await apiFetch('/api/cosechas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fermentacionInicio, fermentacionFin }) });
   toast('Fermentación actualizada');
 }
 
@@ -3164,7 +3165,7 @@ async function registrarCosecha(btn) {
   const proceso = document.getElementById('co-proceso').value;
   const esFermentable = proceso === 'Honey' || proceso === 'Natural';
   const fermInicioVal = document.getElementById('co-ferm-inicio')?.value;
-  const fermHorasVal = document.getElementById('co-ferm-horas')?.value;
+  const fermFinVal = document.getElementById('co-ferm-fin')?.value;
   btn.disabled = true;
   try {
     const payload = {
@@ -3174,7 +3175,7 @@ async function registrarCosecha(btn) {
       notas: document.getElementById('co-notas').value.trim() || null,
       usuario: localStorage.getItem('cp_usuario') || 'Equipo',
       fermentacionInicio: (esFermentable && fermInicioVal) ? new Date(fermInicioVal).getTime() : null,
-      fermentacionHoras: (esFermentable && fermHorasVal) ? Number(fermHorasVal) : null,
+      fermentacionFin: (esFermentable && fermFinVal) ? new Date(fermFinVal).getTime() : null,
     };
     const res = await apiFetch('/api/cosechas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     state.cosechas.push(await res.json());

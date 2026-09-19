@@ -144,8 +144,8 @@ migracion_*.sql, migration.sql     # todas ya corridas en producción
 
 En "Cosecha & Tueste" → Cosechas, al registrar (o editar, botón ⏱️) una
 cosecha de **Honey o Natural** se puede poner cuándo empezó a fermentar en
-caneca y cuántas horas se va a dejar (`fermentacion_inicio`,
-`fermentacion_horas` en la tabla `cosechas` — ver
+caneca y cuándo se planea sacarla (`fermentacion_inicio`,
+`fermentacion_fin` en la tabla `cosechas` — ambos fecha y hora, ver
 `migracion_fermentacion.sql`). Lavado y Exótico no muestran estos campos,
 no fermentan en caneca de la misma forma.
 
