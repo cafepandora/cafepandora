@@ -45,8 +45,9 @@ CREATE TABLE "inventario" (
 
 CREATE TABLE "maquila_tarifas" (
 	"id" serial PRIMARY KEY,
-	"servicio" text NOT NULL UNIQUE,
-	"precio_por_kg" integer DEFAULT 0 NOT NULL,
+	"servicio" text NOT NULL,
+	"presentacion" text,
+	"precio" integer DEFAULT 0 NOT NULL,
 	"ts" bigint NOT NULL
 );
 
@@ -68,9 +69,22 @@ INSERT INTO "inventario" ("lote", "stock_lb", "ts") VALUES
 	('Natural', 0, extract(epoch from now()) * 1000),
 	('Exotico', 0, extract(epoch from now()) * 1000);
 
-INSERT INTO "maquila_tarifas" ("servicio", "precio_por_kg", "ts") VALUES
-	('Trilla', 0, extract(epoch from now()) * 1000),
-	('Tostión', 0, extract(epoch from now()) * 1000),
-	('Molienda', 0, extract(epoch from now()) * 1000),
-	('Empaque', 0, extract(epoch from now()) * 1000),
-	('Selección', 0, extract(epoch from now()) * 1000);
+INSERT INTO "maquila_tarifas" ("servicio", "presentacion", "precio", "ts") VALUES
+	('Trilla', NULL, 0, extract(epoch from now()) * 1000),
+	('Tostión', NULL, 0, extract(epoch from now()) * 1000),
+	('Empaque', 'Media lb', 0, extract(epoch from now()) * 1000),
+	('Empaque', 'Libra', 0, extract(epoch from now()) * 1000),
+	('Empaque', 'Kilo', 0, extract(epoch from now()) * 1000),
+	('Empaque', 'Cuarterón', 0, extract(epoch from now()) * 1000),
+	('Molienda', 'Media lb', 0, extract(epoch from now()) * 1000),
+	('Molienda', 'Libra', 0, extract(epoch from now()) * 1000),
+	('Molienda', 'Kilo', 0, extract(epoch from now()) * 1000),
+	('Molienda', 'Cuarterón', 0, extract(epoch from now()) * 1000),
+	('Bolsas Negras', 'Media lb', 0, extract(epoch from now()) * 1000),
+	('Bolsas Negras', 'Libra', 0, extract(epoch from now()) * 1000),
+	('Bolsas Negras', 'Kilo', 0, extract(epoch from now()) * 1000),
+	('Bolsas Negras', 'Cuarterón', 0, extract(epoch from now()) * 1000),
+	('Bolsas Ziploc', 'Media lb', 0, extract(epoch from now()) * 1000),
+	('Bolsas Ziploc', 'Libra', 0, extract(epoch from now()) * 1000),
+	('Bolsas Ziploc', 'Kilo', 0, extract(epoch from now()) * 1000),
+	('Bolsas Ziploc', 'Cuarterón', 0, extract(epoch from now()) * 1000);
