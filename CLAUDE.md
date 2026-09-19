@@ -329,13 +329,14 @@ cada orden hay un botón 📋 que prellena el formulario).
   filas viejas sin valor se tratan como `'juan'`). `TITULARES_CUENTA_COBRO`
   en `index.html` tiene el nombre/cédula/cuenta bancaria de cada uno —
   eso es lo único que cambia por titular en el "DEBE A" y en los datos
-  bancarios del PDF. Juan tiene **firma escaneada real** (`FIRMA_B64`,
-  recortada del mismo PDF — incluye la rúbrica + nombre + cédula, no se
-  escribe aparte); Inés todavía no tiene firma escaneada, así que en su
-  PDF se escribe el nombre + cédula en el espacio de la firma en vez de
-  una imagen (`titular.firmaImagen === false` en `generarPdfCuentaCobro()`)
-  — si más adelante Juan pasa una foto de la firma de Inés, se recorta
-  igual que la de él y se agrega como imagen.
+  bancarios del PDF. Ambos tienen **firma real recortada de una foto**
+  (`FIRMA_B64` para Juan, del PDF de su membrete; `FIRMA_INES_B64` para
+  Inés, de una foto que mandó — cada `titular.firma` en
+  `TITULARES_CUENTA_COBRO` trae `{ b64, ancho, alto }`, el alto varía
+  porque cada recorte tiene su propia proporción). Si algún día un
+  titular no tiene firma todavía, `generarPdfCuentaCobro()` cae a escribir
+  el nombre + cédula en el espacio de la firma en vez de una imagen
+  (rama `else` de `if (titular.firma)`).
 - Cada cuenta de cobro queda numerada (el `id` autoincremental de la tabla
   `cuentas_cobro`) y guardada en un historial con botón para volver a
   descargar el PDF sin tener que rehacerlo — la fila del historial muestra
@@ -352,14 +353,11 @@ cada orden hay un botón 📋 que prellena el formulario).
 
 ## Pendiente / a medias
 
-- **Cuenta de cobro a nombre de Inés — falta correr la migración y la
-  firma escaneada**: el código ya está (ver "Cuentas de cobro" arriba),
+- **Cuenta de cobro a nombre de Inés — falta correr la migración**: el
+  código ya está (ver "Cuentas de cobro" arriba, incluida su firma real),
   pero hasta que no se corra `migracion_titular_cuenta_cobro.sql` en
   Supabase, guardar con "A nombre de: Inés" va a fallar (columna
-  `titular` inexistente). Además, sus cuentas de cobro salen con el
-  nombre/cédula escritos en vez de una firma escaneada real — si Juan
-  pasa una foto de la firma de Inés, se puede recortar y agregar igual
-  que se hizo con la de él.
+  `titular` inexistente).
 - **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
   (`migracion_backfill_recibido_por.sql`, ya corrida) solo pudo rellenar
   `recibido_por` en filas cuyo `metodo` ya nombraba a alguien — las que se
@@ -431,3 +429,12 @@ cada orden hay un botón 📋 que prellena el formulario).
   Pasó con las subpestañas de "Detalle del mes" en Resumen
   (`cambiarResumenSubTab`), el selector de rango de las gráficas
   (`cambiarRango`) y el de "Mejores clientes" (`cambiarPeriodoClientes`).
+- Los `const` de logos/firmas en base64 (`LOGO_B64`, `FIRMA_B64`,
+  `FIRMA_INES_B64`, etc., todos cerca del inicio del `<script>`) están
+  declarados con `const`, así que si agregas algo que los referencia
+  (como `TITULARES_CUENTA_COBRO`, que usa `FIRMA_B64`/`FIRMA_INES_B64`)
+  tiene que ir DESPUÉS de esos blobs en el archivo — si queda antes, el
+  navegador tira `ReferenceError: Cannot access '...' before
+  initialization` (temporal dead zone) y la app no carga nada, sin avisar
+  por qué. Ya pasó una vez armando `TITULARES_CUENTA_COBRO` cerca de los
+  demás `EMISOR_*` (que están antes de los blobs) en vez de después.
