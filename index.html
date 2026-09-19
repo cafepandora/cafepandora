@@ -3965,14 +3965,14 @@ function renderResumen() {
   renderMejoresClientes();
   renderBalancePersonas();
 }
-function cambiarResumenSubTab(tab) { resumenSubTab = tab; paginas.resumen = 1; renderResumen(); }
+function cambiarResumenSubTab(tab) { conservarScroll(() => { resumenSubTab = tab; paginas.resumen = 1; renderResumen(); }); }
 
 /* ================================================================
    GRÁFICOS DEL RESUMEN (Chart.js)
 ================================================================ */
 let rangoMeses = 6;
 const graficos = {};
-function cambiarRango(n) { rangoMeses = n; renderResumen(); }
+function cambiarRango(n) { conservarScroll(() => { rangoMeses = n; renderResumen(); }); }
 
 /* ================================================================
    MEJORES CLIENTES
@@ -3981,7 +3981,7 @@ function cambiarRango(n) { rangoMeses = n; renderResumen(); }
 ================================================================ */
 let periodoClientes = 'mes';
 const MIN_MESES_CLIENTE = 2;
-function cambiarPeriodoClientes(p) { periodoClientes = p; renderResumen(); }
+function cambiarPeriodoClientes(p) { conservarScroll(() => { periodoClientes = p; renderResumen(); }); }
 
 // Cuántos kilos de café lleva una venta (ignora las líneas de maquila).
 function kilosDeVenta(v) {
@@ -4186,18 +4186,25 @@ function dibujarGraficosBalance(balances, modalidades) {
 
   const canvasModalidad = document.getElementById('chartBalanceModalidad');
   if (canvasModalidad && modalidades.length) {
+    // Barras en vez de dona: así se compara de un vistazo cuánta plata
+    // hay en cada cuenta/Efectivo, no solo la proporción de cada una.
     graficos.balanceModalidad?.destroy();
     graficos.balanceModalidad = new Chart(canvasModalidad, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
         labels: modalidades.map(m => m.metodo),
-        datasets: [{ data: modalidades.map(m => m.total), backgroundColor: modalidades.map((_, i) => paleta[i % paleta.length]), borderWidth: 0 }],
+        datasets: [{ data: modalidades.map(m => m.total), backgroundColor: modalidades.map((_, i) => paleta[i % paleta.length]), borderRadius: 6, maxBarThickness: 34 }],
       },
       options: {
-        responsive: true, maintainAspectRatio: false, cutout: '58%',
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true, pointStyle: 'circle', padding: 10, font: { size: 12 } } },
-          tooltip: { callbacks: { label: c => c.label + ': ' + dinero(c.parsed) } },
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => dinero(c.parsed.x) } },
+        },
+        scales: {
+          x: { grid: { color: linea }, border: { display: false }, ticks: { callback: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : (v/1000).toFixed(0)+'k' } },
+          y: { grid: { display: false }, border: { display: false } },
         },
       },
     });

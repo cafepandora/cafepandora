@@ -235,11 +235,13 @@ cuentas", tabla + gráfica) y en el Excel (hoja "Balance de cuentas") —
 (agrega `transferido_a`) ya están corridas en producción.
 
 La tarjeta "Balance de cuentas" en Resumen tiene, además de las tablas,
-dos gráficas (`renderBalancePersonas()` → `dibujarGraficosBalance()`,
-separado de `dibujarGraficos()` porque este bloque se repinta solo sin
-redibujar todo el resumen del mes): una barra horizontal de balance por
-persona (verde = tiene plata, terracota = se le debe) y una dona de
-distribución por modalidad de pago.
+dos gráficas de barras horizontales (`renderBalancePersonas()` →
+`dibujarGraficosBalance()`, separado de `dibujarGraficos()` porque este
+bloque se repinta solo sin redibujar todo el resumen del mes): "Balance
+por persona" (verde = tiene plata, terracota = se le debe) y "Distribución
+por modalidad" — esta última son barras, no dona, a propósito: la idea es
+comparar de un vistazo cuánta plata hay en cada cuenta real/Efectivo, no
+solo ver la proporción de cada una.
 
 **Ventas/maquila viejas sin `recibido_por`**: el campo se empezó a
 derivar del método de pago después de que ya existían ventas/órdenes
@@ -400,3 +402,11 @@ cada orden hay un botón 📋 que prellena el formulario).
   login — si pruebas un endpoint con `curl`/Postman sin el header
   `Authorization: Bearer <token>`, va a responder 401. Para probar así hay
   que sacar un token real (login vía Supabase Auth) primero.
+- Cualquier botón que solo cambia una subpestaña/rango/período y vuelve a
+  llamar a un `renderX()` que reemplaza el `innerHTML` (en vez de un botón
+  de navegación entre pestañas principales) tiene que envolver esa llamada
+  en `conservarScroll(() => {...})` (definida junto a `cambiarPagina`) — si
+  no, el usuario pierde el scroll y la pantalla salta arriba con cada clic.
+  Pasó con las subpestañas de "Detalle del mes" en Resumen
+  (`cambiarResumenSubTab`), el selector de rango de las gráficas
+  (`cambiarRango`) y el de "Mejores clientes" (`cambiarPeriodoClientes`).
