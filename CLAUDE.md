@@ -229,10 +229,29 @@ mano; negativo = el negocio le debe.
 `calcularBalancePorModalidad()` suma por separado cuánto quedó en cada
 `metodo` (Efectivo, Transferencia a Joaquín, Juan Nequi, etc.), sin
 importar quién lo recibió. Ambos se ven en Resumen (tarjeta "Balance de
-cuentas") y en el Excel (hoja "Balance de cuentas") —
+cuentas", tabla + gráfica) y en el Excel (hoja "Balance de cuentas") —
 `migracion_balance_cuentas.sql` agrega las columnas base, y
 `migracion_transferencia_cuentas.sql` agrega `transferido_a` — **falta
 correr esta última en producción**.
+
+La tarjeta "Balance de cuentas" en Resumen tiene, además de las tablas,
+dos gráficas (`renderBalancePersonas()` → `dibujarGraficosBalance()`,
+separado de `dibujarGraficos()` porque este bloque se repinta solo sin
+redibujar todo el resumen del mes): una barra horizontal de balance por
+persona (verde = tiene plata, terracota = se le debe) y una dona de
+distribución por modalidad de pago.
+
+**Ventas/maquila viejas sin `recibido_por`**: el campo se empezó a
+derivar del método de pago después de que ya existían ventas/órdenes
+pagadas en producción, así que esas filas viejas no contaban en el balance
+de nadie y las cuentas no cuadraban con la plata real.
+`migracion_backfill_recibido_por.sql` (data-fix, no cambia el schema)
+rellena `recibido_por` en las filas viejas cuyo `metodo` ya nombra a
+alguien (Transferencia a X, X Nequi, X Bancolombia); las que se pagaron en
+Efectivo no se pueden deducir del método — esas quedan sin dueño hasta que
+alguien las corrija a mano desde el botón ✎ (el archivo trae al final las
+dos consultas para encontrarlas). **Falta correr esta migración en
+producción.**
 
 ## Cereza comprada a terceros
 
@@ -282,6 +301,11 @@ cada orden hay un botón 📋 que prellena el formulario).
   vez de quedarse callado, pero igual hay que correr la migración.
   (`migracion_balance_cuentas.sql`, la de Efectivo/Retiro de cuenta y la de
   cereza comprada, ya están corridas en producción.)
+- **Backfill de "quién recibió" en ventas/maquila viejas — falta
+  correrlo**: `migracion_backfill_recibido_por.sql` (ver "Balance de
+  cuentas por persona" arriba) rellena `recibido_por` en ventas/órdenes de
+  maquila pagadas ANTES de que ese campo se derivara del método de pago —
+  sin correrla, esas filas viejas no cuadran en el balance de nadie.
 - **Alerta de fermentación por WhatsApp — falta la configuración de Juan**:
   el código ya está (ver sección "Fermentación en caneca" arriba), pero no
   manda nada real hasta que Juan: 1) corra `migracion_fermentacion.sql` en

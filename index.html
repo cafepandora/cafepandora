@@ -3998,13 +3998,83 @@ function renderBalancePersonas() {
           <span class="dinero" style="color:${b.balance > 0 ? 'var(--verde)' : (b.balance < 0 ? 'var(--terracota)' : 'inherit')}">${b.balance > 0 ? 'Tiene ' : (b.balance < 0 ? 'Le deben ' : '')}${fmt(Math.abs(b.balance))}</span>
         </div>`).join('')}
     </div>
+    <div class="chart-card">
+      <h4>Balance por persona</h4>
+      <div class="chart-box"><canvas id="chartBalancePersonas"></canvas></div>
+    </div>
     ${modalidades.length ? `
       <h4 style="margin:14px 0 6px;font-size:13.5px">Por modalidad / cuenta</h4>
       <div class="tabla-clientes">
         <div class="fila-cliente encabezado"><span>Modalidad</span><span>Total</span><span></span><span></span></div>
         ${modalidades.map(m => `<div class="fila-cliente"><span class="nombre">${escapeHtml(m.metodo)}</span><span>${fmt(m.total)}</span><span></span><span></span></div>`).join('')}
+      </div>
+      <div class="chart-card">
+        <h4>Distribución por modalidad</h4>
+        <div class="chart-box"><canvas id="chartBalanceModalidad"></canvas></div>
       </div>` : ''}
   `;
+  dibujarGraficosBalance(balances, modalidades);
+}
+
+// Gráficas de la tarjeta "Balance de cuentas" — separadas de
+// dibujarGraficos() porque este bloque se repinta solo (cuando cambia un
+// gasto/venta) sin tener que redibujar todo el resumen del mes.
+function dibujarGraficosBalance(balances, modalidades) {
+  if (typeof Chart === 'undefined') return;
+  const css = getComputedStyle(document.documentElement);
+  const verde = css.getPropertyValue('--verde').trim();
+  const terracota = css.getPropertyValue('--terracota').trim();
+  const linea = css.getPropertyValue('--linea').trim();
+  const dinero = v => '$' + Math.round(v).toLocaleString('es-CO');
+  const paleta = ['#AD4B31', '#4A6B48', '#8A6A1F', '#3E2723', '#8A7A70', '#C97B5A', '#6E8B6B', '#B99C5B', '#5A4038', '#A8998E'];
+
+  const canvasPersonas = document.getElementById('chartBalancePersonas');
+  if (canvasPersonas) {
+    graficos.balancePersonas?.destroy();
+    graficos.balancePersonas = new Chart(canvasPersonas, {
+      type: 'bar',
+      data: {
+        labels: balances.map(b => b.persona),
+        datasets: [{
+          label: 'Balance',
+          data: balances.map(b => b.balance),
+          backgroundColor: balances.map(b => b.balance > 0 ? verde : (b.balance < 0 ? terracota : '#A8998E')),
+          borderRadius: 6, maxBarThickness: 44,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => (c.parsed.x >= 0 ? 'Tiene ' : 'Le deben ') + dinero(Math.abs(c.parsed.x)) } },
+        },
+        scales: {
+          x: { grid: { color: linea }, border: { display: false }, ticks: { callback: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : (v/1000).toFixed(0)+'k' } },
+          y: { grid: { display: false }, border: { display: false } },
+        },
+      },
+    });
+  }
+
+  const canvasModalidad = document.getElementById('chartBalanceModalidad');
+  if (canvasModalidad && modalidades.length) {
+    graficos.balanceModalidad?.destroy();
+    graficos.balanceModalidad = new Chart(canvasModalidad, {
+      type: 'doughnut',
+      data: {
+        labels: modalidades.map(m => m.metodo),
+        datasets: [{ data: modalidades.map(m => m.total), backgroundColor: modalidades.map((_, i) => paleta[i % paleta.length]), borderWidth: 0 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '58%',
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true, pointStyle: 'circle', padding: 10, font: { size: 12 } } },
+          tooltip: { callbacks: { label: c => c.label + ': ' + dinero(c.parsed) } },
+        },
+      },
+    });
+  }
 }
 
 let limiteMejoresClientes = 8;
