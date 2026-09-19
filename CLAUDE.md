@@ -253,6 +253,15 @@ actual pero seguía en filas antiguas). Las que se pagaron en Efectivo no
 se pudieron deducir del método — esas quedaron sin dueño hasta corregirlas
 a mano con ✎ (el archivo trae al final las consultas para encontrarlas).
 
+El backfill dejó bien el balance POR PERSONA de esas ventas viejas, pero
+"Transferencia a Juan" seguía apareciendo como una 3ª cuenta suelta en la
+tabla "Por modalidad / cuenta" (que agrupa por el texto exacto de
+`metodo`), como si Juan tuviera 3 cuentas en vez de sus 2 reales
+(Bancolombia/Nequi). `migracion_reasignar_transferencia_juan.sql`
+(data-fix, ya corrida) reescribió esas filas a `metodo = 'Juan
+Bancolombia'` — confirmado con Juan que esas 12 ventas fueron todas a esa
+cuenta.
+
 **Retiro de cuenta / Transferencia entre cuentas NO son gasto real del
 negocio** — `esGastoOperativo(g)` (excluye esas dos categorías) filtra
 todos los totales que miden gasto/egreso del negocio: "Gastos + Finca" y
