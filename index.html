@@ -37,7 +37,96 @@
     -webkit-font-smoothing: antialiased;
     font-size: 16px; line-height: 1.5;
   }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 18px 14px 70px; }
+  .app-shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+
+  .sidebar {
+    background: var(--blanco); border-right: 1px solid var(--linea);
+    display: flex; flex-direction: column; padding: 18px 14px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    transition: width .18s ease;
+  }
+  .sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 18px; }
+  .sidebar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .mark {
+    display: inline-flex; align-items: center; background: var(--blanco); flex-shrink: 0;
+    border-radius: 50%; border: 1px solid var(--linea); overflow: hidden; width: 40px; height: 40px;
+  }
+  .mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .brand-text { min-width: 0; overflow: hidden; }
+  .brand-name { font-weight: 800; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub { font-size: 11px; color: var(--cafe-soft); white-space: nowrap; }
+  .sidebar-toggle {
+    background: none; border: 1px solid var(--linea); border-radius: 8px; width: 26px; height: 26px;
+    cursor: pointer; color: var(--cafe-soft); flex-shrink: 0; font-size: 14px;
+  }
+
+  .sidebar-links { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  .sidebar-links button {
+    display: flex; align-items: center; gap: 11px; text-align: left; width: 100%;
+    background: none; border: none; font-family: 'Outfit', sans-serif;
+    font-size: 14.5px; font-weight: 600; color: var(--cafe-soft);
+    padding: 11px 12px; border-radius: 10px; cursor: pointer; white-space: nowrap;
+    transition: background .15s, color .15s;
+  }
+  .sidebar-links button:hover { background: var(--crema-alt); }
+  .sidebar-links button.active { color: #fff; background: var(--cafe); }
+  .sidebar-links button .ico { font-size: 16.5px; width: 20px; text-align: center; flex-shrink: 0; }
+
+  .sidebar-footer { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--linea); }
+  .sidebar-footer-actions { display: flex; gap: 8px; }
+  .sync-indicator {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+    color: var(--verde); background: var(--verde-bg); padding: 5px 8px; border-radius: 12px; white-space: nowrap;
+  }
+  .sync-dot { width: 6px; height: 6px; background: var(--verde); border-radius: 50%; flex-shrink: 0; }
+  .btn-campana {
+    position: relative; background: var(--blanco); border: 1px solid var(--linea); font-size: 15px;
+    padding: 6px 9px; border-radius: 8px; cursor: pointer;
+  }
+  .campana-badge {
+    position: absolute; top: -6px; right: -6px; background: var(--terracota); color: #fff;
+    font-size: 10px; font-weight: 800; min-width: 17px; height: 17px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; padding: 0 4px;
+  }
+
+  /* Sidebar colapsado (escritorio): queda como riel de íconos */
+  .sidebar.collapsed { width: 68px; }
+  .sidebar.collapsed .txt, .sidebar.collapsed .brand-text, .sidebar.collapsed .sync-indicator .txt { display: none; }
+  .sidebar.collapsed .sidebar-top { justify-content: center; }
+  .sidebar.collapsed .sidebar-toggle { transform: rotate(180deg); }
+  .sidebar.collapsed .sidebar-links button { justify-content: center; padding: 11px 4px; }
+  .sidebar.collapsed .sidebar-footer-actions { flex-direction: column; }
+  .sidebar.collapsed .sync-indicator { justify-content: center; padding: 5px; }
+
+  .app-main { padding: 22px 28px 80px; max-width: 1400px; }
+
+  .mobile-menu-btn, .sidebar-overlay { display: none; }
+
+  @media (max-width: 860px) {
+    .app-shell { display: block; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; height: 100vh; width: 270px; z-index: 60;
+      transform: translateX(-100%); transition: transform .25s ease; box-shadow: 6px 0 24px rgba(0,0,0,.18);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar.collapsed { width: 270px; }
+    .sidebar.collapsed .txt, .sidebar.collapsed .sync-indicator .txt { display: inline; }
+    .sidebar.collapsed .brand-text { display: block; }
+    .sidebar.collapsed .sidebar-links button { justify-content: flex-start; padding: 11px 12px; }
+    .sidebar.collapsed .sidebar-footer-actions { flex-direction: row; }
+    .sidebar-toggle { display: none; }
+    .mobile-menu-btn {
+      display: flex; align-items: center; justify-content: center; position: sticky; top: 12px; left: 12px;
+      width: 40px; height: 40px; border-radius: 10px; background: var(--blanco); border: 1px solid var(--linea);
+      font-size: 18px; cursor: pointer; z-index: 40; margin: 12px 0 0 12px;
+    }
+    .sidebar-overlay.show {
+      display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 55;
+    }
+    .app-main { padding: 8px 14px 80px; }
+  }
+
+  /* ---------- Alertas ---------- */
 
   /* ---------- Pantalla de acceso ---------- */
   #lockScreen {
@@ -63,41 +152,6 @@
   #lockScreen .err { color: var(--terracota); font-size: 12.5px; min-height: 16px; margin-top: 8px; }
 
   #app { display: none; }
-
-  /* ---------- Encabezado ---------- */
-  header.top {
-    display: flex; justify-content: space-between; align-items: center; gap: 10px;
-    position: sticky; top: 0; z-index: 20; background: var(--crema);
-    padding: 12px 14px; margin: -18px -14px 14px; border-bottom: 1px solid var(--linea);
-    box-shadow: 0 2px 10px rgba(62,39,35,.04);
-  }
-  header.top .mark {
-    display: inline-flex; align-items: center; background: var(--blanco);
-    border-radius: 50%; border: 1px solid var(--linea); overflow: hidden;
-    width: 44px; height: 44px;
-  }
-  header.top .mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  header.top .sub { font-size: 11px; color: var(--cafe-soft); margin-top: 3px; }
-  .top-actions { display: flex; gap: 8px; align-items: center; }
-  .sync-indicator {
-    display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
-    color: var(--verde); background: var(--verde-bg); padding: 4px 8px; border-radius: 12px;
-  }
-  .sync-dot { width: 6px; height: 6px; background: var(--verde); border-radius: 50%; }
-  .btn-export {
-    background: none; border: 1px solid var(--cafe); color: var(--cafe); font-size: 11px; font-weight: 600;
-    padding: 6px 10px; border-radius: 6px; cursor: pointer; font-family: 'Outfit', sans-serif;
-  }
-  .btn-export:hover { background: var(--cafe); color: #fff; }
-  .btn-campana {
-    position: relative; background: var(--blanco); border: 1px solid var(--linea); font-size: 15px;
-    padding: 6px 9px; border-radius: 8px; cursor: pointer;
-  }
-  .campana-badge {
-    position: absolute; top: -6px; right: -6px; background: var(--terracota); color: #fff;
-    font-size: 10px; font-weight: 800; min-width: 17px; height: 17px; border-radius: 9px;
-    display: flex; align-items: center; justify-content: center; padding: 0 4px;
-  }
 
   /* ---------- Alerta de stock ---------- */
   #stockAlert {
@@ -128,18 +182,6 @@
     font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco);
   }
 
-  /* ---------- Pestañas ---------- */
-  nav.tabs {
-    display: flex; overflow-x: auto; margin-bottom: 16px; gap: 6px; padding-bottom: 2px;
-    -ms-overflow-style: none; scrollbar-width: none;
-  }
-  nav.tabs::-webkit-scrollbar { display: none; }
-  nav.tabs button {
-    flex: 0 0 auto; background: var(--blanco); border: 1px solid var(--linea); font-family: 'Outfit', sans-serif;
-    font-size: 14.5px; font-weight: 600; color: var(--cafe-soft); padding: 11px 18px; cursor: pointer;
-    border-radius: 30px; white-space: nowrap; transition: background .15s, color .15s;
-  }
-  nav.tabs button.active { color: #fff; background: var(--cafe); border-color: var(--cafe); }
 
   .subtabs { display: flex; gap: 6px; margin-bottom: 10px; }
   .subtabs button {
@@ -439,48 +481,62 @@
 </div>
 
 <div id="app">
-<div class="wrap">
+<div class="app-shell">
 
-  <header class="top">
-    <div>
-      <div class="mark"><img id="logoHeader" src="" alt="Café Pandora"></div>
-      <div class="sub">Gestión integral</div>
+  <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="alternarMenuMovil()" title="Menú">☰</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="cerrarMenuMovil()"></div>
+
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <div class="mark"><img id="logoHeader" src="" alt="Café Pandora"></div>
+        <div class="brand-text"><div class="brand-name">Café Pandora</div><div class="sub">Gestión integral</div></div>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" onclick="alternarSidebar()" title="Colapsar menú">‹</button>
     </div>
-    <div class="top-actions" style="flex-direction:column;align-items:flex-end;gap:4px">
-      <span class="sync-indicator" id="syncIndicator"><span class="sync-dot"></span> Sincronizado</span>
-      <button class="btn-campana" onclick="abrirPedidosWeb()" id="btnCampana">🔔<span id="campanaBadge" class="campana-badge" style="display:none">0</span></button>
-      <button class="btn-export" onclick="exportarExcel()">Exportar</button>
-      <button class="btn-campana" onclick="cerrarSesion()" title="Cerrar sesión">🚪</button>
+
+    <div class="sidebar-links">
+      <button data-tab="ventas" class="active"><span class="ico">🧾</span><span class="txt">Ventas</span></button>
+      <button data-tab="maquila"><span class="ico">⚙️</span><span class="txt">Maquila</span></button>
+      <button data-tab="inventario"><span class="ico">📦</span><span class="txt">Inventario Tostado</span></button>
+      <button data-tab="gastos"><span class="ico">💸</span><span class="txt">Gastos</span></button>
+      <button data-tab="finca"><span class="ico">🌱</span><span class="txt">Finca &amp; Café</span></button>
+      <button data-tab="trazabilidad"><span class="ico">🔥</span><span class="txt">Cosecha &amp; Tueste</span></button>
+      <button data-tab="resumen"><span class="ico">📊</span><span class="txt">Resumen</span></button>
+      <button data-tab="config"><span class="ico">🛠️</span><span class="txt">Configuración</span></button>
     </div>
-  </header>
 
-  <div id="stockAlert"></div>
-  <div id="exportReminder"></div>
-  <div id="envioAlert"></div>
-
-  <div class="controles-globales">
-    <input type="month" id="filtroMes">
-    <input type="search" id="filtroBusqueda" placeholder="Buscar cliente, lote, concepto…">
-  </div>
-
-  <nav class="tabs">
-    <button data-tab="ventas" class="active">Ventas</button>
-    <button data-tab="maquila">Maquila</button>
-    <button data-tab="inventario">Inventario Tostado</button>
-    <button data-tab="gastos">Gastos</button>
-    <button data-tab="resumen">Resumen</button>
-    <button type="button" onclick="abrirMasTabs()">⋯ Más</button>
+    <div class="sidebar-footer">
+      <span class="sync-indicator" id="syncIndicator"><span class="sync-dot"></span> <span class="txt">Sincronizado</span></span>
+      <div class="sidebar-footer-actions">
+        <button class="btn-campana" onclick="abrirPedidosWeb()" id="btnCampana" title="Pedidos web">🔔<span id="campanaBadge" class="campana-badge" style="display:none">0</span></button>
+        <button class="btn-campana" onclick="exportarExcel()" title="Exportar">⬇️</button>
+        <button class="btn-campana" onclick="cerrarSesion()" title="Cerrar sesión">🚪</button>
+      </div>
+    </div>
   </nav>
 
-  <section class="view active" id="view-ventas"></section>
-  <section class="view" id="view-maquila"></section>
-  <section class="view" id="view-inventario"></section>
-  <section class="view" id="view-gastos"></section>
-  <section class="view" id="view-finca"></section>
-  <section class="view" id="view-trazabilidad"></section>
-  <section class="view" id="view-resumen"></section>
-  <section class="view" id="view-config"></section>
+  <main class="app-main">
 
+    <div id="stockAlert"></div>
+    <div id="exportReminder"></div>
+    <div id="envioAlert"></div>
+
+    <div class="controles-globales">
+      <input type="month" id="filtroMes">
+      <input type="search" id="filtroBusqueda" placeholder="Buscar cliente, lote, concepto…">
+    </div>
+
+    <section class="view active" id="view-ventas"></section>
+    <section class="view" id="view-maquila"></section>
+    <section class="view" id="view-inventario"></section>
+    <section class="view" id="view-gastos"></section>
+    <section class="view" id="view-finca"></section>
+    <section class="view" id="view-trazabilidad"></section>
+    <section class="view" id="view-resumen"></section>
+    <section class="view" id="view-config"></section>
+
+  </main>
 </div>
 </div>
 
@@ -670,7 +726,7 @@ function convertirPedidoWebAVenta(id) {
   ordenActiva = ordenes.length - 1;
   carritoActual = ordenes[ordenActiva].items;
   cerrarModal();
-  document.querySelector('nav.tabs button[data-tab="ventas"]').click();
+  document.querySelector('.sidebar-links button[data-tab="ventas"]').click();
   toast('Pedido de ' + (p.nombreCliente || 'cliente') + ' listo para revisar y registrar');
 }
 
@@ -1066,29 +1122,33 @@ async function sincronizar() {
 ================================================================ */
 function irATab(tab) {
   state.tabActiva = tab;
-  document.querySelectorAll('nav.tabs button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.sidebar-links button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('section.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + tab));
   cerrarModal();
+  cerrarMenuMovil();
   renderTodo();
 }
-document.querySelectorAll('nav.tabs button[data-tab]').forEach(btn => {
+document.querySelectorAll('.sidebar-links button[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => irATab(btn.dataset.tab));
 });
 document.getElementById('filtroMes').addEventListener('change', renderTodo);
 document.getElementById('filtroBusqueda').addEventListener('input', renderTodo);
 
-// Las pestañas menos frecuentes viven aquí, para que la barra de arriba no
-// se sienta apretada en un celular angosto.
-function abrirMasTabs() {
-  abrirModal(`
-    <h3>Más secciones</h3>
-    <div class="mas-tabs-lista">
-      <button class="sec-btn" style="width:100%;margin-bottom:8px" onclick="irATab('finca')">Finca &amp; Café</button>
-      <button class="sec-btn" style="width:100%;margin-bottom:8px" onclick="irATab('trazabilidad')">Cosecha &amp; Tueste</button>
-      <button class="sec-btn" style="width:100%" onclick="irATab('config')">Configuración</button>
-    </div>
-    <div class="modal-actions"><button class="sec-btn" style="flex:1" onclick="cerrarModal()">Cerrar</button></div>
-  `);
+/* ---------- Sidebar: colapsar en escritorio, cajón en celular ---------- */
+function alternarSidebar() {
+  const colapsado = document.getElementById('sidebar').classList.toggle('collapsed');
+  localStorage.setItem('cp_sidebar_colapsado', colapsado ? '1' : '0');
+}
+function alternarMenuMovil() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function cerrarMenuMovil() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+if (localStorage.getItem('cp_sidebar_colapsado') === '1') {
+  document.getElementById('sidebar').classList.add('collapsed');
 }
 
 /* ================================================================
@@ -1126,7 +1186,7 @@ function renderAlertaEnvios() {
   const pendientes = state.ventas.filter(v => v.estadoEnvio !== 'Enviado');
   if (pendientes.length) {
     el.style.display = 'block';
-    el.onclick = () => { document.querySelector('nav.tabs button[data-tab="ventas"]').click(); };
+    el.onclick = () => { ventasSubTab = 'porEnviar'; document.querySelector('.sidebar-links button[data-tab="ventas"]').click(); };
     el.textContent = `📦 ${pendientes.length} venta${pendientes.length === 1 ? '' : 's'} pendiente${pendientes.length === 1 ? '' : 's'} de envío`;
   } else {
     el.style.display = 'none';
