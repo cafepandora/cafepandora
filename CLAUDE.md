@@ -184,8 +184,9 @@ de cereza tienen `pagado_por` — ambos un nombre de `CUENTAS_BALANCE`
 `const CUENTAS_BALANCE = [...PERSONAS_EQUIPO, 'Efectivo']` en
 `index.html`). Se recuerdan en `localStorage` (`cp_recibio`, `cp_pago`)
 para no tener que elegirlos cada vez, y se pueden corregir después desde
-los modales de edición que ya existían (Ventas, Maquila, Gastos — Finca no
-tiene modal de edición, igual que antes).
+el modal de edición de cada uno (Ventas, Maquila, Gastos, y Finca —
+`abrirEdicionFinca()`/`guardarEdicionFinca()`, agregado en la auditoría de
+cuentas; antes Finca no tenía forma de editar nada).
 
 **"Quién recibió" no se anota aparte**: se deriva del método de pago
 (`METODO_A_PERSONA` / `personaDeMetodo()`) cuando el método ya nombra a
@@ -267,21 +268,25 @@ subestimaba los ingresos reales del mes en la gráfica aunque el stat
 **Nada puede quedar "Pagado" sin dueño desde ahora**: `registrarVenta`,
 `guardarEdicionVenta`, `registrarOrdenMaquila`, `guardarEdicionMaquila`
 exigen `recibidoPor` si el estado final es Pagado; `registrarGasto`,
-`guardarEdicionGasto`, `registrarFinca` (sin modal de edición, así que se
-exige siempre al crear) y `registrarCerezaComprada` (si tuvo costo) exigen
-`pagadoPor`. Los botones de un clic que marcan "Pagado"
-(`toggleEstadoVenta`, `toggleEstadoOrdenMaquila`, `toggleEstadoGasto`,
-`toggleEstadoFinca`) tienen el mismo guardarraíl — si falta el dueño,
-bloquean el cambio y (para venta/maquila/gasto) abren el modal de edición
-para corregirlo ahí mismo. Antes de esto, un solo clic en la etiqueta de
-estado podía marcar algo Pagado sin dueño en silencio — así se generaron
-las ventas viejas que hubo que rellenar con el backfill.
+`guardarEdicionGasto`, `registrarFinca`/`guardarEdicionFinca` y
+`registrarCerezaComprada` (si tuvo costo) exigen `pagadoPor`. Los botones
+de un clic que marcan "Pagado" (`toggleEstadoVenta`,
+`toggleEstadoOrdenMaquila`, `toggleEstadoGasto`, `toggleEstadoFinca`)
+tienen el mismo guardarraíl — si falta el dueño, bloquean el cambio y
+abren el modal de edición correspondiente para corregirlo ahí mismo.
+Antes de esto, un solo clic en la etiqueta de estado podía marcar algo
+Pagado sin dueño en silencio — así se generaron las ventas viejas que hubo
+que rellenar con el backfill.
 
-**`contarHuerfanos()`** revisa, en cada `renderTodo()`, si queda algo
-Pagado (o cereza con costo) sin `recibidoPor`/`pagadoPor` — por dato
-viejo o algún camino que se escape de los guardarraíles de arriba — y
-muestra un aviso ⚠️ arriba de la tabla de "Balance de cuentas" con el
-conteo por tipo, para que nunca se pierda de vista silenciosamente.
+**`listaHuerfanos()`/`contarHuerfanos()`** revisan, en cada `renderTodo()`,
+si queda algo Pagado (o cereza con costo) sin `recibidoPor`/`pagadoPor` —
+por dato viejo o algún camino que se escape de los guardarraíles de
+arriba — y muestran un aviso ⚠️ arriba de la tabla de "Balance de cuentas"
+con el conteo por tipo. El botón "Ver y corregir" del aviso abre
+`abrirHuerfanos()`, un modal con la lista completa (cliente/concepto,
+monto, fecha) y un botón "✎ Corregir" por fila que cierra el modal y abre
+directo la edición de ese registro — no hay que ir a buscarlo a mano por
+pestañas y páginas.
 
 ## Cereza comprada a terceros
 

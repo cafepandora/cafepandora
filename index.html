@@ -3037,12 +3037,34 @@ function renderFinca() {
           <button class="tag ${f.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoFinca(${f.id})">${f.estado}</button>
           <div class="amount neg">-${fmt(f.monto)}</div>
           <div class="acciones">
+            <button onclick="abrirEdicionFinca(${f.id})">✎</button>
             <button onclick="eliminarFinca(${f.id})">✕</button>
           </div>
         </div>
       `, 'Sin movimientos de finca este mes.')}
     </div>
   `;
+}
+function abrirEdicionFinca(id) {
+  const f = state.finca.find(x => x.id === id); if (!f) return;
+  abrirModal(`
+    <h3>Editar movimiento de finca</h3>
+    <div class="row"><div class="field"><label>Concepto</label><input id="m-concepto" value="${escapeAttr(f.concepto)}"></div></div>
+    <div class="row"><div class="field"><label>Monto</label><input id="m-monto" type="number" value="${f.monto}" min="0"></div></div>
+    <div class="row"><div class="field"><label>Quién pagó</label><select id="m-pago"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p===f.pagadoPor?'selected':''}>${p}</option>`).join('')}</select></div></div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarEdicionFinca(${id})">Guardar</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  `);
+}
+async function guardarEdicionFinca(id) {
+  const pagadoPor = document.getElementById('m-pago').value || null;
+  if (!pagadoPor) return toast('Elige quién pagó.', 'error');
+  const cambios = { concepto: document.getElementById('m-concepto').value.trim(), monto: Number(document.getElementById('m-monto').value) || 0, pagadoPor };
+  const f = state.finca.find(x => x.id === id); Object.assign(f, cambios);
+  guardarCacheLocal('finca'); cerrarModal(); renderTodo();
+  await apiFetch('/api/finca/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios) });
 }
 async function registrarFinca(btn) {
   const payload = {
@@ -3054,8 +3076,6 @@ async function registrarFinca(btn) {
     ts: Date.now(),
   };
   if (!payload.concepto) return toast('Escribe el concepto.', 'error');
-  // Finca no tiene modal de edición — si esto queda sin dueño, no hay
-  // forma de corregirlo después salvo borrar y volver a anotarlo.
   if (!payload.pagadoPor) return toast('Elige quién pagó.', 'error');
   if (payload.pagadoPor) { localStorage.setItem('cp_pago', payload.pagadoPor); localStorage.setItem('cp_usuario', payload.pagadoPor); }
   if (btn) btn.disabled = true;
@@ -3073,7 +3093,8 @@ async function toggleEstadoFinca(id) {
   const f = state.finca.find(x => x.id === id); if (!f) return;
   const nuevo = f.estado === 'Pagado' ? 'Pendiente' : 'Pagado';
   if (nuevo === 'Pagado' && !f.pagadoPor) {
-    return toast('Este registro de finca no tiene quién pagó — no se puede editar, bórralo y vuelve a anotarlo.', 'error');
+    toast('Antes de marcar como pagado, elige quién pagó.', 'error');
+    return abrirEdicionFinca(id);
   }
   f.estado = nuevo; guardarCacheLocal('finca'); renderTodo();
   await apiFetch('/api/finca/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: nuevo }) });
@@ -4020,14 +4041,51 @@ function calcularBalancePersonas() {
 // cuadran en el balance de nadie. El formulario y los botones de estado ya
 // no dejan crear más de estos, pero esto avisa si queda alguno viejo (o
 // alguno que se coló por otro camino) para que se corrija a mano.
-function contarHuerfanos() {
+function listaHuerfanos() {
   return {
-    ventas: state.ventas.filter(v => v.estado === 'Pagado' && !v.recibidoPor).length,
-    maquila: state.ordenesMaquila.filter(o => o.estado === 'Pagado' && !o.recibidoPor).length,
-    gastos: state.gastos.filter(g => g.estado === 'Pagado' && !g.pagadoPor).length,
-    finca: state.finca.filter(f => f.estado === 'Pagado' && !f.pagadoPor).length,
-    cereza: state.cerezaComprada.filter(c => (Number(c.costo) || 0) > 0 && !c.pagadoPor).length,
+    ventas: state.ventas.filter(v => v.estado === 'Pagado' && !v.recibidoPor),
+    maquila: state.ordenesMaquila.filter(o => o.estado === 'Pagado' && !o.recibidoPor),
+    gastos: state.gastos.filter(g => g.estado === 'Pagado' && !g.pagadoPor),
+    finca: state.finca.filter(f => f.estado === 'Pagado' && !f.pagadoPor),
+    cereza: state.cerezaComprada.filter(c => (Number(c.costo) || 0) > 0 && !c.pagadoPor),
   };
+}
+function contarHuerfanos() {
+  const l = listaHuerfanos();
+  return { ventas: l.ventas.length, maquila: l.maquila.length, gastos: l.gastos.length, finca: l.finca.length, cereza: l.cereza.length };
+}
+
+// Lista clicable de todo lo que quedó "Pagado" sin dueño, con un botón
+// para corregir cada uno ahí mismo (en vez de tener que ir a buscarlos a
+// mano por las pestañas y las páginas del listado).
+function abrirHuerfanos() {
+  const h = listaHuerfanos();
+  const secciones = [
+    { label: 'Ventas', lista: h.ventas, fila: v => `${escapeHtml(v.cliente || 'Venta directa')} — ${fmt(v.valor)} — ${new Date(Number(v.ts)).toLocaleDateString('es-CO')}`, editar: v => `cerrarModal();abrirEdicionVenta(${v.id})` },
+    { label: 'Maquila', lista: h.maquila, fila: o => `${escapeHtml(o.cliente)} — ${fmt(o.valor)} — ${new Date(Number(o.ts)).toLocaleDateString('es-CO')}`, editar: o => `cerrarModal();abrirEdicionMaquila(${o.id})` },
+    { label: 'Gastos', lista: h.gastos, fila: g => `${escapeHtml(g.concepto)} — ${fmt(g.monto)} — ${new Date(Number(g.ts)).toLocaleDateString('es-CO')}`, editar: g => `cerrarModal();abrirEdicionGasto(${g.id})` },
+    { label: 'Finca', lista: h.finca, fila: f => `${escapeHtml(f.concepto)} — ${fmt(f.monto)} — ${new Date(Number(f.ts)).toLocaleDateString('es-CO')}`, editar: f => `cerrarModal();abrirEdicionFinca(${f.id})` },
+    { label: 'Cereza comprada', lista: h.cereza, fila: c => `${escapeHtml(c.proveedor || 'Sin proveedor')} — ${fmt(c.costo)} — ${new Date(Number(c.fecha)).toLocaleDateString('es-CO')}`, editar: null },
+  ].filter(s => s.lista.length);
+
+  if (!secciones.length) return toast('No queda ningún pago sin dueño.');
+
+  abrirModal(`
+    <h3>Pagos sin dueño</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">No cuadran en el balance de nadie hasta que elijas quién recibió/pagó cada uno.</p>
+    ${secciones.map(s => `
+      <div style="margin-top:14px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px">${s.label} (${s.lista.length})</div>
+        ${s.lista.map(item => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--linea)">
+            <span style="font-size:13px">${s.fila(item)}</span>
+            ${s.editar ? `<button class="sec-btn" onclick="${s.editar(item)}">✎ Corregir</button>` : `<span style="font-size:11.5px;color:var(--cafe-soft)">Sin edición — bórrala y vuelve a anotarla</span>`}
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+    <div class="modal-actions"><button class="sec-btn" onclick="cerrarModal()">Cerrar</button></div>
+  `);
 }
 
 // Cuánta plata (ya pagada) quedó en cada modalidad/cuenta — Efectivo,
@@ -4051,8 +4109,9 @@ function renderBalancePersonas() {
     .map(([k, n]) => `${n} ${etiquetasHuerfanos[k]}${n === 1 ? '' : 's'}`).join(', ');
   cont.innerHTML = `
     ${avisoHuerfanos ? `
-      <div style="background:#fdf1ea;border:1px solid var(--terracota);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cafe)">
-        ⚠️ Quedan pagos sin dueño y no cuadran en el balance de nadie: ${avisoHuerfanos} — corrígelos con ✎ (los de finca, si no tienen ✎, bórralos y vuelve a anotarlos).
+      <div style="background:#fdf1ea;border:1px solid var(--terracota);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cafe);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>⚠️ Quedan pagos sin dueño y no cuadran en el balance de nadie: ${avisoHuerfanos}.</span>
+        <button class="sec-btn" onclick="abrirHuerfanos()">Ver y corregir</button>
       </div>` : ''}
     <div class="tabla-clientes">
       <div class="fila-cliente encabezado">
