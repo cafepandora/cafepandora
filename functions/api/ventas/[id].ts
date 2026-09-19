@@ -2,7 +2,7 @@ import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
-const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, guiaEnvio:guia_envio, origenWeb:origen_web, ts';
+const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
 
 async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre: unknown, tipoCliente: unknown) {
@@ -42,6 +42,7 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   if (body.estado !== undefined) updates.estado = body.estado;
   if (body.estadoEnvio !== undefined) updates.estado_envio = body.estadoEnvio;
   if (body.metodo !== undefined) updates.metodo = body.metodo;
+  if (body.recibidoPor !== undefined) updates.recibido_por = body.recibidoPor;
   if (body.ts !== undefined) updates.ts = Number(body.ts);
   if (body.guiaEnvio !== undefined) updates.guia_envio = body.guiaEnvio;
 

@@ -1,6 +1,8 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
+const SELECT = 'id, usuario, concepto, monto, categoria, estado, ts, pagadoPor:pagado_por';
+
 export const onRequestPatch: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
   if (authError) return authError;
@@ -15,11 +17,12 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   if (body.monto !== undefined) updates.monto = Number(body.monto) || 0;
   if (body.categoria !== undefined) updates.categoria = body.categoria;
   if (body.estado !== undefined) updates.estado = body.estado;
+  if (body.pagadoPor !== undefined) updates.pagado_por = body.pagadoPor;
   if (body.ts !== undefined) updates.ts = Number(body.ts);
 
   if (Object.keys(updates).length === 0) return new Response('Sin cambios', { status: 400 });
 
-  const { data: row, error } = await supabase.from('gastos').update(updates).eq('id', id).select().single();
+  const { data: row, error } = await supabase.from('gastos').update(updates).eq('id', id).select(SELECT).single();
   if (error) return new Response(error.message, { status: 500 });
   if (!row) return new Response('Gasto no encontrado', { status: 404 });
   return Response.json(row);

@@ -2,7 +2,7 @@ import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
-const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, guiaEnvio:guia_envio, origenWeb:origen_web, ts';
+const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
 
 async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre: unknown, tipoCliente: unknown) {
@@ -58,6 +58,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       estado_envio: body.estadoEnvio || 'Pendiente',
       origen_web: !!body.origenWeb,
       metodo: body.metodo || '',
+      recibido_por: body.recibidoPor || null,
       ts: body.ts || Date.now(),
     })
     .select(SELECT_VENTA)

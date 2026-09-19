@@ -617,6 +617,10 @@ const PRESENTACIONES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
 const TIPOS_CLIENTE = ['Cliente normal', 'Mayorista', 'Distribuidor', 'Interno'];
 const METODOS_PAGO = ['Efectivo', 'Transferencia a Joaquín', 'Transferencia a Inés', 'Juan Nequi', 'Juan Bancolombia'];
 const CATEGORIAS_GASTO = ['Insumos', 'Servicios', 'Nómina', 'Transporte', 'Mano de obra', 'Café verde', 'Otro'];
+// Quién recibe pagos (ventas/maquila) y quién paga gastos — para el balance
+// de cuentas por persona. Se recuerda en localStorage para no tener que
+// elegirlo cada vez.
+const PERSONAS_EQUIPO = ['Juan', 'Inés', 'Joaquín'];
 const CATEGORIAS_FINCA = ['Insumos', 'Mano de obra', 'Cosecha', 'Otro'];
 const MOLIENDAS = ['Molido', 'En grano'];
 const TUESTES_LAVADO = ['Media', 'Media alta'];
@@ -643,14 +647,20 @@ const DIAS_SECADO = { Lavado: 7, Honey: 21, Natural: 35, Exotico: 35 };
 const MIN_MUESTRAS = { cerezaAPergamino: 2, pergaminoAVerde: 2, mermaTueste: 3 };
 
 function rendimientosReales() {
-  // 1) Cereza -> pergamino: cosechas donde ya pesaste el pergamino.
-  const conPergamino = state.cosechas.filter(c => c.kilosPergaminoReal > 0 && c.kilosCereza > 0);
+  // 1) Cereza -> pergamino: cosechas propias y cereza comprada donde ya
+  // pesaste el pergamino — el secado es el mismo proceso sin importar de
+  // dónde vino la cereza.
+  const conPergamino = [...state.cosechas, ...state.cerezaComprada]
+    .filter(c => c.kilosPergaminoReal > 0 && c.kilosCereza > 0);
   const cerezaTotal = conPergamino.reduce((s, c) => s + Number(c.kilosCereza), 0);
   const pergaminoTotal = conPergamino.reduce((s, c) => s + Number(c.kilosPergaminoReal), 0);
 
-  // 2) Pergamino -> verde: cosechas y compras donde anotaste el verde tras trillar.
+  // 2) Pergamino -> verde: cosechas, cereza comprada y pergamino comprado
+  // donde anotaste el verde tras trillar.
   const trilladas = [
     ...state.cosechas.filter(c => c.kilosVerdeReal > 0 && c.kilosPergaminoReal > 0)
+      .map(c => ({ entra: Number(c.kilosPergaminoReal), sale: Number(c.kilosVerdeReal) })),
+    ...state.cerezaComprada.filter(c => c.kilosVerdeReal > 0 && c.kilosPergaminoReal > 0)
       .map(c => ({ entra: Number(c.kilosPergaminoReal), sale: Number(c.kilosVerdeReal) })),
     ...state.pergamino.filter(p => p.kilosVerdeReal > 0 && p.kilosPergamino > 0)
       .map(p => ({ entra: Number(p.kilosPergamino), sale: Number(p.kilosVerdeReal) })),
@@ -709,7 +719,7 @@ const QUICK_ADD = [
 
 const state = {
   ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [], preciosCafe: [],
-  cosechas: [], pergamino: [], tuestes: [],
+  cosechas: [], pergamino: [], tuestes: [], cerezaComprada: [],
   ordenesMaquila: [],
   pedidosWeb: [],
   cuentasCobro: [],
@@ -717,7 +727,7 @@ const state = {
 };
 // Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
 // paralelo y saltar entre ellas sin perder lo que llevas armado.
-const ordenVacia = () => ({ items: [], cliente: '', tipoCliente: 'Cliente normal', metodo: '', estado: 'Pagado', valorManual: '', origenWeb: false, pedidoWebId: null });
+const ordenVacia = () => ({ items: [], cliente: '', tipoCliente: 'Cliente normal', metodo: '', recibidoPor: localStorage.getItem('cp_recibio') || '', estado: 'Pagado', valorManual: '', origenWeb: false, pedidoWebId: null });
 let ordenes = [ordenVacia()];
 let ordenActiva = 0;
 // carritoActual siempre apunta a los items de la orden que estás viendo.
@@ -732,6 +742,7 @@ function guardarOrdenEnMemoria() {
   if (g('v-cliente')) o.cliente = g('v-cliente').value;
   if (g('v-tipoCliente')) o.tipoCliente = g('v-tipoCliente').value;
   if (g('v-metodo')) o.metodo = g('v-metodo').value;
+  if (g('v-recibio')) o.recibidoPor = g('v-recibio').value;
   if (g('v-estado')) o.estado = g('v-estado').value;
   if (g('v-valor')) o.valorManual = g('v-valor').value;
 }
@@ -997,7 +1008,7 @@ function autocompletarDesdeCliente() {
 let resumenSubTab = 'pagadas';
 let ventasSubTab = 'porEnviar';
 const POR_PAGINA = 8;
-const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1, ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, cuentasCobro: 1, clientes: 1 };
+const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1, ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1 };
 
 // Corta una lista ya ordenada a la página actual y devuelve el HTML de las
 // filas visibles más los controles de "Anterior / Siguiente".
@@ -1121,7 +1132,7 @@ supabaseClient.auth.onAuthStateChange((_evento, session) => { if (session) sesio
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -1139,7 +1150,7 @@ async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc] = await Promise.all([
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz] = await Promise.all([
       apiFetch('/api/ventas').then(r => r.json()),
       apiFetch('/api/gastos').then(r => r.json()),
       apiFetch('/api/clientes').then(r => r.json()),
@@ -1153,11 +1164,12 @@ async function sincronizar() {
       apiFetch('/api/ordenes-maquila').then(r => r.json()),
       apiFetch('/api/pedidos-web').then(r => r.json()),
       apiFetch('/api/cuentas-cobro').then(r => r.json()),
+      apiFetch('/api/cereza-comprada').then(r => r.json()),
     ]);
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
-    state.cuentasCobro = cc;
+    state.cuentasCobro = cc; state.cerezaComprada = cz;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -1830,6 +1842,11 @@ function renderVentas() {
         </div>
       </div>
       <div class="row">
+        <div class="field"><label>Quién recibió</label>
+          <select id="v-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="row">
         <div class="field"><label>Anotado por</label>
           <input id="v-usuario" placeholder="Tu nombre" value="${escapeAttr(localStorage.getItem('cp_usuario') || '')}">
         </div>
@@ -1961,7 +1978,7 @@ function filaVenta(v, esDeuda) {
     <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''} ${envioPendiente ? 'envio-pendiente' : ''}">
       <div class="main">
         <div class="title">${escapeHtml(v.cliente || 'Venta directa')} ${v.origenWeb ? '<span class="badge-web">🌐 Pedido web</span>' : ''}</div>
-        <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(v.usuario || '')} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
+        <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(v.usuario || '')}${v.recibidoPor ? ' · recibió ' + escapeHtml(v.recibidoPor) : ''} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
         <div class="details">${escapeHtml(detalleVenta(v))}</div>
         <div style="margin-top:5px"><button class="tag ${envioPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEnvio(${v.id})">${envioPendiente ? '📦 Pendiente de envío' : '✅ Enviado'}</button></div>
       </div>
@@ -1997,12 +2014,15 @@ async function registrarVenta(btn) {
       items: carritoActual,
       valor: Math.max(0, Number(document.getElementById('v-valor').value) || carritoActual.reduce((s, it) => s + (Number(it.valor) || 0), 0)),
       metodo: document.getElementById('v-metodo').value,
+      recibidoPor: document.getElementById('v-recibio').value || null,
       estado: document.getElementById('v-estado').value,
       origenWeb: !!ordenEnCurso.origenWeb,
       ts: Date.now(),
     };
+    if (payload.recibidoPor) localStorage.setItem('cp_recibio', payload.recibidoPor);
 
     const res = await apiFetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
     const row = await res.json();
     state.ventas.push(row);
     guardarCacheLocal('ventas');
@@ -2020,6 +2040,8 @@ async function registrarVenta(btn) {
     toast('Venta registrada');
     renderTodo(); // esto reconstruye el botón, ya no hace falta rehabilitarlo a mano
     sincronizar(); // trae de vuelta el descuento de inventario / nuevo cliente calculados en el servidor
+  } catch (err) {
+    toast('No se pudo registrar la venta: ' + err.message, 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -2214,6 +2236,9 @@ function abrirEdicionVenta(id) {
       <div class="field"><label>Estado</label><select id="m-estado"><option ${v.estado==='Pagado'?'selected':''}>Pagado</option><option ${v.estado==='Pendiente'?'selected':''}>Pendiente</option></select></div>
       <div class="field"><label>Método de pago</label><select id="m-metodo">${METODOS_PAGO.map(m => `<option ${m===v.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
     </div>
+    <div class="row">
+      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===v.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
+    </div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionVenta(${id}, this)">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
@@ -2285,6 +2310,7 @@ async function guardarEdicionVenta(id, btn) {
     valor: editCarrito.reduce((s, it) => s + (Number(it.valor) || 0), 0),
     estado: document.getElementById('m-estado').value,
     metodo: document.getElementById('m-metodo').value,
+    recibidoPor: document.getElementById('m-recibio').value || null,
     nuevosItems: editItemsNuevos, // el backend descuenta inventario por estas líneas nuevas
     itemsRemovidos: editItemsRemovidos, // y le devuelve inventario a las líneas originales que quitaste
   };
@@ -2307,7 +2333,7 @@ const ICONOS_LOTE = { Lavado: '💧', Honey: '🍯', Natural: '🌿', Exotico: '
 // Varias órdenes de maquila abiertas a la vez, igual que en Ventas — para
 // poder atender dos clientes en paralelo (ej. Adrián y Alejandro) sin perder
 // lo que lleva cada uno.
-const ordenMaquilaVacia = () => ({ items: [], cliente: '', estado: 'Pendiente', metodo: '' });
+const ordenMaquilaVacia = () => ({ items: [], cliente: '', estado: 'Pendiente', metodo: '', recibidoPor: localStorage.getItem('cp_recibio') || '' });
 let ordenesMaquilaAbiertas = [ordenMaquilaVacia()];
 let ordenMaquilaActiva = 0;
 // carritoMaquila siempre apunta a los items de la orden que estás viendo.
@@ -2323,6 +2349,7 @@ function guardarOrdenMaquilaEnMemoria() {
   if (g('mq-cliente')) o.cliente = g('mq-cliente').value;
   if (g('mq-estado')) o.estado = g('mq-estado').value;
   if (g('mq-metodo')) o.metodo = g('mq-metodo').value;
+  if (g('mq-recibio')) o.recibidoPor = g('mq-recibio').value;
 }
 
 function cambiarOrdenMaquila(i) {
@@ -2441,6 +2468,9 @@ function renderMaquila() {
         <div class="field"><label>Método de pago</label>
           <select id="mq-metodo"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
         </div>
+        <div class="field"><label>Quién recibió</label>
+          <select id="mq-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
+        </div>
       </div>
       <button class="add-btn" onclick="registrarOrdenMaquila(this)">Registrar orden</button>
     </div>
@@ -2466,7 +2496,7 @@ function filaOrdenMaquila(o) {
     <div class="ledger-row">
       <div class="main">
         <div class="title">${escapeHtml(o.cliente)}</div>
-        <div class="meta">${new Date(Number(o.ts)).toLocaleDateString('es-CO')}${o.metodo ? ' · ' + escapeHtml(o.metodo) : ''}</div>
+        <div class="meta">${new Date(Number(o.ts)).toLocaleDateString('es-CO')}${o.metodo ? ' · ' + escapeHtml(o.metodo) : ''}${o.recibidoPor ? ' · recibió ' + escapeHtml(o.recibidoPor) : ''}</div>
         <div class="details">${escapeHtml(detalleOrdenMaquila(o))}</div>
       </div>
       <button class="tag ${o.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoOrdenMaquila(${o.id})">${o.estado}</button>
@@ -2587,15 +2617,20 @@ async function registrarOrdenMaquila(btn) {
       valor: carritoMaquila.reduce((s, it) => s + (Number(it.valor) || 0), 0),
       estado: document.getElementById('mq-estado').value,
       metodo: document.getElementById('mq-metodo').value,
+      recibidoPor: document.getElementById('mq-recibio').value || null,
       ts: Date.now(),
     };
+    if (payload.recibidoPor) localStorage.setItem('cp_recibio', payload.recibidoPor);
     const res = await apiFetch('/api/ordenes-maquila', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
     state.ordenesMaquila.push(await res.json());
     guardarCacheLocal('ordenesMaquila');
     finalizarOrdenMaquilaActiva();
     toast('Orden de maquila registrada');
     renderTodo();
     sincronizar();
+  } catch (err) {
+    toast('No se pudo registrar: ' + err.message, 'error');
   } finally { btn.disabled = false; }
 }
 
@@ -2656,6 +2691,9 @@ function abrirEdicionMaquila(id) {
     <div class="row" style="margin-top:14px">
       <div class="field"><label>Estado</label><select id="m-estado"><option ${o.estado==='Pagado'?'selected':''}>Pagado</option><option ${o.estado==='Pendiente'?'selected':''}>Pendiente</option></select></div>
       <div class="field"><label>Método de pago</label><select id="m-metodo"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m===o.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===o.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
     </div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionMaquila(${id}, this)">Guardar</button>
@@ -2739,6 +2777,7 @@ async function guardarEdicionMaquila(id, btn) {
     valor: editCarritoMaquila.reduce((s, it) => s + (Number(it.valor) || 0), 0),
     estado: document.getElementById('m-estado').value,
     metodo: document.getElementById('m-metodo').value,
+    recibidoPor: document.getElementById('m-recibio').value || null,
   };
   const o = state.ordenesMaquila.find(x => x.id === id); if (o) Object.assign(o, cambios);
   guardarCacheLocal('ordenesMaquila'); cerrarModal(); renderTodo();
@@ -2798,7 +2837,10 @@ function renderGastos() {
         <div class="field"><label>Categoría</label><select id="g-categoria">${CATEGORIAS_GASTO.map(c => `<option>${c}</option>`).join('')}</select></div>
         <div class="field"><label>Estado</label><select id="g-estado"><option>Pagado</option><option>Pendiente</option></select></div>
       </div>
-      <div class="row"><div class="field"><label>Anotado por</label><input id="g-usuario" value="${escapeAttr(localStorage.getItem('cp_usuario') || '')}"></div></div>
+      <div class="row">
+        <div class="field"><label>Anotado por</label><input id="g-usuario" value="${escapeAttr(localStorage.getItem('cp_usuario') || '')}"></div>
+        <div class="field"><label>Quién pagó</label><select id="g-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+      </div>
       <button class="add-btn" onclick="registrarGasto(this)">Registrar gasto</button>
     </div>
     <h3 class="section-title">Gastos de ${mes}</h3>
@@ -2807,7 +2849,7 @@ function renderGastos() {
         <div class="ledger-row">
           <div class="main">
             <div class="title">${escapeHtml(g.concepto)}</div>
-            <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)} · ${escapeHtml(g.usuario || '')}</div>
+            <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)} · ${escapeHtml(g.usuario || '')}${g.pagadoPor ? ' · pagó ' + escapeHtml(g.pagadoPor) : ''}</div>
           </div>
           <button class="tag ${g.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoGasto(${g.id})">${g.estado}</button>
           <div class="amount neg">-${fmt(g.monto)}</div>
@@ -2827,14 +2869,19 @@ async function registrarGasto(btn) {
     monto: Math.max(0, Number(document.getElementById('g-monto').value) || 0),
     categoria: document.getElementById('g-categoria').value,
     estado: document.getElementById('g-estado').value,
+    pagadoPor: document.getElementById('g-pago').value || null,
     ts: Date.now(),
   };
   if (!payload.concepto) return toast('Escribe el concepto del gasto.', 'error');
   localStorage.setItem('cp_usuario', payload.usuario);
+  if (payload.pagadoPor) localStorage.setItem('cp_pago', payload.pagadoPor);
   if (btn) btn.disabled = true;
   try {
     const res = await apiFetch('/api/gastos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
     state.gastos.push(await res.json()); guardarCacheLocal('gastos'); toast('Gasto registrado'); renderTodo();
+  } catch (err) {
+    toast('No se pudo registrar: ' + err.message, 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -2856,6 +2903,7 @@ function abrirEdicionGasto(id) {
     <h3>Editar gasto</h3>
     <div class="row"><div class="field"><label>Concepto</label><input id="m-concepto" value="${escapeAttr(g.concepto)}"></div></div>
     <div class="row"><div class="field"><label>Monto</label><input id="m-monto" type="number" value="${g.monto}" min="0"></div></div>
+    <div class="row"><div class="field"><label>Quién pagó</label><select id="m-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===g.pagadoPor?'selected':''}>${p}</option>`).join('')}</select></div></div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionGasto(${id})">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
@@ -2863,7 +2911,7 @@ function abrirEdicionGasto(id) {
   `);
 }
 async function guardarEdicionGasto(id) {
-  const cambios = { concepto: document.getElementById('m-concepto').value.trim(), monto: Number(document.getElementById('m-monto').value) || 0 };
+  const cambios = { concepto: document.getElementById('m-concepto').value.trim(), monto: Number(document.getElementById('m-monto').value) || 0, pagadoPor: document.getElementById('m-pago').value || null };
   const g = state.gastos.find(x => x.id === id); Object.assign(g, cambios);
   guardarCacheLocal('gastos'); cerrarModal(); renderTodo();
   await apiFetch('/api/gastos/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios) });
@@ -2888,6 +2936,9 @@ function renderFinca() {
         <div class="field"><label>Categoría</label><select id="f-categoria">${CATEGORIAS_FINCA.map(c => `<option>${c}</option>`).join('')}</select></div>
         <div class="field"><label>Estado</label><select id="f-estado"><option>Pagado</option><option>Pendiente</option></select></div>
       </div>
+      <div class="row">
+        <div class="field"><label>Quién pagó</label><select id="f-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+      </div>
       <button class="add-btn" onclick="registrarFinca(this)">Registrar</button>
     </div>
     <h3 class="section-title">Finca — ${mes}</h3>
@@ -2896,7 +2947,7 @@ function renderFinca() {
         <div class="ledger-row">
           <div class="main">
             <div class="title">${escapeHtml(f.concepto)}</div>
-            <div class="meta">${new Date(Number(f.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(f.categoria)}</div>
+            <div class="meta">${new Date(Number(f.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(f.categoria)}${f.pagadoPor ? ' · pagó ' + escapeHtml(f.pagadoPor) : ''}</div>
           </div>
           <button class="tag ${f.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoFinca(${f.id})">${f.estado}</button>
           <div class="amount neg">-${fmt(f.monto)}</div>
@@ -2914,13 +2965,18 @@ async function registrarFinca(btn) {
     monto: Math.max(0, Number(document.getElementById('f-monto').value) || 0),
     categoria: document.getElementById('f-categoria').value,
     estado: document.getElementById('f-estado').value,
+    pagadoPor: document.getElementById('f-pago').value || null,
     ts: Date.now(),
   };
   if (!payload.concepto) return toast('Escribe el concepto.', 'error');
+  if (payload.pagadoPor) localStorage.setItem('cp_pago', payload.pagadoPor);
   if (btn) btn.disabled = true;
   try {
     const res = await apiFetch('/api/finca', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
     state.finca.push(await res.json()); guardarCacheLocal('finca'); toast('Registro de finca guardado'); renderTodo();
+  } catch (err) {
+    toast('No se pudo registrar: ' + err.message, 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -2953,8 +3009,10 @@ function renderTrazabilidad() {
   const cosechasPend = state.cosechas.filter(c => c.kilosPergaminoReal == null);
   const pergaminoDeCosechas = state.cosechas.reduce((s, c) =>
     s + (c.kilosPergaminoReal != null ? Number(c.kilosPergaminoReal) : proyectarDesdeCereza(c.kilosCereza).pergamino), 0);
+  const pergaminoDeCerezaComprada = state.cerezaComprada.reduce((s, c) =>
+    s + (c.kilosPergaminoReal != null ? Number(c.kilosPergaminoReal) : proyectarDesdeCereza(c.kilosCereza).pergamino), 0);
   const pergaminoComprado = state.pergamino.reduce((s, p) => s + Number(p.kilosPergamino || 0), 0);
-  const pergaminoTotal = pergaminoDeCosechas + pergaminoComprado;
+  const pergaminoTotal = pergaminoDeCosechas + pergaminoDeCerezaComprada + pergaminoComprado;
   const proy = proyectarDesdePergamino(pergaminoTotal);
   const yaTostado = state.tuestes.reduce((s, t) => s + Number(t.kilosTostado || 0), 0);
 
@@ -2970,11 +3028,13 @@ function renderTrazabilidad() {
 
     <div class="subtabs">
       <button class="${trazaSubTab==='cosechas'?'active':''}" onclick="cambiarTrazaSubTab('cosechas')">Cosechas (${state.cosechas.length})</button>
+      <button class="${trazaSubTab==='cereza'?'active':''}" onclick="cambiarTrazaSubTab('cereza')">Cereza comprada (${state.cerezaComprada.length})</button>
       <button class="${trazaSubTab==='comprado'?'active':''}" onclick="cambiarTrazaSubTab('comprado')">Comprado (${state.pergamino.length})</button>
       <button class="${trazaSubTab==='tueste'?'active':''}" onclick="cambiarTrazaSubTab('tueste')">Tueste (${state.tuestes.length})</button>
     </div>
 
     ${trazaSubTab === 'cosechas' ? vistaCosechas(cosechasPend) : ''}
+    ${trazaSubTab === 'cereza' ? vistaCerezaComprada() : ''}
     ${trazaSubTab === 'comprado' ? vistaPergamino() : ''}
     ${trazaSubTab === 'tueste' ? vistaTueste() : ''}
   `;
@@ -3228,12 +3288,159 @@ async function eliminarCosecha(id) {
   await apiFetch('/api/cosechas/' + id, { method:'DELETE' });
 }
 
+/* ---------- Cereza comprada a terceros ----------
+   Mismo recorrido que una cosecha propia (cereza → pergamino real → verde
+   real), pero con proveedor/costo/quién pagó, y sin mezclarse con "Cosechas"
+   para no descuadrar cuánto cosechó realmente la finca. Sí suma a
+   rendimientosReales() — es cereza real entrando a secarse igual. */
+function vistaCerezaComprada() {
+  return `
+    <div class="card">
+      <h3 class="section-title" style="margin-top:0">Registrar compra de cereza</h3>
+      <div class="row">
+        <div class="field"><label>Fecha</label><input id="cz-fecha" type="date" value="${hoyISO()}"></div>
+        <div class="field"><label>Proveedor</label><input id="cz-proveedor" placeholder="A quién se le compró"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Kilos en cereza</label>
+          <input id="cz-kilos" type="number" min="0" step="0.1" placeholder="0" oninput="previsualizarCerezaComprada()"></div>
+        <div class="field"><label>Proceso</label>
+          <select id="cz-proceso" onchange="previsualizarCerezaComprada()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+      </div>
+      <div id="cz-preview" class="preview-cadena"></div>
+      <div class="row">
+        <div class="field"><label>Costo total</label><input id="cz-costo" type="number" min="0" placeholder="0"></div>
+        <div class="field"><label>Quién pagó</label><select id="cz-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+      </div>
+      <div class="row"><div class="field"><label>Notas</label><input id="cz-notas" placeholder="Origen, vereda, observaciones…"></div></div>
+      <button class="add-btn" onclick="registrarCerezaComprada(this)">Registrar compra</button>
+    </div>
+
+    <h3 class="section-title">Cereza comprada</h3>
+    <div class="ledger">
+      ${paginar(state.cerezaComprada.slice().sort((a,b)=>b.fecha-a.fecha), 'cerezaComprada', c => {
+        const p = proyectarDesdeCereza(c.kilosCereza);
+        const real = c.kilosPergaminoReal != null;
+        return `
+        <div class="ledger-row">
+          <div class="main">
+            <div class="title">${Number(c.kilosCereza).toFixed(1)} kg cereza · ${escapeHtml(c.proceso)} · ${escapeHtml(c.proveedor || 'Sin proveedor')}
+              <span class="pasos-cosecha" title="Cereza → pergamino real → verde real">
+                <span class="paso activo"></span>
+                <span class="paso ${real ? 'activo' : ''}"></span>
+                <span class="paso ${c.kilosVerdeReal > 0 ? 'activo' : ''}"></span>
+              </span>
+            </div>
+            <div class="meta">${fechaCorta(c.fecha)}${c.costo ? ' · ' + fmt(c.costo) : ''}${c.pagadoPor ? ' · pagó ' + escapeHtml(c.pagadoPor) : ''}</div>
+            <div class="details">${c.kilosVerdeReal > 0
+              ? `Verde real tras trillar: <b>${Number(c.kilosVerdeReal).toFixed(1)} kg</b>`
+              : (real
+                ? `Pergamino real: <b>${Number(c.kilosPergaminoReal).toFixed(1)} kg</b> → ≈ ${proyectarDesdePergamino(c.kilosPergaminoReal).verde.toFixed(1)} kg verde`
+                : `≈ ${p.pergamino.toFixed(1)} kg pergamino → ${p.verde.toFixed(1)} kg verde → ${Math.round(p.libras)} libras`)}</div>
+          </div>
+          <div class="acciones">
+            <button onclick="abrirPesarPergaminoCompra(${c.id})" title="Anotar pergamino real">⚖️</button>
+            ${real ? `<button onclick="abrirTrilla('cerezaComprada', ${c.id})" title="Anotar verde tras trillar">🌾</button>` : ''}
+            <button onclick="eliminarCerezaComprada(${c.id})" title="Eliminar">✕</button>
+          </div>
+        </div>`;
+      }, 'Todavía no hay compras de cereza.')}
+    </div>`;
+}
+
+function previsualizarCerezaComprada() {
+  const el = document.getElementById('cz-preview');
+  if (!el) return;
+  const kg = Number(document.getElementById('cz-kilos').value) || 0;
+  if (!kg) { el.innerHTML = ''; return; }
+  const p = proyectarDesdeCereza(kg);
+  el.innerHTML = `
+    <div class="cadena">
+      <span><b>${kg.toFixed(1)}</b> kg cereza</span><i>→</i>
+      <span><b>${p.pergamino.toFixed(1)}</b> kg pergamino</span><i>→</i>
+      <span><b>${p.verde.toFixed(1)}</b> kg verde</span><i>→</i>
+      <span><b>${p.tostado.toFixed(1)}</b> kg tostado</span><i>=</i>
+      <span class="destacado"><b>${Math.round(p.libras)}</b> libras</span>
+    </div>`;
+}
+
+async function registrarCerezaComprada(btn) {
+  const kilosCereza = Number(document.getElementById('cz-kilos').value) || 0;
+  if (!kilosCereza) return toast('Escribe cuántos kilos de cereza se compraron.', 'error');
+  const pagadoPor = document.getElementById('cz-pago').value || null;
+  btn.disabled = true;
+  try {
+    const payload = {
+      fecha: new Date(document.getElementById('cz-fecha').value + 'T12:00:00').getTime(),
+      proveedor: document.getElementById('cz-proveedor').value.trim() || null,
+      kilosCereza,
+      proceso: document.getElementById('cz-proceso').value,
+      costo: Math.max(0, Number(document.getElementById('cz-costo').value) || 0),
+      pagadoPor,
+      notas: document.getElementById('cz-notas').value.trim() || null,
+      usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+    };
+    if (pagadoPor) localStorage.setItem('cp_pago', pagadoPor);
+    const res = await apiFetch('/api/cereza-comprada', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
+    state.cerezaComprada.push(await res.json());
+    guardarCacheLocal('cerezaComprada');
+    toast('Compra de cereza registrada');
+    renderTrazabilidad();
+  } catch (err) {
+    toast('No se pudo registrar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+function abrirPesarPergaminoCompra(id) {
+  const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
+  const p = proyectarDesdeCereza(c.kilosCereza);
+  abrirModal(`
+    <h3>Pergamino real de la compra</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">
+      ${Number(c.kilosCereza).toFixed(1)} kg de cereza del ${fechaCorta(c.fecha)} · estimado ${p.pergamino.toFixed(1)} kg</p>
+    <div class="row"><div class="field"><label>Kilos de pergamino seco (pesados)</label>
+      <input id="pp-kilos" type="number" min="0" step="0.1" value="${c.kilosPergaminoReal ?? p.pergamino.toFixed(1)}"></div></div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarPergaminoRealCompra(${id}, this)">Guardar</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>`);
+}
+
+async function guardarPergaminoRealCompra(id, btn) {
+  btn.disabled = true;
+  const kilosPergaminoReal = Math.max(0, Number(document.getElementById('pp-kilos').value) || 0);
+  const c = state.cerezaComprada.find(x => x.id === id);
+  if (c) c.kilosPergaminoReal = kilosPergaminoReal;
+  guardarCacheLocal('cerezaComprada');
+  cerrarModal();
+  renderTrazabilidad();
+  await apiFetch('/api/cereza-comprada/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kilosPergaminoReal }) });
+  toast('Pergamino real anotado');
+}
+
+async function eliminarCerezaComprada(id) {
+  if (!confirm('¿Eliminar este registro de compra?')) return;
+  state.cerezaComprada = state.cerezaComprada.filter(x => x.id !== id);
+  guardarCacheLocal('cerezaComprada'); renderTrazabilidad();
+  await apiFetch('/api/cereza-comprada/' + id, { method:'DELETE' });
+}
+
 /* ---------- Anotar el verde real tras trillar ---------- */
+// Los 3 orígenes de pergamino (cosecha propia, comprado ya seco, cereza
+// comprada) llegan al mismo paso de trilla — esta tabla les da a los tres
+// la misma lista/endpoint/campo de kilos de entrada.
+const FUENTES_TRILLA = {
+  cosecha: { lista: () => state.cosechas, endpoint: 'cosechas', cache: 'cosechas', entra: r => Number(r.kilosPergaminoReal) },
+  pergamino: { lista: () => state.pergamino, endpoint: 'pergamino', cache: 'pergamino', entra: r => Number(r.kilosPergamino) },
+  cerezaComprada: { lista: () => state.cerezaComprada, endpoint: 'cereza-comprada', cache: 'cerezaComprada', entra: r => Number(r.kilosPergaminoReal) },
+};
+
 function abrirTrilla(tipo, id) {
-  const esCosecha = tipo === 'cosecha';
-  const reg = esCosecha ? state.cosechas.find(x => x.id === id) : state.pergamino.find(x => x.id === id);
+  const fuente = FUENTES_TRILLA[tipo];
+  const reg = fuente.lista().find(x => x.id === id);
   if (!reg) return;
-  const pergamino = esCosecha ? Number(reg.kilosPergaminoReal) : Number(reg.kilosPergamino);
+  const pergamino = fuente.entra(reg);
   const r = rendimientosReales();
   const estimado = pergamino * r.pergaminoAVerde.valor;
 
@@ -3253,14 +3460,13 @@ function abrirTrilla(tipo, id) {
 async function guardarTrilla(tipo, id, btn) {
   btn.disabled = true;
   const kilosVerdeReal = Math.max(0, Number(document.getElementById('tr-kilos').value) || 0);
-  const esCosecha = tipo === 'cosecha';
-  const lista = esCosecha ? state.cosechas : state.pergamino;
-  const reg = lista.find(x => x.id === id);
+  const fuente = FUENTES_TRILLA[tipo];
+  const reg = fuente.lista().find(x => x.id === id);
   if (reg) reg.kilosVerdeReal = kilosVerdeReal;
-  guardarCacheLocal(esCosecha ? 'cosechas' : 'pergamino');
+  guardarCacheLocal(fuente.cache);
   cerrarModal();
   renderTrazabilidad();
-  await apiFetch('/api/' + (esCosecha ? 'cosechas' : 'pergamino') + '/' + id, {
+  await apiFetch('/api/' + fuente.endpoint + '/' + id, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kilosVerdeReal }),
   });
@@ -3620,6 +3826,10 @@ function renderResumen() {
     </div>
     <div id="bloqueMejoresClientes"></div>
 
+    <h3 class="section-title">Balance de cuentas</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Lo que cada uno ha recibido (ventas + maquila ya pagadas) menos lo que ha pagado (gastos, finca, café comprado) — todo el tiempo, no solo este mes. Positivo: tiene plata del negocio en la mano. Negativo: el negocio le debe.</p>
+    <div id="bloqueBalance"></div>
+
     <h3 class="section-title">Detalle de ${mes}</h3>
     <div class="subtabs">
       <button class="${resumenSubTab==='pagadas'?'active':''}" onclick="cambiarResumenSubTab('pagadas')">Pagadas (${pagadas.length})</button>
@@ -3636,6 +3846,7 @@ function renderResumen() {
   `;
   dibujarGraficos(mes);
   renderMejoresClientes();
+  renderBalancePersonas();
 }
 function cambiarResumenSubTab(tab) { resumenSubTab = tab; paginas.resumen = 1; renderResumen(); }
 
@@ -3678,6 +3889,60 @@ function clavePeriodo(ts, periodo) {
   const inicio = new Date(d.getFullYear(), 0, 1);
   const semana = Math.ceil((((d - inicio) / 86400000) + inicio.getDay() + 1) / 7);
   return d.getFullYear() + '-S' + String(semana).padStart(2, '0');
+}
+
+/* ---------- Balance de cuentas por persona ----------
+   Cuánto ha recibido cada uno (ventas + maquila ya pagadas) menos cuánto ha
+   pagado (gastos, finca, café comprado) — de todo el histórico, para saber
+   quién tiene plata del negocio en la mano y a quién se le debe. */
+function calcularBalancePersonas() {
+  return PERSONAS_EQUIPO.map(persona => {
+    const recibidoVentas = state.ventas.filter(v => v.recibidoPor === persona && v.estado === 'Pagado').reduce((s, v) => s + (Number(v.valor) || 0), 0);
+    const recibidoMaquila = state.ordenesMaquila.filter(o => o.recibidoPor === persona && o.estado === 'Pagado').reduce((s, o) => s + (Number(o.valor) || 0), 0);
+    const gastadoGastos = state.gastos.filter(g => g.pagadoPor === persona && g.estado === 'Pagado').reduce((s, g) => s + (Number(g.monto) || 0), 0);
+    const gastadoFinca = state.finca.filter(f => f.pagadoPor === persona && f.estado === 'Pagado').reduce((s, f) => s + (Number(f.monto) || 0), 0);
+    const gastadoCereza = state.cerezaComprada.filter(c => c.pagadoPor === persona).reduce((s, c) => s + (Number(c.costo) || 0), 0);
+    const recibido = recibidoVentas + recibidoMaquila;
+    const gastado = gastadoGastos + gastadoFinca + gastadoCereza;
+    return { persona, recibido, gastado, balance: recibido - gastado };
+  });
+}
+
+// Cuánta plata (ya pagada) quedó en cada modalidad/cuenta — Efectivo,
+// Transferencia a Joaquín, Juan Nequi, etc. — sin importar quién la recibió.
+function calcularBalancePorModalidad() {
+  const mapa = {};
+  const sumar = (metodo, valor) => { if (!metodo) return; mapa[metodo] = (mapa[metodo] || 0) + valor; };
+  state.ventas.filter(v => v.estado === 'Pagado').forEach(v => sumar(v.metodo, Number(v.valor) || 0));
+  state.ordenesMaquila.filter(o => o.estado === 'Pagado').forEach(o => sumar(o.metodo, Number(o.valor) || 0));
+  return Object.entries(mapa).map(([metodo, total]) => ({ metodo, total })).sort((a, b) => b.total - a.total);
+}
+
+function renderBalancePersonas() {
+  const cont = document.getElementById('bloqueBalance');
+  if (!cont) return;
+  const balances = calcularBalancePersonas();
+  const modalidades = calcularBalancePorModalidad();
+  cont.innerHTML = `
+    <div class="tabla-clientes">
+      <div class="fila-cliente encabezado">
+        <span>Persona</span><span>Recibió</span><span>Gastó</span><span>Balance</span>
+      </div>
+      ${balances.map(b => `
+        <div class="fila-cliente">
+          <span class="nombre">${escapeHtml(b.persona)}</span>
+          <span>${fmt(b.recibido)}</span>
+          <span>${fmt(b.gastado)}</span>
+          <span class="dinero" style="color:${b.balance > 0 ? 'var(--verde)' : (b.balance < 0 ? 'var(--terracota)' : 'inherit')}">${b.balance > 0 ? 'Tiene ' : (b.balance < 0 ? 'Le deben ' : '')}${fmt(Math.abs(b.balance))}</span>
+        </div>`).join('')}
+    </div>
+    ${modalidades.length ? `
+      <h4 style="margin:14px 0 6px;font-size:13.5px">Por modalidad / cuenta</h4>
+      <div class="tabla-clientes">
+        <div class="fila-cliente encabezado"><span>Modalidad</span><span>Total</span><span></span><span></span></div>
+        ${modalidades.map(m => `<div class="fila-cliente"><span class="nombre">${escapeHtml(m.metodo)}</span><span>${fmt(m.total)}</span><span></span><span></span></div>`).join('')}
+      </div>` : ''}
+  `;
 }
 
 let limiteMejoresClientes = 8;
@@ -4201,6 +4466,23 @@ function exportarExcel() {
     ],
   };
 
+  /* ---------- 8b) Cereza comprada a terceros ---------- */
+  const hojaCerezaComprada = {
+    name: 'Cereza comprada',
+    cols: [16, 20, 14, 14, 16, 16, 16, 14],
+    rows: [
+      [HEAD('Fecha'), HEAD('Proveedor'), HEAD('Kg cereza'), HEAD('Proceso'), HEAD('Kg pergamino real'), HEAD('Kg verde real'), HEAD('Costo'), HEAD('Pagó')],
+      ...state.cerezaComprada.slice().sort((a,b)=>b.fecha-a.fecha).map(c => [
+        FECHA(c.fecha), c.proveedor || '', NUM2(c.kilosCereza), c.proceso,
+        c.kilosPergaminoReal!=null ? NUM2(c.kilosPergaminoReal) : '',
+        c.kilosVerdeReal!=null ? NUM2(c.kilosVerdeReal) : '',
+        MONEY(c.costo), c.pagadoPor || '',
+      ]),
+      [],
+      [BOLD('TOTAL'), null, null, null, null, null, MONEY_B(state.cerezaComprada.reduce((s,c)=>s+(Number(c.costo)||0),0))],
+    ],
+  };
+
   /* ---------- 9) Pergamino comprado ---------- */
   const hojaPergamino = {
     name: 'Pergamino comprado',
@@ -4267,12 +4549,27 @@ function exportarExcel() {
     ],
   };
 
+  /* ---------- 14) Balance de cuentas por persona ---------- */
+  const balancesPersonas = calcularBalancePersonas();
+  const modalidadesBalance = calcularBalancePorModalidad();
+  const hojaBalance = {
+    name: 'Balance de cuentas',
+    cols: [18, 18, 18, 18],
+    rows: [
+      [HEAD('Persona'), HEAD('Recibió'), HEAD('Gastó'), HEAD('Balance (+ tiene / − le deben)')],
+      ...balancesPersonas.map(b => [b.persona, MONEY(b.recibido), MONEY(b.gastado), MONEY(b.balance)]),
+      [],
+      [HEAD('Modalidad / cuenta'), HEAD('Total recibido'), null, null],
+      ...modalidadesBalance.map(m => [m.metodo, MONEY(m.total), null, null]),
+    ],
+  };
+
   const nombre = 'CafePandora_' + new Date().toISOString().split('T')[0] + '.xlsx';
   try {
     XLSXLite.download([
       hojaResumen, hojaVentas, hojaMaquila, hojaGastos, hojaFinca, hojaInventario,
-      hojaMermas, hojaCosechas, hojaPergamino, hojaTuestes, hojaClientes,
-      hojaPrecios, hojaTarifasMaquila,
+      hojaMermas, hojaCosechas, hojaCerezaComprada, hojaPergamino, hojaTuestes, hojaClientes,
+      hojaPrecios, hojaTarifasMaquila, hojaBalance,
     ], nombre);
     localStorage.setItem('cp_ultimo_export', String(Date.now()));
     renderRecordatorioExport();

@@ -137,6 +137,7 @@ functions/api/tuestes/             # verde → tostado (trazabilidad)
 functions/api/pedidos-web/         # bandeja de pedidos de la página pública
 functions/api/catalogo-publico/    # GET público de precios "web"
 functions/api/cron/fermentacion.ts # alerta de WhatsApp — la llama un cron externo, no la app
+functions/api/cereza-comprada/     # café en cereza comprado a terceros (cereza → pergamino → verde)
 migracion_*.sql, migration.sql     # todas ya corridas en producción
 ```
 
@@ -175,6 +176,40 @@ WhatsApp y mandándole "I allow callmebot to send me messages" — el bot
 responde con la clave), y `CRON_SECRET` (una palabra larga inventada, para
 que nadie más pueda llamar esa URL pública y gastar mensajes).
 
+## Balance de cuentas por persona
+
+Ventas y órdenes de maquila tienen `recibido_por`; gastos, finca y compras
+de cereza tienen `pagado_por` — ambos un nombre de `PERSONAS_EQUIPO`
+(`const PERSONAS_EQUIPO = ['Juan', 'Inés', 'Joaquín']` en `index.html`).
+Se eligen en un `<select>` junto a método/estado en cada formulario, se
+recuerdan en `localStorage` (`cp_recibio`, `cp_pago`) para no tener que
+elegirlos cada vez, y se pueden corregir después desde los modales de
+edición que ya existían (Ventas, Maquila, Gastos — Finca no tiene modal de
+edición, igual que antes).
+
+`calcularBalancePersonas()` (en Resumen) suma, para todo el histórico (no
+solo el mes filtrado): cuánto ha **recibido** cada persona (ventas +
+maquila con `estado === 'Pagado'`) menos cuánto ha **pagado** (gastos +
+finca con `estado === 'Pagado'`, más el costo de cereza comprada). Positivo
+= tiene plata del negocio en la mano: negativo = el negocio le debe.
+`calcularBalancePorModalidad()` suma por separado cuánto quedó en cada
+`metodo` (Efectivo, Transferencia a Joaquín, Juan Nequi, etc.), sin
+importar quién lo recibió. Ambos se ven en Resumen (tarjeta "Balance de
+cuentas") y en el Excel (hoja "Balance de cuentas") —
+`migracion_balance_cuentas.sql` agrega las columnas nuevas.
+
+## Cereza comprada a terceros
+
+"Cosecha & Tueste" tiene una 4ª subpestaña, "Cereza comprada", para cuando
+se compra café en cereza (no de la finca propia) a un proveedor — mismo
+recorrido que una cosecha (cereza → pergamino real, botón ⚖️ → verde real
+tras trillar, botón 🌾, reutilizando `abrirTrilla()`/`FUENTES_TRILLA`),
+pero con proveedor, costo y quién pagó. Vive en su propia tabla
+(`compras_cereza`, sin mezclarse con `cosechas` para no descuadrar cuánto
+cosechó realmente la finca), pero **sí** suma a `rendimientosReales()` —
+es cereza real entrando a secarse igual que la propia, así que también
+sirve para calcular los rendimientos reales de secado/trilla.
+
 ## Cuentas de cobro (módulo formal, con membrete)
 
 Pestaña "Cuentas de cobro" en el sidebar, independiente de los recibos
@@ -203,6 +238,13 @@ cada orden hay un botón 📋 que prellena el formulario).
 
 ## Pendiente / a medias
 
+- **Balance de cuentas y cereza comprada — falta correr la migración**: el
+  código ya está (ver secciones de arriba), pero hasta que no se corra
+  `migracion_balance_cuentas.sql` en Supabase, guardar una venta/gasto/etc.
+  con "quién recibió" o "quién pagó" puesto va a fallar (columna
+  inexistente) — desde el arreglo de la fermentación, ahora sí se ve un
+  aviso rojo explicando el error en vez de quedarse callado, pero igual
+  hay que correr la migración para que funcione de verdad.
 - **Alerta de fermentación por WhatsApp — falta la configuración de Juan**:
   el código ya está (ver sección "Fermentación en caneca" arriba), pero no
   manda nada real hasta que Juan: 1) corra `migracion_fermentacion.sql` en

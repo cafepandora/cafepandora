@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
-const SELECT = 'id, cliente, usuario, items, valor, estado, metodo, ts';
+const SELECT = 'id, cliente, usuario, items, valor, estado, metodo, recibidoPor:recibido_por, ts';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -35,6 +35,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     valor,
     estado: body.estado || 'Pendiente',
     metodo: body.metodo || '',
+    recibido_por: body.recibidoPor || null,
     ts: body.ts || Date.now(),
   }).select(SELECT).single();
 

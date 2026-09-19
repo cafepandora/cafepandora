@@ -1,12 +1,14 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
+const SELECT = 'id, concepto, categoria, monto, estado, ts, pagadoPor:pagado_por';
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
   if (authError) return authError;
 
   const supabase = getSupabase(context.env);
-  const { data, error } = await supabase.from('finca').select('*');
+  const { data, error } = await supabase.from('finca').select(SELECT);
   if (error) return new Response(error.message, { status: 500 });
   return Response.json(data);
 };
@@ -24,9 +26,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       categoria: body.categoria,
       monto: Number(body.monto) || 0,
       estado: body.estado || 'Pagado',
+      pagado_por: body.pagadoPor || null,
       ts: body.ts || Date.now(),
     })
-    .select()
+    .select(SELECT)
     .single();
   if (error) return new Response(error.message, { status: 500 });
   return Response.json(row, { status: 201 });
