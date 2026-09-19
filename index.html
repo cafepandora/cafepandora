@@ -3131,13 +3131,19 @@ async function guardarFermentacion(id, btn) {
   const finVal = document.getElementById('fm-fin').value;
   const fermentacionInicio = inicioVal ? new Date(inicioVal).getTime() : null;
   const fermentacionFin = finVal ? new Date(finVal).getTime() : null;
-  const c = state.cosechas.find(x => x.id === id);
-  if (c) { c.fermentacionInicio = fermentacionInicio; c.fermentacionFin = fermentacionFin; c.fermentacionAlertado = false; }
-  guardarCacheLocal('cosechas');
-  cerrarModal();
-  renderTrazabilidad();
-  await apiFetch('/api/cosechas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fermentacionInicio, fermentacionFin }) });
-  toast('Fermentación actualizada');
+  try {
+    const res = await apiFetch('/api/cosechas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fermentacionInicio, fermentacionFin }) });
+    if (!res.ok) throw new Error(await res.text());
+    const c = state.cosechas.find(x => x.id === id);
+    if (c) { c.fermentacionInicio = fermentacionInicio; c.fermentacionFin = fermentacionFin; c.fermentacionAlertado = false; }
+    guardarCacheLocal('cosechas');
+    cerrarModal();
+    renderTrazabilidad();
+    toast('Fermentación actualizada');
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+    btn.disabled = false;
+  }
 }
 
 function previsualizarCosecha() {
@@ -3178,10 +3184,13 @@ async function registrarCosecha(btn) {
       fermentacionFin: (esFermentable && fermFinVal) ? new Date(fermFinVal).getTime() : null,
     };
     const res = await apiFetch('/api/cosechas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
     state.cosechas.push(await res.json());
     guardarCacheLocal('cosechas');
     toast('Cosecha registrada');
     renderTrazabilidad();
+  } catch (err) {
+    toast('No se pudo registrar: ' + err.message, 'error');
   } finally { btn.disabled = false; }
 }
 
