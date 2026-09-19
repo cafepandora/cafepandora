@@ -616,11 +616,48 @@ const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 const PRESENTACIONES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
 const TIPOS_CLIENTE = ['Cliente normal', 'Mayorista', 'Distribuidor', 'Interno'];
 const METODOS_PAGO = ['Efectivo', 'Transferencia a Joaquín', 'Transferencia a Inés', 'Juan Nequi', 'Juan Bancolombia'];
-const CATEGORIAS_GASTO = ['Insumos', 'Servicios', 'Nómina', 'Transporte', 'Mano de obra', 'Café verde', 'Otro'];
+// El método de pago ya dice a quién le llegó la plata en 4 de los 5 casos
+// — solo "Efectivo" es ambiguo (lo puede tener cualquiera) y de verdad
+// necesita que se elija quién lo recibió.
+const METODO_A_PERSONA = {
+  'Transferencia a Joaquín': 'Joaquín',
+  'Transferencia a Inés': 'Inés',
+  'Juan Nequi': 'Juan',
+  'Juan Bancolombia': 'Juan',
+};
+const personaDeMetodo = metodo => METODO_A_PERSONA[metodo] || null;
+// Muestra el desplegable "Quién recibió" solo cuando el método no lo diga
+// ya solo (Efectivo); si se supo por el método, se guarda ese directo.
+function actualizarRecibioVisible(prefijo) {
+  const metodoEl = document.getElementById(prefijo + '-metodo');
+  const fila = document.getElementById(prefijo + '-recibio-fila');
+  if (!metodoEl || !fila) return;
+  fila.style.display = personaDeMetodo(metodoEl.value) ? 'none' : 'flex';
+}
+// Solo pide "Transferir a" cuando la categoría del gasto es justo eso —
+// para el resto de categorías ese campo no aplica y queda oculto.
+function actualizarTransferenciaVisible(prefijo) {
+  const catEl = document.getElementById(prefijo + '-categoria');
+  const fila = document.getElementById(prefijo + '-transferencia-fila');
+  if (!catEl || !fila) return;
+  fila.style.display = catEl.value === CATEGORIA_TRANSFERENCIA ? 'flex' : 'none';
+}
+const CATEGORIAS_GASTO = ['Insumos', 'Servicios', 'Nómina', 'Transporte', 'Mano de obra', 'Café verde', 'Retiro de cuenta', 'Transferencia entre cuentas', 'Otro'];
 // Quién recibe pagos (ventas/maquila) y quién paga gastos — para el balance
 // de cuentas por persona. Se recuerda en localStorage para no tener que
 // elegirlo cada vez.
 const PERSONAS_EQUIPO = ['Juan', 'Inés', 'Joaquín'];
+// Efectivo cuenta como una "persona" más del balance — la caja física de
+// billetes, separada de las cuentas bancarias de cada uno. Un "Retiro de
+// cuenta" (categoría especial en Gastos) saca plata de la cuenta de un
+// socio y la mete a esta caja; lo que se paga en efectivo sale de aquí,
+// no de la cuenta de quien lo pagó.
+const CUENTAS_BALANCE = [...PERSONAS_EQUIPO, 'Efectivo'];
+const CATEGORIA_RETIRO = 'Retiro de cuenta';
+// Traspaso directo entre socios (ej. Joaquín le presta a Inés) — mueve saldo
+// de quien paga (pagadoPor) a quien recibe (transferidoA), sin pasar por
+// Efectivo. Igual que un "Retiro de cuenta" pero con destino elegible.
+const CATEGORIA_TRANSFERENCIA = 'Transferencia entre cuentas';
 const CATEGORIAS_FINCA = ['Insumos', 'Mano de obra', 'Cosecha', 'Otro'];
 const MOLIENDAS = ['Molido', 'En grano'];
 const TUESTES_LAVADO = ['Media', 'Media alta'];
@@ -1835,20 +1872,15 @@ function renderVentas() {
           <input id="v-valor" type="number" placeholder="0" min="0">
         </div>
         <div class="field"><label>Método de pago</label>
-          <select id="v-metodo">${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
+          <select id="v-metodo" onchange="actualizarRecibioVisible('v')">${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Estado</label>
           <select id="v-estado"><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option></select>
         </div>
       </div>
-      <div class="row">
+      <div class="row" id="v-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}">
         <div class="field"><label>Quién recibió</label>
-          <select id="v-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="row">
-        <div class="field"><label>Anotado por</label>
-          <input id="v-usuario" placeholder="Tu nombre" value="${escapeAttr(localStorage.getItem('cp_usuario') || '')}">
+          <select id="v-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
         </div>
       </div>
       <button class="add-btn" onclick="registrarVenta(this)">Registrar venta</button>
@@ -1978,7 +2010,7 @@ function filaVenta(v, esDeuda) {
     <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''} ${envioPendiente ? 'envio-pendiente' : ''}">
       <div class="main">
         <div class="title">${escapeHtml(v.cliente || 'Venta directa')} ${v.origenWeb ? '<span class="badge-web">🌐 Pedido web</span>' : ''}</div>
-        <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(v.usuario || '')}${v.recibidoPor ? ' · recibió ' + escapeHtml(v.recibidoPor) : ''} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
+        <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')}${v.recibidoPor ? ' · recibió ' + escapeHtml(v.recibidoPor) : (v.usuario ? ' · ' + escapeHtml(v.usuario) : '')} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
         <div class="details">${escapeHtml(detalleVenta(v))}</div>
         <div style="margin-top:5px"><button class="tag ${envioPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEnvio(${v.id})">${envioPendiente ? '📦 Pendiente de envío' : '✅ Enviado'}</button></div>
       </div>
@@ -2003,7 +2035,12 @@ async function registrarVenta(btn) {
   if (!carritoActual.length) return toast('Agrega al menos un producto o servicio al pedido.', 'error');
   if (btn) btn.disabled = true;
   try {
-    const usuario = document.getElementById('v-usuario').value.trim() || 'Equipo';
+    // El método de pago ya dice quién recibió en los 4 casos con nombre
+    // propio (Transferencia a X, X Nequi, X Bancolombia) — solo Efectivo
+    // pide elegirlo aparte, porque ese sí lo puede tener cualquiera.
+    const metodo = document.getElementById('v-metodo').value;
+    const recibidoPor = personaDeMetodo(metodo) || document.getElementById('v-recibio').value || null;
+    const usuario = recibidoPor || 'Equipo';
     localStorage.setItem('cp_usuario', usuario);
     const ordenEnCurso = ordenes[ordenActiva];
 
@@ -2013,8 +2050,8 @@ async function registrarVenta(btn) {
       tipoCliente: document.getElementById('v-tipoCliente').value,
       items: carritoActual,
       valor: Math.max(0, Number(document.getElementById('v-valor').value) || carritoActual.reduce((s, it) => s + (Number(it.valor) || 0), 0)),
-      metodo: document.getElementById('v-metodo').value,
-      recibidoPor: document.getElementById('v-recibio').value || null,
+      metodo,
+      recibidoPor,
       estado: document.getElementById('v-estado').value,
       origenWeb: !!ordenEnCurso.origenWeb,
       ts: Date.now(),
@@ -2234,10 +2271,10 @@ function abrirEdicionVenta(id) {
 
     <div class="row" style="margin-top:14px">
       <div class="field"><label>Estado</label><select id="m-estado"><option ${v.estado==='Pagado'?'selected':''}>Pagado</option><option ${v.estado==='Pendiente'?'selected':''}>Pendiente</option></select></div>
-      <div class="field"><label>Método de pago</label><select id="m-metodo">${METODOS_PAGO.map(m => `<option ${m===v.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
+      <div class="field"><label>Método de pago</label><select id="m-metodo" onchange="actualizarRecibioVisible('m')">${METODOS_PAGO.map(m => `<option ${m===v.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
     </div>
-    <div class="row">
-      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===v.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
+    <div class="row" id="m-recibio-fila" style="display:${personaDeMetodo(v.metodo) ? 'none' : 'flex'}">
+      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p===v.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
     </div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionVenta(${id}, this)">Guardar</button>
@@ -2310,7 +2347,7 @@ async function guardarEdicionVenta(id, btn) {
     valor: editCarrito.reduce((s, it) => s + (Number(it.valor) || 0), 0),
     estado: document.getElementById('m-estado').value,
     metodo: document.getElementById('m-metodo').value,
-    recibidoPor: document.getElementById('m-recibio').value || null,
+    recibidoPor: personaDeMetodo(document.getElementById('m-metodo').value) || document.getElementById('m-recibio').value || null,
     nuevosItems: editItemsNuevos, // el backend descuenta inventario por estas líneas nuevas
     itemsRemovidos: editItemsRemovidos, // y le devuelve inventario a las líneas originales que quitaste
   };
@@ -2466,10 +2503,10 @@ function renderMaquila() {
           <select id="mq-estado"><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option></select>
         </div>
         <div class="field"><label>Método de pago</label>
-          <select id="mq-metodo"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
+          <select id="mq-metodo" onchange="actualizarRecibioVisible('mq')"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
         </div>
-        <div class="field"><label>Quién recibió</label>
-          <select id="mq-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
+        <div class="field" id="mq-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}"><label>Quién recibió</label>
+          <select id="mq-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
         </div>
       </div>
       <button class="add-btn" onclick="registrarOrdenMaquila(this)">Registrar orden</button>
@@ -2610,17 +2647,19 @@ async function registrarOrdenMaquila(btn) {
   if (!carritoMaquila.length) return toast('Agrega al menos un servicio.', 'error');
   btn.disabled = true;
   try {
+    const metodo = document.getElementById('mq-metodo').value;
+    const recibidoPor = personaDeMetodo(metodo) || document.getElementById('mq-recibio').value || null;
     const payload = {
       cliente,
-      usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+      usuario: recibidoPor || localStorage.getItem('cp_usuario') || 'Equipo',
       items: carritoMaquila,
       valor: carritoMaquila.reduce((s, it) => s + (Number(it.valor) || 0), 0),
       estado: document.getElementById('mq-estado').value,
-      metodo: document.getElementById('mq-metodo').value,
-      recibidoPor: document.getElementById('mq-recibio').value || null,
+      metodo,
+      recibidoPor,
       ts: Date.now(),
     };
-    if (payload.recibidoPor) localStorage.setItem('cp_recibio', payload.recibidoPor);
+    if (recibidoPor) { localStorage.setItem('cp_recibio', recibidoPor); localStorage.setItem('cp_usuario', recibidoPor); }
     const res = await apiFetch('/api/ordenes-maquila', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) throw new Error(await res.text());
     state.ordenesMaquila.push(await res.json());
@@ -2690,10 +2729,10 @@ function abrirEdicionMaquila(id) {
 
     <div class="row" style="margin-top:14px">
       <div class="field"><label>Estado</label><select id="m-estado"><option ${o.estado==='Pagado'?'selected':''}>Pagado</option><option ${o.estado==='Pendiente'?'selected':''}>Pendiente</option></select></div>
-      <div class="field"><label>Método de pago</label><select id="m-metodo"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m===o.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
+      <div class="field"><label>Método de pago</label><select id="m-metodo" onchange="actualizarRecibioVisible('m')"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m===o.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
     </div>
-    <div class="row">
-      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===o.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
+    <div class="row" id="m-recibio-fila" style="display:${personaDeMetodo(o.metodo) ? 'none' : 'flex'}">
+      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p===o.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
     </div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionMaquila(${id}, this)">Guardar</button>
@@ -2777,7 +2816,7 @@ async function guardarEdicionMaquila(id, btn) {
     valor: editCarritoMaquila.reduce((s, it) => s + (Number(it.valor) || 0), 0),
     estado: document.getElementById('m-estado').value,
     metodo: document.getElementById('m-metodo').value,
-    recibidoPor: document.getElementById('m-recibio').value || null,
+    recibidoPor: personaDeMetodo(document.getElementById('m-metodo').value) || document.getElementById('m-recibio').value || null,
   };
   const o = state.ordenesMaquila.find(x => x.id === id); if (o) Object.assign(o, cambios);
   guardarCacheLocal('ordenesMaquila'); cerrarModal(); renderTodo();
@@ -2834,12 +2873,12 @@ function renderGastos() {
         <div class="field"><label>Monto</label><input id="g-monto" type="number" placeholder="0" min="0"></div>
       </div>
       <div class="row">
-        <div class="field"><label>Categoría</label><select id="g-categoria">${CATEGORIAS_GASTO.map(c => `<option>${c}</option>`).join('')}</select></div>
+        <div class="field"><label>Categoría</label><select id="g-categoria" onchange="actualizarTransferenciaVisible('g')">${CATEGORIAS_GASTO.map(c => `<option>${c}</option>`).join('')}</select></div>
         <div class="field"><label>Estado</label><select id="g-estado"><option>Pagado</option><option>Pendiente</option></select></div>
       </div>
       <div class="row">
-        <div class="field"><label>Anotado por</label><input id="g-usuario" value="${escapeAttr(localStorage.getItem('cp_usuario') || '')}"></div>
-        <div class="field"><label>Quién pagó</label><select id="g-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+        <div class="field"><label>Quién pagó</label><select id="g-pago"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+        <div class="field" id="g-transferencia-fila" style="display:none"><label>Transferir a</label><select id="g-transferencia-a">${PERSONAS_EQUIPO.map(p => `<option>${p}</option>`).join('')}</select></div>
       </div>
       <button class="add-btn" onclick="registrarGasto(this)">Registrar gasto</button>
     </div>
@@ -2849,7 +2888,7 @@ function renderGastos() {
         <div class="ledger-row">
           <div class="main">
             <div class="title">${escapeHtml(g.concepto)}</div>
-            <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)} · ${escapeHtml(g.usuario || '')}${g.pagadoPor ? ' · pagó ' + escapeHtml(g.pagadoPor) : ''}</div>
+            <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)}${g.categoria === CATEGORIA_TRANSFERENCIA && g.transferidoA ? ' · ' + escapeHtml(g.pagadoPor || '?') + ' → ' + escapeHtml(g.transferidoA) : (g.pagadoPor ? ' · pagó ' + escapeHtml(g.pagadoPor) : (g.usuario ? ' · ' + escapeHtml(g.usuario) : ''))}</div>
           </div>
           <button class="tag ${g.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoGasto(${g.id})">${g.estado}</button>
           <div class="amount neg">-${fmt(g.monto)}</div>
@@ -2863,13 +2902,24 @@ function renderGastos() {
   `;
 }
 async function registrarGasto(btn) {
+  // Quien paga es quien está registrando el gasto — un solo desplegable
+  // en vez de pedirlo dos veces (nombre + quién pagó).
+  const categoria = document.getElementById('g-categoria').value;
+  const pagadoPor = document.getElementById('g-pago').value || null;
+  const transferidoA = categoria === CATEGORIA_TRANSFERENCIA ? document.getElementById('g-transferencia-a').value : null;
+  if (categoria === CATEGORIA_TRANSFERENCIA) {
+    if (!pagadoPor) return toast('Elige quién transfiere.', 'error');
+    if (!transferidoA) return toast('Elige a quién se transfiere.', 'error');
+    if (pagadoPor === transferidoA) return toast('El origen y el destino de la transferencia no pueden ser la misma persona.', 'error');
+  }
   const payload = {
-    usuario: document.getElementById('g-usuario').value.trim() || 'Equipo',
+    usuario: pagadoPor || 'Equipo',
     concepto: document.getElementById('g-concepto').value.trim(),
     monto: Math.max(0, Number(document.getElementById('g-monto').value) || 0),
-    categoria: document.getElementById('g-categoria').value,
+    categoria,
     estado: document.getElementById('g-estado').value,
-    pagadoPor: document.getElementById('g-pago').value || null,
+    pagadoPor,
+    transferidoA,
     ts: Date.now(),
   };
   if (!payload.concepto) return toast('Escribe el concepto del gasto.', 'error');
@@ -2903,7 +2953,7 @@ function abrirEdicionGasto(id) {
     <h3>Editar gasto</h3>
     <div class="row"><div class="field"><label>Concepto</label><input id="m-concepto" value="${escapeAttr(g.concepto)}"></div></div>
     <div class="row"><div class="field"><label>Monto</label><input id="m-monto" type="number" value="${g.monto}" min="0"></div></div>
-    <div class="row"><div class="field"><label>Quién pagó</label><select id="m-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===g.pagadoPor?'selected':''}>${p}</option>`).join('')}</select></div></div>
+    <div class="row"><div class="field"><label>Quién pagó</label><select id="m-pago"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p===g.pagadoPor?'selected':''}>${p}</option>`).join('')}</select></div></div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionGasto(${id})">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
@@ -2937,7 +2987,7 @@ function renderFinca() {
         <div class="field"><label>Estado</label><select id="f-estado"><option>Pagado</option><option>Pendiente</option></select></div>
       </div>
       <div class="row">
-        <div class="field"><label>Quién pagó</label><select id="f-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+        <div class="field"><label>Quién pagó</label><select id="f-pago"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
       </div>
       <button class="add-btn" onclick="registrarFinca(this)">Registrar</button>
     </div>
@@ -2969,7 +3019,7 @@ async function registrarFinca(btn) {
     ts: Date.now(),
   };
   if (!payload.concepto) return toast('Escribe el concepto.', 'error');
-  if (payload.pagadoPor) localStorage.setItem('cp_pago', payload.pagadoPor);
+  if (payload.pagadoPor) { localStorage.setItem('cp_pago', payload.pagadoPor); localStorage.setItem('cp_usuario', payload.pagadoPor); }
   if (btn) btn.disabled = true;
   try {
     const res = await apiFetch('/api/finca', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -3029,7 +3079,7 @@ function renderTrazabilidad() {
     <div class="subtabs">
       <button class="${trazaSubTab==='cosechas'?'active':''}" onclick="cambiarTrazaSubTab('cosechas')">Cosechas (${state.cosechas.length})</button>
       <button class="${trazaSubTab==='cereza'?'active':''}" onclick="cambiarTrazaSubTab('cereza')">Cereza comprada (${state.cerezaComprada.length})</button>
-      <button class="${trazaSubTab==='comprado'?'active':''}" onclick="cambiarTrazaSubTab('comprado')">Comprado (${state.pergamino.length})</button>
+      <button class="${trazaSubTab==='comprado'?'active':''}" onclick="cambiarTrazaSubTab('comprado')">Pergamino comprado (${state.pergamino.length})</button>
       <button class="${trazaSubTab==='tueste'?'active':''}" onclick="cambiarTrazaSubTab('tueste')">Tueste (${state.tuestes.length})</button>
     </div>
 
@@ -3310,7 +3360,7 @@ function vistaCerezaComprada() {
       <div id="cz-preview" class="preview-cadena"></div>
       <div class="row">
         <div class="field"><label>Costo total</label><input id="cz-costo" type="number" min="0" placeholder="0"></div>
-        <div class="field"><label>Quién pagó</label><select id="cz-pago"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+        <div class="field"><label>Quién pagó</label><select id="cz-pago"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
       </div>
       <div class="row"><div class="field"><label>Notas</label><input id="cz-notas" placeholder="Origen, vereda, observaciones…"></div></div>
       <button class="add-btn" onclick="registrarCerezaComprada(this)">Registrar compra</button>
@@ -3380,7 +3430,7 @@ async function registrarCerezaComprada(btn) {
       notas: document.getElementById('cz-notas').value.trim() || null,
       usuario: localStorage.getItem('cp_usuario') || 'Equipo',
     };
-    if (pagadoPor) localStorage.setItem('cp_pago', pagadoPor);
+    if (pagadoPor) { localStorage.setItem('cp_pago', pagadoPor); localStorage.setItem('cp_usuario', pagadoPor); }
     const res = await apiFetch('/api/cereza-comprada', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     if (!res.ok) throw new Error(await res.text());
     state.cerezaComprada.push(await res.json());
@@ -3891,18 +3941,30 @@ function clavePeriodo(ts, periodo) {
   return d.getFullYear() + '-S' + String(semana).padStart(2, '0');
 }
 
-/* ---------- Balance de cuentas por persona ----------
-   Cuánto ha recibido cada uno (ventas + maquila ya pagadas) menos cuánto ha
-   pagado (gastos, finca, café comprado) — de todo el histórico, para saber
-   quién tiene plata del negocio en la mano y a quién se le debe. */
+/* ---------- Balance de cuentas por persona (+ Efectivo) ----------
+   Cuánto ha recibido cada quien (ventas + maquila ya pagadas) menos cuánto
+   ha pagado (gastos, finca, café comprado) — de todo el histórico, para
+   saber quién tiene plata del negocio en la mano y a quién se le debe.
+   "Efectivo" es una cuenta más, la caja física: un gasto con categoría
+   "Retiro de cuenta" saca plata de la cuenta bancaria de quien lo pagó
+   (se descuenta de esa persona, como cualquier gasto) y esa misma plata
+   entra como "recibido" a Efectivo — así un retiro no aparece como un
+   gasto real del negocio, solo como un traslado entre cuentas. */
 function calcularBalancePersonas() {
-  return PERSONAS_EQUIPO.map(persona => {
+  const totalRetiros = state.gastos
+    .filter(g => g.categoria === CATEGORIA_RETIRO && g.estado === 'Pagado')
+    .reduce((s, g) => s + (Number(g.monto) || 0), 0);
+  const transferencias = state.gastos.filter(g => g.categoria === CATEGORIA_TRANSFERENCIA && g.estado === 'Pagado');
+
+  return CUENTAS_BALANCE.map(persona => {
     const recibidoVentas = state.ventas.filter(v => v.recibidoPor === persona && v.estado === 'Pagado').reduce((s, v) => s + (Number(v.valor) || 0), 0);
     const recibidoMaquila = state.ordenesMaquila.filter(o => o.recibidoPor === persona && o.estado === 'Pagado').reduce((s, o) => s + (Number(o.valor) || 0), 0);
+    const recibidoRetiros = persona === 'Efectivo' ? totalRetiros : 0;
+    const recibidoTransferencias = transferencias.filter(g => g.transferidoA === persona).reduce((s, g) => s + (Number(g.monto) || 0), 0);
     const gastadoGastos = state.gastos.filter(g => g.pagadoPor === persona && g.estado === 'Pagado').reduce((s, g) => s + (Number(g.monto) || 0), 0);
     const gastadoFinca = state.finca.filter(f => f.pagadoPor === persona && f.estado === 'Pagado').reduce((s, f) => s + (Number(f.monto) || 0), 0);
     const gastadoCereza = state.cerezaComprada.filter(c => c.pagadoPor === persona).reduce((s, c) => s + (Number(c.costo) || 0), 0);
-    const recibido = recibidoVentas + recibidoMaquila;
+    const recibido = recibidoVentas + recibidoMaquila + recibidoRetiros + recibidoTransferencias;
     const gastado = gastadoGastos + gastadoFinca + gastadoCereza;
     return { persona, recibido, gastado, balance: recibido - gastado };
   });

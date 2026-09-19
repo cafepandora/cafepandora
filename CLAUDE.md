@@ -179,24 +179,60 @@ que nadie más pueda llamar esa URL pública y gastar mensajes).
 ## Balance de cuentas por persona
 
 Ventas y órdenes de maquila tienen `recibido_por`; gastos, finca y compras
-de cereza tienen `pagado_por` — ambos un nombre de `PERSONAS_EQUIPO`
-(`const PERSONAS_EQUIPO = ['Juan', 'Inés', 'Joaquín']` en `index.html`).
-Se eligen en un `<select>` junto a método/estado en cada formulario, se
-recuerdan en `localStorage` (`cp_recibio`, `cp_pago`) para no tener que
-elegirlos cada vez, y se pueden corregir después desde los modales de
-edición que ya existían (Ventas, Maquila, Gastos — Finca no tiene modal de
-edición, igual que antes).
+de cereza tienen `pagado_por` — ambos un nombre de `CUENTAS_BALANCE`
+(`const PERSONAS_EQUIPO = ['Juan', 'Inés', 'Joaquín']`, y
+`const CUENTAS_BALANCE = [...PERSONAS_EQUIPO, 'Efectivo']` en
+`index.html`). Se recuerdan en `localStorage` (`cp_recibio`, `cp_pago`)
+para no tener que elegirlos cada vez, y se pueden corregir después desde
+los modales de edición que ya existían (Ventas, Maquila, Gastos — Finca no
+tiene modal de edición, igual que antes).
+
+**"Quién recibió" no se anota aparte**: se deriva del método de pago
+(`METODO_A_PERSONA` / `personaDeMetodo()`) cuando el método ya nombra a
+alguien ("Transferencia a Joaquín", "Juan Nequi", "Juan Bancolombia") — el
+campo "Quién recibió" del formulario (`*-recibio-fila`,
+`actualizarRecibioVisible()`) solo se muestra cuando el método es
+"Efectivo", porque ahí sí hace falta preguntar quién lo recibió en mano.
+Mismo patrón para "Anotado por" en Gastos: quien anota es quien paga, así
+que ese campo no existe por separado — `pagadoPor` hace las dos cosas.
+
+**Efectivo es una 4ª cuenta**, la caja física de billetes, separada de las
+cuentas bancarias de cada socio. Dos categorías especiales en Gastos (no
+son gastos reales, son movimientos entre cuentas — no deben usarse ni
+verse en filtros de "gasto real" del negocio):
+- **"Retiro de cuenta"**: saca plata de la cuenta bancaria de quien la
+  registra (`pagadoPor`) y la mete a Efectivo — para cuando alguien saca
+  plata del banco para tener efectivo en mano. Siempre le abona a
+  Efectivo, sin pedir destino.
+- **"Transferencia entre cuentas"**: traspaso directo entre los 3 socios,
+  en cualquier orden (ej. Joaquín le presta a Inés) — pide un segundo
+  desplegable "Transferir a" (`g-transferencia-fila`,
+  `actualizarTransferenciaVisible()`, solo `PERSONAS_EQUIPO`, no Efectivo,
+  para eso ya está "Retiro de cuenta") y usa la columna nueva
+  `transferido_a` (`migracion_transferencia_cuentas.sql`). Valida que
+  origen y destino no sean la misma persona.
+
+Un gasto pagado con `pagadoPor === 'Efectivo'` (categoría normal, ni
+retiro ni transferencia) descuenta del balance de Efectivo, no de una
+persona — así queda registrado de dónde salió la plata en efectivo y en
+qué se gastó.
 
 `calcularBalancePersonas()` (en Resumen) suma, para todo el histórico (no
-solo el mes filtrado): cuánto ha **recibido** cada persona (ventas +
-maquila con `estado === 'Pagado'`) menos cuánto ha **pagado** (gastos +
-finca con `estado === 'Pagado'`, más el costo de cereza comprada). Positivo
-= tiene plata del negocio en la mano: negativo = el negocio le debe.
+solo el mes filtrado) y por cada una de las 4 cuentas: cuánto ha
+**recibido** (ventas + maquila con `estado === 'Pagado'`, más — solo para
+Efectivo — el total de retiros, más — para quien sea el destino — las
+transferencias entre socios) menos cuánto ha **pagado** (gastos + finca
+con `estado === 'Pagado'`, más el costo de cereza comprada — un retiro o
+una transferencia ya cuentan aquí para quien la origina, porque son un
+gasto más con ese `pagadoPor`). Positivo = tiene plata del negocio en la
+mano; negativo = el negocio le debe.
 `calcularBalancePorModalidad()` suma por separado cuánto quedó en cada
 `metodo` (Efectivo, Transferencia a Joaquín, Juan Nequi, etc.), sin
 importar quién lo recibió. Ambos se ven en Resumen (tarjeta "Balance de
 cuentas") y en el Excel (hoja "Balance de cuentas") —
-`migracion_balance_cuentas.sql` agrega las columnas nuevas.
+`migracion_balance_cuentas.sql` agrega las columnas base, y
+`migracion_transferencia_cuentas.sql` agrega `transferido_a` — **falta
+correr esta última en producción**.
 
 ## Cereza comprada a terceros
 
@@ -238,13 +274,14 @@ cada orden hay un botón 📋 que prellena el formulario).
 
 ## Pendiente / a medias
 
-- **Balance de cuentas y cereza comprada — falta correr la migración**: el
-  código ya está (ver secciones de arriba), pero hasta que no se corra
-  `migracion_balance_cuentas.sql` en Supabase, guardar una venta/gasto/etc.
-  con "quién recibió" o "quién pagó" puesto va a fallar (columna
-  inexistente) — desde el arreglo de la fermentación, ahora sí se ve un
-  aviso rojo explicando el error en vez de quedarse callado, pero igual
-  hay que correr la migración para que funcione de verdad.
+- **Transferencia entre cuentas — falta correr la migración**: el código
+  ya está (ver "Balance de cuentas por persona" arriba), pero hasta que no
+  se corra `migracion_transferencia_cuentas.sql` en Supabase, registrar un
+  gasto con categoría "Transferencia entre cuentas" va a fallar (columna
+  `transferido_a` inexistente) — sí se va a ver el aviso rojo del error en
+  vez de quedarse callado, pero igual hay que correr la migración.
+  (`migracion_balance_cuentas.sql`, la de Efectivo/Retiro de cuenta y la de
+  cereza comprada, ya están corridas en producción.)
 - **Alerta de fermentación por WhatsApp — falta la configuración de Juan**:
   el código ya está (ver sección "Fermentación en caneca" arriba), pero no
   manda nada real hasta que Juan: 1) corra `migracion_fermentacion.sql` en
