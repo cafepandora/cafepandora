@@ -58,6 +58,20 @@ navegador lo cachea agresivo por defecto). Con `no-cache` el navegador
 siempre revalida con el servidor antes de usar una copia guardada, así
 que cada redeploy se ve de inmediato sin necesitar hard-refresh.
 
+**"Sin conexión (viendo caché)" no siempre es de verdad falta de
+conexión**: `sincronizar()` (en `index.html`) llama los ~14 endpoints en
+paralelo; antes, cualquier respuesta que no fuera JSON válido (por
+ejemplo un 401 — `requireAuth()` devuelve texto plano, no JSON) hacía
+que `r.json()` explotara y el `catch` mostrara el aviso genérico de "sin
+conexión", aunque el servidor sí estuviera respondiendo bien y lo único
+vencido fuera la sesión de Supabase Auth. Ahora `sincronizar()` revisa
+primero si alguna respuesta vino en 401 y, si es así, muestra "Tu sesión
+expiró" con un botón que llama a `sesionExpirada()` (cierra la sesión
+vieja y recarga a la pantalla de login) — sin el `confirm()` que sí tiene
+`cerrarSesion()`, porque aquí no hay nada que confirmar, el servidor ya
+la rechazó. El aviso de "Sin conexión" genérico se queda solo para
+cuando el `fetch()` en sí falla (de verdad no hay red).
+
 ## Variables de entorno
 
 - **Cloudflare Pages** (Settings → Environment variables), usadas por

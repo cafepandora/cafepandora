@@ -1207,22 +1207,17 @@ async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz] = await Promise.all([
-      apiFetch('/api/ventas').then(r => r.json()),
-      apiFetch('/api/gastos').then(r => r.json()),
-      apiFetch('/api/clientes').then(r => r.json()),
-      apiFetch('/api/inventario').then(r => r.json()),
-      apiFetch('/api/maquila').then(r => r.json()),
-      apiFetch('/api/finca').then(r => r.json()),
-      apiFetch('/api/precios-cafe').then(r => r.json()),
-      apiFetch('/api/cosechas').then(r => r.json()),
-      apiFetch('/api/pergamino').then(r => r.json()),
-      apiFetch('/api/tuestes').then(r => r.json()),
-      apiFetch('/api/ordenes-maquila').then(r => r.json()),
-      apiFetch('/api/pedidos-web').then(r => r.json()),
-      apiFetch('/api/cuentas-cobro').then(r => r.json()),
-      apiFetch('/api/cereza-comprada').then(r => r.json()),
-    ]);
+    const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada'];
+    const respuestas = await Promise.all(endpoints.map(u => apiFetch(u)));
+    // Un 401 (sesión vencida) no es "sin conexión" — el servidor sí
+    // responde, solo que el token ya no sirve. r.json() tronaría igual
+    // (el 401 viene como texto plano, no JSON) pero con un mensaje que
+    // no ayuda a nadie a saber qué pasó de verdad.
+    if (respuestas.some(r => r.status === 401)) {
+      ind.innerHTML = '<span class="sync-dot"></span> Tu sesión expiró <button class="sync-retry" onclick="sesionExpirada()">Iniciar sesión de nuevo</button>';
+      return;
+    }
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz] = await Promise.all(respuestas.map(r => r.json()));
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
@@ -1233,6 +1228,14 @@ async function sincronizar() {
   } catch (err) {
     ind.innerHTML = '<span class="sync-dot"></span> Sin conexión (viendo caché) <button class="sync-retry" onclick="sincronizar()">Reintentar</button>';
   }
+}
+// Cierra la sesión vieja (ya inválida en el servidor) y recarga directo a
+// la pantalla de login — sin el confirm() de cerrarSesion(), porque aquí
+// no hay nada que "confirmar cerrar": el servidor ya la rechazó.
+async function sesionExpirada() {
+  try { await supabaseClient.auth.signOut(); } catch {}
+  sesionActual = null;
+  location.reload();
 }
 
 /* ================================================================
