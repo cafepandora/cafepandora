@@ -477,6 +477,19 @@ valor, btn)` ahora recibe también el botón que se clickeó, para quitarle
 `.activo` a su hermano y ponérselo a él — antes eso lo hacía solo el
 `<select>` nativo, ahora hay que hacerlo a mano.
 
+**Marca de agua del armadillo**: Juan mandó el PDF vectorial con los
+recursos gráficos reales de la marca (`Recurso Gráficos Pocillo.pdf` —
+el armadillo del isotipo, el logo limpio, y unas ramas de café en
+dorado). Se extrajo el armadillo (página 1 del PDF, recortado a su
+bounding box real, achicado y con la paleta reducida para que el PNG en
+base64 no pese tanto) y se puso como `<img class="marca-agua">` — fijo
+(`position: fixed`, no se mueve al hacer scroll), centrado, `opacity:
+.05`, `pointer-events: none`, detrás de todo (`.wrap` tiene `z-index: 1`
+para quedar por encima). Reproduce el mismo efecto de fondo casi
+invisible que tiene la carta real. El logo del isotipo y las ramas de
+café del mismo PDF no se usaron todavía — quedan disponibles si más
+adelante se quiere decorar algo más (ej. la pantalla de confirmación).
+
 ## Pendiente / a medias
 
 - **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
@@ -510,6 +523,12 @@ valor, btn)` ahora recibe también el botón que se clickeó, para quitarle
   ahí para Honey/Natural/Exótico se editaron después a mano desde
   Configuración y ya no coinciden exactamente con esos dos archivos; lo
   que hay en Supabase ahora mismo es lo vigente.
+- **Idea propuesta por Juan (sin empezar): catálogo como bolsa real**.
+  En vez de tarjetas de lote genéricas, mostrar cada presentación como
+  una bolsa (con el diseño plano de impresión real que va a mandar) para
+  que el cliente vea exactamente la bolsa que le va a llegar al elegir.
+  Falta que Juan mande ese diseño plano — hasta entonces el rediseño de
+  colores/tipografía (ver "Identidad visual..." arriba) es lo que hay.
 - **Método de preparación en pedidos molidos**: `pedidos/index.html` ahora
   pregunta con qué método prepara el cliente su café molido (Prensa
   francesa/Gruesa, V60/Media, Cafetera eléctrica/Media fina, Moka/Fina) —
