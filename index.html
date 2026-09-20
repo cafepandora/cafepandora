@@ -1520,11 +1520,11 @@ function renderCuentasCobro() {
       <div class="row" style="margin-top:6px;align-items:center">
         <label style="display:flex;align-items:center;gap:7px;font-size:13.5px;cursor:pointer">
           <input id="cc-incluye-transporte" type="checkbox" onchange="actualizarTransporteVisible()">
-          Incluir costo de transporte (envío)
+          Incluir costo de envío (transporte)
         </label>
       </div>
       <div class="row" id="cc-transporte-fila" style="display:none;margin-top:6px">
-        <div class="field"><label>Costo de transporte</label><input id="cc-transporte" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
+        <div class="field"><label>Costo de envío</label><input id="cc-transporte" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
       </div>
       <div style="text-align:right;font-weight:800;font-size:17px;margin:8px 0">Total: <span id="cc-total">$0</span></div>
 
@@ -1545,7 +1545,7 @@ function filaCuentaCobro(cc) {
     <div class="ledger-row">
       <div class="main">
         <div class="title">No. ${cc.id} — ${escapeHtml(cc.cliente)}</div>
-        <div class="meta">${new Date(Number(cc.ts)).toLocaleDateString('es-CO')}${cc.clienteNit ? ' · ' + escapeHtml(cc.clienteNit) : ''} · a nombre de ${escapeHtml(datosTitularCC(cc.titular).label)}${cc.transporte > 0 ? ' · + transporte ' + fmt(cc.transporte) : ''}</div>
+        <div class="meta">${new Date(Number(cc.ts)).toLocaleDateString('es-CO')}${cc.clienteNit ? ' · ' + escapeHtml(cc.clienteNit) : ''} · a nombre de ${escapeHtml(datosTitularCC(cc.titular).label)}${cc.transporte > 0 ? ' · + envío ' + fmt(cc.transporte) : ''}</div>
         <div class="details">${escapeHtml(detalle)}</div>
       </div>
       <div class="amount pos">${fmt(cc.total)}</div>
@@ -1747,25 +1747,27 @@ function generarPdfCuentaCobro(cc, ciudad) {
   doc.setDrawColor(220); doc.line(ancho * 0.55, y, ancho - 18, y); y += 6;
 
   const subtotal = (cc.items || []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
+  const yTotales = y;
   doc.setFontSize(9.5);
   doc.text('Subtotal', colX.unit, y, { align: 'right' }); doc.setFont('helvetica', 'bold'); doc.text(fmt(subtotal), colX.tot, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += 5.5;
   if (cc.transporte > 0) {
-    doc.text('Transporte', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.transporte), colX.tot, y, { align: 'right' }); y += 5.5;
+    doc.text('Envío', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.transporte), colX.tot, y, { align: 'right' }); y += 5.5;
   }
-  doc.text('Otros', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.otros || 0), colX.tot, y, { align: 'right' }); y += 6.5;
+  if (cc.otros > 0) {
+    doc.text('Otros', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.otros), colX.tot, y, { align: 'right' }); y += 5.5;
+  }
+  y += 1;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
   doc.text('TOTAL', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.total), colX.tot, y, { align: 'right' }); y += 10;
 
   if (cc.transporte > 0) {
-    // El transporte es un servicio aparte (no va en la base de retención) —
-    // se aclara para que quien recibe la cuenta de cobro no lo confunda
-    // con el resto del concepto facturado.
+    // El envío lo presta otra empresa (mensajería), no es un servicio de
+    // Café Pandora — por eso no entra en la base de retención del cliente.
+    // Va a la izquierda, a la misma altura que el Subtotal.
     doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(120);
-    doc.text('El transporte es un servicio aparte, excluido de la base de retención.', colX.tot, y, { align: 'right' });
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(30);
-    y += 8;
-  } else {
-    y += 4;
+    const notaEnvio = doc.splitTextToSize('NOTA: El envío es un servicio prestado por otra empresa, no tener en cuenta para retención.', colX.unit - 30);
+    notaEnvio.forEach((linea, i) => doc.text(linea, 18, yTotales + i * 4));
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(30);
   }
 
   doc.setDrawColor(200); doc.line(18, y, ancho - 18, y); y += 6;

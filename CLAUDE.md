@@ -356,15 +356,18 @@ cada orden hay un botón 📋 que prellena el formulario).
   `cuentas_cobro`) y guardada en un historial con botón para volver a
   descargar el PDF sin tener que rehacerlo — la fila del historial muestra
   a nombre de quién quedó cada una.
-- **Costo de transporte (opcional)**: checkbox "Incluir costo de
-  transporte" (`cc-incluye-transporte`, muestra/oculta el campo
-  `cc-transporte` vía `actualizarTransporteVisible()`) — se suma al total
-  (`cuentas_cobro.transporte`, `migracion_transporte_cuenta_cobro.sql`).
-  En el PDF aparece como su propia línea junto a Subtotal/Otros/TOTAL, y
-  si es mayor a 0 se imprime una nota aclarando que "el transporte es un
-  servicio aparte, excluido de la base de retención" — es un servicio
-  distinto al café/maquila facturado, así que no debe ir en la base para
-  calcular la retención en la fuente del cliente.
+- **Costo de envío/transporte (opcional)**: checkbox "Incluir costo de
+  envío (transporte)" (`cc-incluye-transporte`, muestra/oculta el campo
+  `cc-transporte` vía `actualizarTransporteVisible()`) — el campo interno
+  y la columna se siguen llamando `transporte`, pero en el PDF la línea
+  dice **"Envío"** (así lo pidió Juan, para que coincida con el formato
+  que ya usaban a mano). Se suma al total (`cuentas_cobro.transporte`,
+  `migracion_transporte_cuenta_cobro.sql`). En el PDF aparece como su
+  propia línea junto a Subtotal/TOTAL (a la altura del Subtotal, a la
+  izquierda, va la nota — texto exacto que pidió Juan: "NOTA: El envío es
+  un servicio prestado por otra empresa, no tener en cuenta para
+  retención."). La línea "Otros" solo se imprime si `cc.otros > 0` — antes
+  siempre salía aunque fuera $0.
 - El NIT/cédula se guarda en `clientes.nit_cedula` la primera vez y se
   sugiere solo la próxima vez que se escribe el mismo nombre — sin pisar el
   `tipo_cliente` (normal/distribuidor) si el cliente ya existía.
