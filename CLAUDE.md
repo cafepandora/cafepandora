@@ -72,6 +72,19 @@ vieja y recarga a la pantalla de login) — sin el `confirm()` que sí tiene
 la rechazó. El aviso de "Sin conexión" genérico se queda solo para
 cuando el `fetch()` en sí falla (de verdad no hay red).
 
+Un caso real que pasó (para reconocerlo rápido si vuelve a pasar): se
+subió código nuevo que le agregaba `transporte` al `SELECT` de
+`/api/cuentas-cobro` antes de correr la migración que crea esa columna
+— Supabase respondía 500 con el error de Postgres en texto plano, eso
+tronaba `r.json()` igual que el caso del 401, y el aviso también decía
+"Sin conexión" **aunque el servidor sí contestaba y el problema era otro
+por completo**. Ahora `sincronizar()` revisa `r.ok` de cada respuesta
+antes de intentar parsear JSON: si alguna no vino bien, muestra
+`Error en <endpoint> (<status>): <mensaje real de Supabase>` en vez de
+"Sin conexión" — así, la próxima vez que falte correr una migración
+después de un deploy, el mensaje mismo dice cuál columna/tabla falta, sin
+tener que adivinar revisando curl o los logs de Cloudflare.
+
 ## Variables de entorno
 
 - **Cloudflare Pages** (Settings → Environment variables), usadas por
@@ -458,11 +471,6 @@ en Pendiente) — el problema era de color/tipografía, no de imágenes.
 
 ## Pendiente / a medias
 
-- **Cuenta de cobro a nombre de Inés — falta correr la migración**: el
-  código ya está (ver "Cuentas de cobro" arriba, incluida su firma real),
-  pero hasta que no se corra `migracion_titular_cuenta_cobro.sql` en
-  Supabase, guardar con "A nombre de: Inés" va a fallar (columna
-  `titular` inexistente).
 - **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
   (`migracion_backfill_recibido_por.sql`, ya corrida) solo pudo rellenar
   `recibido_por` en filas cuyo `metodo` ya nombraba a alguien — las que se

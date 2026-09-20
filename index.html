@@ -1206,17 +1206,36 @@ function guardarCacheLocal(k) {
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
+  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada'];
+
+  let respuestas;
   try {
-    const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada'];
-    const respuestas = await Promise.all(endpoints.map(u => apiFetch(u)));
-    // Un 401 (sesión vencida) no es "sin conexión" — el servidor sí
-    // responde, solo que el token ya no sirve. r.json() tronaría igual
-    // (el 401 viene como texto plano, no JSON) pero con un mensaje que
-    // no ayuda a nadie a saber qué pasó de verdad.
-    if (respuestas.some(r => r.status === 401)) {
-      ind.innerHTML = '<span class="sync-dot"></span> Tu sesión expiró <button class="sync-retry" onclick="sesionExpirada()">Iniciar sesión de nuevo</button>';
-      return;
-    }
+    respuestas = await Promise.all(endpoints.map(u => apiFetch(u)));
+  } catch (err) {
+    // El fetch() en sí falló — esto sí es "no hay red de verdad" (el
+    // servidor ni siquiera contestó).
+    ind.innerHTML = '<span class="sync-dot"></span> Sin conexión (viendo caché) <button class="sync-retry" onclick="sincronizar()">Reintentar</button>';
+    return;
+  }
+
+  // Un 401 (sesión vencida) no es "sin conexión" — el servidor sí
+  // respondió, solo que el token ya no sirve.
+  if (respuestas.some(r => r.status === 401)) {
+    ind.innerHTML = '<span class="sync-dot"></span> Tu sesión expiró <button class="sync-retry" onclick="sesionExpirada()">Iniciar sesión de nuevo</button>';
+    return;
+  }
+
+  // Cualquier otro error del servidor (ej. falta correr una migración y
+  // una columna no existe) — se muestra CUÁL endpoint falló y el mensaje
+  // real, en vez de un "sin conexión" genérico que no dice nada.
+  const falloIdx = respuestas.findIndex(r => !r.ok);
+  if (falloIdx !== -1) {
+    const detalle = await respuestas[falloIdx].text().catch(() => '');
+    ind.innerHTML = `<span class="sync-dot"></span> Error en ${endpoints[falloIdx]} (${respuestas[falloIdx].status}): ${escapeHtml(detalle).slice(0, 140)} <button class="sync-retry" onclick="sincronizar()">Reintentar</button>`;
+    return;
+  }
+
+  try {
     const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz] = await Promise.all(respuestas.map(r => r.json()));
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
@@ -1226,7 +1245,7 @@ async function sincronizar() {
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
   } catch (err) {
-    ind.innerHTML = '<span class="sync-dot"></span> Sin conexión (viendo caché) <button class="sync-retry" onclick="sincronizar()">Reintentar</button>';
+    ind.innerHTML = '<span class="sync-dot"></span> Respuesta inesperada del servidor <button class="sync-retry" onclick="sincronizar()">Reintentar</button>';
   }
 }
 // Cierra la sesión vieja (ya inválida en el servidor) y recarga directo a
