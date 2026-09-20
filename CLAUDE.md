@@ -381,6 +381,41 @@ cada orden hay un botón 📋 que prellena el formulario).
   de los dos — sirve para clientes institucionales que solo piden cuenta
   de cobro (como el caso de prueba de Juan, FUCAI).
 
+## Identidad visual de `pedidos/index.html` (paleta de la carta real)
+
+Clientes decían que la página de pedidos se veía genérica, "hecha con
+IA" — le restaba prestigio a la marca. La causa: usaba una paleta
+inventada (café/verde/terracota, y encima un color DISTINTO por cada
+lote — teal para Lavado, dorado para Honey, terracota para Natural,
+morado para Exótico) que no tenía nada que ver con la carta real que
+Juan les manda a los clientes ("Lista de precios 2026").
+
+Se sacó la paleta exacta de esa carta (muestreando los colores reales de
+la imagen, no a ojo) y se puso en `:root` de `pedidos/index.html`:
+- `--crema`/`--crema-alt`: el fondo cálido de la carta.
+- `--cafe`: casi negro (el mismo tono de los precios en la carta) — antes
+  era un café rojizo más genérico.
+- `--teal` (`#274652`): nombres de lote y títulos ("LAVADO", "HONEY",
+  "NATURAL" en la carta van todos del mismo color, no uno por lote).
+- `--dorado` (`#D6A23A`): presentaciones/acentos ("MEDIA LIBRA", "2026" en
+  la carta van en este dorado).
+
+Los 4 colores por-lote (`--lavado`/`--honey`/`--natural`/`--exotico`) y
+`--verde`/`--terracota` se eliminaron — **un solo sistema de marca para
+todos los lotes**, igual que en la carta real, no una paleta distinta por
+cada uno. `.pres-nombre` (MEDIA LB, LIBRA…) quedó en dorado mayúscula, y
+`.pres-precio` pasó de gris pequeño a negro grande y en negrita — antes
+el precio se veía deslucido, ahora tiene la misma presencia que en la
+carta impresa.
+
+También se agregó una guía de 4 pasos (`.guia-pasos`, debajo del
+encabezado: "① Elige tu café ② Cantidad y molienda ③ Revisa tu pedido
+④ Confirma por WhatsApp") — CSS/HTML puro, sin lógica nueva, para que el
+flujo de pedido se sienta más guiado a simple vista, que era el otro
+comentario de los clientes ("más didáctica a la hora de pedir").
+
+No se tocaron fotos de producto (ver bullet de "Fotos reales de bolsa"
+en Pendiente) — el problema era de color/tipografía, no de imágenes.
 
 ## Pendiente / a medias
 
@@ -404,17 +439,18 @@ cada orden hay un botón 📋 que prellena el formulario).
   también en Cloudflare, y 4) cree el cron en cron-job.org apuntando al
   endpoint con esa clave. Sin esos 4 pasos, los campos de fermentación se
   guardan bien pero nadie recibe el aviso.
-- **Fotos de bolsa en `pedidos/index.html`**: las tarjetas de lote
-  (Lavado/Honey/Natural) mostraban una foto de la bolsa recortada de la
-  carta, pero se veían pixeladas en celulares con pantalla retina (fotos
-  de solo ~220px de ancho estiradas a 260px) y un par de clientes se
-  quejaron. Se reemplazaron por tarjetas tipográficas (nombre del lote en
-  grande, fuente Baloo 2 — la más parecida a la del logo en Google Fonts —
-  con un color de acento distinto por lote) mientras Juan decide si más
-  adelante quiere volver a meter fotos reales, ya en buena resolución y
-  comprimidas (no las que ya había, que pesaban ~230KB en base64 cada
-  una). La tarifa `web` en `precios_cafe` con los precios reales del 2026
-  ya está corrida en producción (ver `migracion_precios_carta_2026.sql` y
+- **Fotos reales de bolsa en `pedidos/index.html`**: las tarjetas de lote
+  siguen siendo tipográficas (sin foto de producto) — clientes se habían
+  quejado de que las fotos recortadas de la carta se veían pixeladas en
+  pantallas retina (~220px estiradas a 260px). En vez de eso, desde la
+  auditoría de identidad visual (ver "Identidad visual..." más abajo) el
+  color/tipografía ya coinciden con la carta real, lo que resolvió la
+  queja de que la página se veía genérica/"hecha con IA" sin necesitar
+  fotos nuevas. Si más adelante Juan consigue fotos de bolsa en buena
+  resolución (no capturas de pantalla comprimidas), se pueden agregar
+  como imagen dentro de `.lote-cabecera` sin tocar el resto del rediseño.
+  La tarifa `web` en `precios_cafe` con los precios reales del 2026 ya
+  está corrida en producción (ver `migracion_precios_carta_2026.sql` y
   `migracion_exoticos_web_inicial.sql`) — ojo que los valores que quedaron
   ahí para Honey/Natural/Exótico se editaron después a mano desde
   Configuración y ya no coinciden exactamente con esos dos archivos; lo
