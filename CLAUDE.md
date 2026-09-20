@@ -490,6 +490,34 @@ invisible que tiene la carta real. El logo del isotipo y las ramas de
 café del mismo PDF no se usaron todavía — quedan disponibles si más
 adelante se quiere decorar algo más (ej. la pantalla de confirmación).
 
+**Mockup de bolsa (Lavado)**: Juan mandó `Bolsa.pdf` — el arte de
+impresión real de la bolsa de Lavado (2 páginas, vectorial, línea negra
+sin relleno; la página 2 es la cara de atrás/ficha técnica, no se usó).
+De la página 1 se recortó solo el bloque de logo + ilustración (árbol/
+sol/montaña/finca) + arco "100% CAFÉ DE ORIGEN" — sin el bloque de abajo
+("PESO NETO: 500GR", perfil de taza, tostión/molienda), porque eso es
+específico de una presentación y no se ve en las fotos reales del
+producto. Con Pillow se armó un mockup completo (no solo el logo
+pegado):
+1. El arte (que venía en negro puro) se recoloreó a un café oscuro
+   (`#3B3025`) — en la bolsa real la tinta no es negra sobre el kraft.
+2. Se generó un rectángulo con esquinas redondeadas y degradado
+   vertical de kraft (`#D6B38C` arriba → `#9E8463` abajo — colores
+   sacados muestreando una foto real de las bolsas en Instagram, no
+   inventados), más dos líneas verticales tenues simulando los pliegues
+   laterales de una bolsa stand-up.
+3. Una franja negra redondeada cerca de arriba simula el cierre zip.
+4. El arte recoloreada se pega centrada debajo de esa franja, y un
+   viñeteado suave en los bordes le da algo de volumen.
+
+Resultado: `BOLSA_LAVADO_B64` (JPEG en vez de PNG — el degradado
+comprime mucho mejor así — `BOLSAS_LOTE.Lavado` en `pedidos/index.html`).
+`pintarCatalogo()` usa `BOLSAS_LOTE[lote]` para decidir: si existe,
+`.lote-cabecera` muestra la bolsa (`<img class="bolsa-foto">`, con
+sombra) en vez del `<h3>` de texto — Honey/Natural, que no están en
+`BOLSAS_LOTE` todavía, siguen mostrando el `<h3>` como antes. Mismo
+patrón para repetir con la bolsa de Honey/Natural cuando Juan la mande.
+
 ## Pendiente / a medias
 
 - **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
@@ -523,12 +551,13 @@ adelante se quiere decorar algo más (ej. la pantalla de confirmación).
   ahí para Honey/Natural/Exótico se editaron después a mano desde
   Configuración y ya no coinciden exactamente con esos dos archivos; lo
   que hay en Supabase ahora mismo es lo vigente.
-- **Idea propuesta por Juan (sin empezar): catálogo como bolsa real**.
-  En vez de tarjetas de lote genéricas, mostrar cada presentación como
-  una bolsa (con el diseño plano de impresión real que va a mandar) para
-  que el cliente vea exactamente la bolsa que le va a llegar al elegir.
-  Falta que Juan mande ese diseño plano — hasta entonces el rediseño de
-  colores/tipografía (ver "Identidad visual..." arriba) es lo que hay.
+- **Catálogo como bolsa real — falta Honey/Natural**: la idea de Juan
+  (mostrar cada lote como la bolsa real que le va a llegar al cliente, no
+  una tarjeta genérica) ya está hecha para **Lavado** (ver "Mockup de
+  bolsa (Lavado)" más abajo). Honey y Natural comparten otra bolsa
+  distinta a la de Lavado — falta que Juan mande ese diseño plano de
+  impresión para repetir el mismo proceso con `BOLSAS_LOTE.Honey` /
+  `.Natural` (por ahora esos dos siguen con la tarjeta de texto).
 - **Método de preparación en pedidos molidos**: `pedidos/index.html` ahora
   pregunta con qué método prepara el cliente su café molido (Prensa
   francesa/Gruesa, V60/Media, Cafetera eléctrica/Media fina, Moka/Fina) —
