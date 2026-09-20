@@ -59,9 +59,15 @@
   .peso-pills.abierto { max-height: 200px; }
   .peso-pill { font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700; border-radius: 20px; padding: 7px 13px; cursor: pointer; }
   .peso-pill.activo { background: var(--dorado); border-color: var(--dorado); color: #2A2621; }
-  /* Variante kraft (Lavado) — botones semitransparentes sobre el degradado. */
+  /* Variante kraft (Lavado) — botones semitransparentes sobre el degradado.
+     El ".activo" va en una regla APARTE y más específica que la de abajo —
+     si no, la de abajo gana por especificidad aunque tenga .activo y el
+     botón elegido (molienda, peso) nunca se ve resaltado en dorado. */
   .tarjeta-bolsa .peso-pill, .tarjeta-bolsa .bolsa-panel .molienda-btn, .tarjeta-bolsa .bolsa-panel .stepper button {
     background: rgba(255,255,255,.6); border-color: rgba(42,33,20,.3); color: #2A2621;
+  }
+  .tarjeta-bolsa .peso-pill.activo, .tarjeta-bolsa .bolsa-panel .molienda-btn.activo {
+    background: var(--dorado); border-color: var(--dorado); color: #2A2621;
   }
   /* Variante clara (Honey/Natural) — mismos tonos crema/línea que el resto de la página. */
   .tarjeta-bolsa-clara { padding: 0; overflow: hidden; background: var(--crema); }

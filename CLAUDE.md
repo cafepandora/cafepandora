@@ -566,6 +566,23 @@ se arregló recortando ~16px del lado izquierdo y ~6px del derecho antes
 de todo lo demás. Si se procesa OTRA bolsa nueva y aparece una raya
 vertical parecida, revisar esto primero antes de sospechar de CSS.
 
+⚠️ *Otro gotcha real, esta vez sí de CSS*: en la tarjeta-bolsa de Lavado
+(kraft), el botón de molienda/peso elegido no se veía resaltado en
+dorado — Juan lo reportó después de probarlo. Causa: la regla que pinta
+el fondo translúcido normal (`.tarjeta-bolsa .bolsa-panel .molienda-btn`,
+3 clases) tenía MÁS especificidad que la regla base
+`.molienda-btn.activo` (2 clases) que sí pinta el dorado — así que la
+translúcida ganaba siempre, sin importar si el botón tenía `.activo` o
+no. En la tarjeta clara (Honey/Natural) nunca pasó porque ahí no existe
+un override de `.molienda-btn` sin `.activo`, así que el botón usa
+directo la regla base con el dorado. Arreglado agregando una regla
+`.activo` aparte, con MÁS especificidad que la translúcida
+(`.tarjeta-bolsa .peso-pill.activo, .tarjeta-bolsa .bolsa-panel
+.molienda-btn.activo`). Moraleja para la próxima bolsa que se agregue:
+cualquier override de color "no elegido" necesita su propio override de
+"elegido" al lado, con más clases en el selector — no basta con que
+exista `.algo.activo` en otro lado del archivo.
+
 `tarjetaBolsaGrupoHTML(procesos)` arma la tarjeta (`.tarjeta-bolsa-clara`
 — mismo patrón que `.tarjeta-bolsa` de Lavado pero con fondo crema en vez
 de degradado kraft, **`padding: 0` explícito** — se le olvidó una vez y
