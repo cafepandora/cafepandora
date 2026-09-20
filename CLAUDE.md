@@ -656,6 +656,18 @@ carrito sin pisarse.
 
 ## Gotchas ya vividos (para no repetirlos)
 
+- La tabla `.tabla-clientes` se reutiliza en varios lados (Mejores
+  clientes, Balance por persona, Por modalidad/cuenta) con un único
+  `.fila-cliente { grid-template-columns: 1.6fr .7fr 1.1fr .9fr }` de 4
+  columnas — bien para las que de verdad tienen 4 datos, pero "Por
+  modalidad/cuenta" solo tiene 2 (Modalidad, Total) y rellenaba las otras
+  dos con `<span></span>` vacíos, dejando ~45% de la fila en blanco a la
+  derecha (se notaba tanto en mobile como en desktop ancho). Arreglado con
+  una clase extra `.fila-modalidad { grid-template-columns: 2fr 1fr }`
+  aplicada solo ahí. Moraleja: si una tabla nueva reutiliza
+  `.tabla-clientes` pero con menos columnas reales, dale su propio
+  modificador de `grid-template-columns` en vez de rellenar con spans
+  vacíos — encontrado en la auditoría de claridad de cuentas/gráficas.
 - El sidebar (`<nav class="sidebar">`) tiene **una sola fila de íconos
   rápidos** (`.sidebar-quick-actions`: 🔔 campana, 📄 exportar, 🚪 cerrar
   sesión) arriba del todo, antes del logo — no hay una segunda copia en el
