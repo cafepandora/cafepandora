@@ -534,10 +534,55 @@ pinta sobre el mismo kraft:
   pedido pasando por el desplegable dos veces — se probó armando ambas
   líneas y confirmando que las dos sobreviven y sale bien en "Tu pedido".
 
-Mismo patrón para repetir con la bolsa de Honey/Natural cuando Juan la
-mande: recortar el arte igual, sumar `BOLSAS_LOTE.Honey`/`.Natural`, y
-listo — `tarjetaBolsaHTML()`/`panelBolsaHTML()` ya son genéricas por
-lote, no hace falta tocarlas.
+**Tarjeta-bolsa compartida (Honey/Natural)**: Juan mandó
+`PANDORAESPECIALFEB2026.pdf` — la bolsa real de Honey y Natural (4
+páginas: portada, 2 gussets laterales dorados que no se usaron, y la cara
+de atrás con descripción/QR que tampoco se usó). A diferencia de Lavado,
+esta portada ya viene a todo color sobre fondo crema (no negra sobre
+kraft), así que no hubo que recolorear nada — solo recortar y volver
+transparente el fondo crema (`key_out_cream()`, keying suave por
+distancia de color para no dejar bordes duros). La portada traía un
+selector "PROCESO: ○ Natural ○ Honey ○ Lavado" — Juan pidió quitar
+"Lavado" de ahí porque esa ya tiene su propia bolsa tradicional (más
+arriba) y esta bolsa es solo para Honey/Natural; como el PESO/PROCESO/
+PRESENTACIÓN de la etiqueta no se usan como imagen (son controles reales,
+igual que en Lavado), ese recorte fue automático: simplemente no se
+usaron esas tres filas de la portada, y el selector de proceso que sí se
+construyó en HTML solo ofrece Natural/Honey.
+
+Dos piezas (`HONEY_BADGE_B64`: arco + círculo + armadillo + cinta
+"Café Pandora"; `HONEY_RAMA_B64`: una rama de café decorativa, USADA DOS
+VECES — arriba tal cual y abajo volteada con `transform: scaleY(-1)`,
+para no duplicar el peso del archivo con dos imágenes casi iguales).
+
+⚠️ *Gotcha real que costó tiempo*: el PDF traía una línea de corte de
+impresión pegada al borde izquierdo Y al borde derecho de la página
+(los últimos ~3-5px de cada lado, casi negra) — al recortar a todo lo
+ancho de la página, esa línea quedó incluida y se veía como una raya
+vertical rara atravesando toda la tarjeta. Se detectó comparando cuántas
+filas tenían un píxel oscuro en cada columna (`col_frac` cerca de 1.0 =
+línea constante, a diferencia del contenido real que varía por fila) y
+se arregló recortando ~16px del lado izquierdo y ~6px del derecho antes
+de todo lo demás. Si se procesa OTRA bolsa nueva y aparece una raya
+vertical parecida, revisar esto primero antes de sospechar de CSS.
+
+`tarjetaBolsaGrupoHTML(procesos)` arma la tarjeta (`.tarjeta-bolsa-clara`
+— mismo patrón que `.tarjeta-bolsa` de Lavado pero con fondo crema en vez
+de degradado kraft, **`padding: 0` explícito** — se le olvidó una vez y
+la imagen quedó con el padding de 16px que trae `.card` por defecto, se
+veía como un borde/línea rara — mismo síntoma que el gotcha de arriba
+pero por CSS, no por el PDF, hay que descartar los dos). Dentro,
+`panelBolsaGrupoHTML(procesos)` pinta, ADEMÁS de peso/molienda/cantidad
+(igual que la tarjeta de un solo lote), una fila `.proceso-pills`
+arriba de todo — elegir un proceso (`elegirProceso()`) es la MISMA idea
+que `elegirPeso()`: no toca el carrito, solo cambia una variable
+(`procesoActivo`) que decide qué lote maneja ahora mismo el resto del
+panel, y repinta. `pesoSeleccionado`/`moliendaSeleccionada`/`carrito`
+siguen guardando a Honey y Natural como lotes totalmente independientes
+(claves separadas), así que un cliente puede pedir de los dos procesos
+en el mismo pedido cambiando el selector — probado armando líneas de
+Honey Y Natural a la vez y confirmando que ambas sobreviven en el
+carrito sin pisarse.
 
 ## Pendiente / a medias
 
@@ -572,13 +617,12 @@ lote, no hace falta tocarlas.
   ahí para Honey/Natural/Exótico se editaron después a mano desde
   Configuración y ya no coinciden exactamente con esos dos archivos; lo
   que hay en Supabase ahora mismo es lo vigente.
-- **Catálogo como bolsa real — falta Honey/Natural**: la idea de Juan
-  (mostrar cada lote como la bolsa real que le va a llegar al cliente, no
-  una tarjeta genérica) ya está hecha para **Lavado** (ver "Mockup de
-  bolsa (Lavado)" más abajo). Honey y Natural comparten otra bolsa
-  distinta a la de Lavado — falta que Juan mande ese diseño plano de
-  impresión para repetir el mismo proceso con `BOLSAS_LOTE.Honey` /
-  `.Natural` (por ahora esos dos siguen con la tarjeta de texto).
+- **Catálogo como bolsa real**: hecho para los 3 lotes — Lavado con su
+  propia bolsa tradicional, Honey y Natural compartiendo la bolsa con
+  selector de "Proceso" (ver "Tarjeta-bolsa interactiva (Lavado)" y
+  "Tarjeta-bolsa compartida (Honey/Natural)" arriba). `tarjetaListaHTML()`
+  (la tarjeta de texto de siempre) queda como respaldo por si algún día
+  se agrega un lote nuevo sin bolsa todavía.
 - **Método de preparación en pedidos molidos**: `pedidos/index.html` ahora
   pregunta con qué método prepara el cliente su café molido (Prensa
   francesa/Gruesa, V60/Media, Cafetera eléctrica/Media fina, Moka/Fina) —
