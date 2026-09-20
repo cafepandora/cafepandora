@@ -155,6 +155,21 @@ muestra cuánto falta ("🧪 Fermentando · termina en Xh Ym") o que ya se
 cumplió ("✅ Fermentación cumplida — revisa la caneca"),
 `estadoFermentacion()` en `index.html`.
 
+**Repartir el sobrante a Lavado**: en la finca pesan toda la cereza
+primero y seleccionan después — a veces una parte de lo que se pesó como
+Honey/Natural termina no fermentándose y se procesa como Lavado en su
+lugar. Por eso el mismo modal de ⏱️ (`abrirFermentacion()`) también deja
+editar "Kilos en cereza"; si el valor nuevo es menor al que ya tenía, se
+ve cuánto es el sobrante (`actualizarSobranteFermentacion()`) y una
+casilla marcada por defecto "Pasar el sobrante a una cosecha nueva de
+Lavado". Al guardar (`guardarFermentacion()`), si la casilla queda
+marcada, además de actualizar los kilos de la cosecha original se crea
+una cosecha nueva con `proceso: 'Lavado'`, la MISMA fecha de recolección,
+y una nota que referencia de cuál cosecha salió el sobrante — no hace
+falta ninguna tabla ni migración nueva, reutiliza `POST /api/cosechas`
+igual que el formulario normal. Si se desmarca la casilla, el peso se
+corrige sin crear nada (para cuando solo era un error de digitación).
+
 **La alerta de WhatsApp NO la manda la app** — la app solo guarda los datos.
 Un endpoint público (`functions/api/cron/fermentacion.ts`) revisa cada
 cosecha de Honey/Natural sin pesar todavía, y si le faltan 2 horas o menos

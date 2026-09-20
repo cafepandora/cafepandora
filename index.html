@@ -3347,10 +3347,20 @@ function abrirFermentacion(id) {
     <h3>Fermentación en caneca</h3>
     <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">${escapeHtml(c.proceso)} · cosecha del ${fechaCorta(c.fecha)}</p>
     <div class="row">
+      <div class="field"><label>Kilos en cereza</label>
+        <input id="fm-kilos" type="number" min="0" step="0.1" value="${c.kilosCereza}" oninput="actualizarSobranteFermentacion(${id})"></div>
+    </div>
+    <div class="row">
       <div class="field"><label>Inicio de fermentación</label>
         <input id="fm-inicio" type="datetime-local" value="${inicioValor}"></div>
       <div class="field"><label>Fin de fermentación</label>
         <input id="fm-fin" type="datetime-local" value="${finValor}"></div>
+    </div>
+    <div id="fm-sobrante-fila" style="display:none;margin:4px 0 8px">
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer">
+        <input id="fm-sobrante-lavado" type="checkbox" checked>
+        Pasar el sobrante (<b><span id="fm-sobrante-kg">0</span> kg</b>) a una cosecha nueva de Lavado
+      </label>
     </div>
     <p style="font-size:12.5px;color:var(--cafe-soft)">Cuando falten 2 horas para cumplirse, llega un WhatsApp avisando.</p>
     <div class="modal-actions">
@@ -3359,21 +3369,56 @@ function abrirFermentacion(id) {
     </div>`);
 }
 
+// Cuando pesan todo pero solo una parte se queda fermentando en caneca
+// (el resto se pasa a Lavado) — esto se ve mientras se escribe el nuevo
+// peso, antes de guardar.
+function actualizarSobranteFermentacion(id) {
+  const c = state.cosechas.find(x => x.id === id); if (!c) return;
+  const nuevo = Number(document.getElementById('fm-kilos').value) || 0;
+  const sobrante = Math.max(0, Number(c.kilosCereza) - nuevo);
+  const fila = document.getElementById('fm-sobrante-fila');
+  if (sobrante > 0) {
+    document.getElementById('fm-sobrante-kg').textContent = sobrante.toFixed(1);
+    fila.style.display = 'block';
+  } else {
+    fila.style.display = 'none';
+  }
+}
+
 async function guardarFermentacion(id, btn) {
+  const c = state.cosechas.find(x => x.id === id); if (!c) return;
   btn.disabled = true;
+  const kilosCereza = Number(document.getElementById('fm-kilos').value) || 0;
   const inicioVal = document.getElementById('fm-inicio').value;
   const finVal = document.getElementById('fm-fin').value;
   const fermentacionInicio = inicioVal ? new Date(inicioVal).getTime() : null;
   const fermentacionFin = finVal ? new Date(finVal).getTime() : null;
+  const sobrante = Math.max(0, Number(c.kilosCereza) - kilosCereza);
+  const pasarSobranteALavado = sobrante > 0 && document.getElementById('fm-sobrante-lavado')?.checked;
   try {
-    const res = await apiFetch('/api/cosechas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fermentacionInicio, fermentacionFin }) });
+    const res = await apiFetch('/api/cosechas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kilosCereza, fermentacionInicio, fermentacionFin }) });
     if (!res.ok) throw new Error(await res.text());
-    const c = state.cosechas.find(x => x.id === id);
-    if (c) { c.fermentacionInicio = fermentacionInicio; c.fermentacionFin = fermentacionFin; c.fermentacionAlertado = false; }
+    Object.assign(c, { kilosCereza, fermentacionInicio, fermentacionFin, fermentacionAlertado: false });
     guardarCacheLocal('cosechas');
+
+    if (pasarSobranteALavado) {
+      const resLavado = await apiFetch('/api/cosechas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fecha: c.fecha,
+          kilosCereza: sobrante,
+          proceso: 'Lavado',
+          notas: `Sobrante repartido de la cosecha #${id} (${c.proceso})`,
+          usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+        }),
+      });
+      if (resLavado.ok) state.cosechas.push(await resLavado.json());
+      guardarCacheLocal('cosechas');
+    }
+
     cerrarModal();
     renderTrazabilidad();
-    toast('Fermentación actualizada');
+    toast(pasarSobranteALavado ? `Fermentación actualizada — ${sobrante.toFixed(1)} kg pasaron a Lavado` : 'Fermentación actualizada');
   } catch (err) {
     toast('No se pudo guardar: ' + err.message, 'error');
     btn.disabled = false;
