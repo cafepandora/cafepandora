@@ -57,11 +57,13 @@
   .pres-fila:first-of-type { border-top: none; }
   .pres-nombre { font-size: 13px; font-weight: 700; color: var(--dorado); text-transform: uppercase; letter-spacing: .2px; }
   .pres-precio { font-size: 16.5px; font-weight: 800; color: var(--cafe); margin-top: 1px; }
-  .molienda-select {
-    font-family: 'Outfit', sans-serif; font-size: 11.5px; font-weight: 600; color: var(--cafe);
-    background: var(--crema-alt); border: 1px solid var(--linea); border-radius: 8px;
-    padding: 3px 6px; margin-top: 4px;
+  .molienda-toggle { display: flex; gap: 6px; margin-top: 6px; }
+  .molienda-btn {
+    font-family: 'Outfit', sans-serif; font-size: 11.5px; font-weight: 600; color: var(--cafe-soft);
+    background: var(--crema-alt); border: 1px solid var(--linea); border-radius: 20px;
+    padding: 5px 12px; cursor: pointer;
   }
+  .molienda-btn.activo { background: var(--dorado-bg); border-color: var(--dorado); color: var(--cafe); font-weight: 700; }
   .stepper { display: flex; align-items: center; gap: 8px; }
   .stepper button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--linea); background: var(--crema-alt); font-size: 16px; font-weight: 700; cursor: pointer; color: var(--cafe); }
   .stepper span { min-width: 18px; text-align: center; font-weight: 700; }
@@ -271,9 +273,9 @@ function pintarCatalogo() {
             <div>
               <div class="pres-nombre">${p}</div>
               <div class="pres-precio">${fmt(precioDe(lote, p))}</div>
-              <select class="molienda-select" onchange="cambiarMolienda('${lote}','${p}', this.value)">
-                ${MOLIENDAS.map(m => `<option value="${m}" ${m === molienda ? 'selected' : ''}>${m}</option>`).join('')}
-              </select>
+              <div class="molienda-toggle">
+                ${MOLIENDAS.map(m => `<button type="button" class="molienda-btn ${m === molienda ? 'activo' : ''}" onclick="cambiarMolienda('${lote}','${p}','${m}', this)">${m}</button>`).join('')}
+              </div>
             </div>
             <div class="stepper">
               <button onclick="cambiarCantidad('${lote}','${p}',-1)">−</button>
@@ -290,13 +292,17 @@ function pintarCatalogo() {
 // Si eliges "En grano" para una Libra de Lavado y luego "Molido" para otra
 // Libra de Lavado, quedan como DOS líneas distintas en el carrito — el
 // selector solo decide a cuál de las dos le suman los botones +/− ahora mismo.
-function cambiarMolienda(lote, presentacion, valor) {
+function cambiarMolienda(lote, presentacion, valor, btn) {
   const claveBase = lote + '|' + presentacion;
   moliendaSeleccionada[claveBase] = valor;
   const clave = claveBase + '|' + valor;
   const cant = carrito[clave] ? carrito[clave].cantidad : 0;
   const el = document.getElementById('cant-' + idSeguro(claveBase));
   if (el) el.textContent = cant;
+  if (btn) {
+    btn.parentElement.querySelectorAll('.molienda-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+  }
 }
 
 function cambiarCantidad(lote, presentacion, delta) {

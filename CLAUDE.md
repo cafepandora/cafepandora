@@ -469,6 +469,14 @@ comentario de los clientes ("más didáctica a la hora de pedir").
 No se tocaron fotos de producto (ver bullet de "Fotos reales de bolsa"
 en Pendiente) — el problema era de color/tipografía, no de imágenes.
 
+**Molido/En grano en botones, no en `<select>`**: cada `.pres-fila` tenía
+un `<select class="molienda-select">` — se cambió a dos botones
+(`.molienda-toggle` → `.molienda-btn`, dorado cuando está activo, igual
+que el resto de acentos de la marca). `cambiarMolienda(lote, presentacion,
+valor, btn)` ahora recibe también el botón que se clickeó, para quitarle
+`.activo` a su hermano y ponérselo a él — antes eso lo hacía solo el
+`<select>` nativo, ahora hay que hacerlo a mano.
+
 ## Pendiente / a medias
 
 - **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
