@@ -1,0 +1,8 @@
+# Cloudflare Pages lee este archivo para poner headers de caché.
+# Todo el sitio son 2 archivos HTML (index.html y pedidos/index.html) sin
+# build ni assets separados — "no-cache" obliga al navegador a siempre
+# revalidar con el servidor antes de usar una copia guardada, así que
+# cada redeploy se ve de inmediato (no hace falta hard-refresh) sin
+# perder la ventaja de las respuestas 304 cuando no cambió nada.
+/*
+  Cache-Control: no-cache

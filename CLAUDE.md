@@ -50,6 +50,14 @@ en producción. Si vas a agregar una tabla o columna nueva, crea un
 `migracion_<algo>.sql` nuevo y avisa que hay que correrlo — no asumas que
 el schema ya lo tiene.
 
+`_headers` en la raíz le dice a Cloudflare Pages que sirva todo con
+`Cache-Control: no-cache` — Juan reportó que después de un redeploy el
+navegador seguía mostrando la versión vieja (típico sin esto: como es
+puro HTML estático sin build ni hash en el nombre del archivo, el
+navegador lo cachea agresivo por defecto). Con `no-cache` el navegador
+siempre revalida con el servidor antes de usar una copia guardada, así
+que cada redeploy se ve de inmediato sin necesitar hard-refresh.
+
 ## Variables de entorno
 
 - **Cloudflare Pages** (Settings → Environment variables), usadas por
