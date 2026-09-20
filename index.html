@@ -3284,7 +3284,10 @@ function vistaCosechas(pendientes) {
       ✅ ${listas.length} cosecha${listas.length===1?'':'s'} ya deberían estar secas — pesa el pergamino y anótalo con el botón ⚖️
     </div>` : ''}
 
-    <h3 class="section-title">Historial de cosechas</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <h3 class="section-title" style="margin-bottom:0">Historial de cosechas</h3>
+      <button class="sec-btn" onclick="abrirUnirCosechas()">🔗 Unir cosechas</button>
+    </div>
     <div class="ledger">
       ${paginar(state.cosechas.slice().sort((a,b)=>b.fecha-a.fecha), 'cosechas', c => {
         const p = proyectarDesdeCereza(c.kilosCereza);
@@ -3518,6 +3521,68 @@ async function eliminarCosecha(id) {
   state.cosechas = state.cosechas.filter(x => x.id !== id);
   guardarCacheLocal('cosechas'); renderTrazabilidad();
   await apiFetch('/api/cosechas/' + id, { method:'DELETE' });
+}
+
+// A veces se recoge y anota café en días distintos (ej. 15 y 17) pero
+// después se lava todo junto — esto deja marcar varias cosechas SIN pesar
+// todavía (mismo proceso) y combinarlas en una sola, sumando los kilos,
+// para que al pesar el pergamino real quede claro que salió de esos días.
+function abrirUnirCosechas() {
+  const candidatas = state.cosechas.filter(c => c.kilosPergaminoReal == null).slice().sort((a,b) => b.fecha - a.fecha);
+  if (candidatas.length < 2) return toast('No hay al menos 2 cosechas sin pesar para unir.', 'error');
+  abrirModal(`
+    <h3>Unir cosechas</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Marca 2 o más cosechas del mismo proceso que en realidad se lavaron juntas — se combinan en una sola (sumando los kilos) antes de pesar el pergamino.</p>
+    <div id="unir-lista" style="max-height:320px;overflow-y:auto">
+      ${candidatas.map(c => `
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--linea);font-size:13.5px">
+          <input type="checkbox" value="${c.id}">
+          ${fechaCorta(c.fecha)} · ${escapeHtml(c.proceso)} · ${Number(c.kilosCereza).toFixed(1)} kg
+        </label>`).join('')}
+    </div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="unirCosechas()">Unir seleccionadas</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  `);
+}
+
+async function unirCosechas() {
+  const marcadas = Array.from(document.querySelectorAll('#unir-lista input:checked')).map(el => Number(el.value));
+  if (marcadas.length < 2) return toast('Marca al menos 2 cosechas para unir.', 'error');
+  const seleccionadas = state.cosechas.filter(c => marcadas.includes(c.id));
+  if (new Set(seleccionadas.map(c => c.proceso)).size > 1) return toast('Solo se pueden unir cosechas del mismo proceso.', 'error');
+
+  // La más reciente sobrevive (es de cuando en realidad se lavó todo
+  // junto); las demás se borran después de sumarles los kilos.
+  const ordenadas = seleccionadas.slice().sort((a, b) => b.fecha - a.fecha);
+  const principal = ordenadas[0];
+  const otras = ordenadas.slice(1);
+  const kilosTotal = seleccionadas.reduce((s, c) => s + Number(c.kilosCereza), 0);
+  const detalle = seleccionadas.slice().sort((a, b) => a.fecha - b.fecha)
+    .map(c => `${fechaCorta(c.fecha)} (${Number(c.kilosCereza).toFixed(1)} kg)`).join(' + ');
+  const notaCombinada = `Cosecha combinada: ${detalle}`;
+  const notasFinal = principal.notas ? principal.notas + ' · ' + notaCombinada : notaCombinada;
+
+  try {
+    const res = await apiFetch('/api/cosechas/' + principal.id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kilosCereza: kilosTotal, notas: notasFinal }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    Object.assign(principal, { kilosCereza: kilosTotal, notas: notasFinal });
+
+    for (const c of otras) {
+      await apiFetch('/api/cosechas/' + c.id, { method: 'DELETE' });
+      state.cosechas = state.cosechas.filter(x => x.id !== c.id);
+    }
+    guardarCacheLocal('cosechas');
+    cerrarModal();
+    renderTrazabilidad();
+    toast(`${seleccionadas.length} cosechas unidas en una sola de ${kilosTotal.toFixed(1)} kg`);
+  } catch (err) {
+    toast('No se pudo unir: ' + err.message, 'error');
+  }
 }
 
 /* ---------- Cereza comprada a terceros ----------

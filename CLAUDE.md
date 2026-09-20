@@ -170,6 +170,23 @@ falta ninguna tabla ni migración nueva, reutiliza `POST /api/cosechas`
 igual que el formulario normal. Si se desmarca la casilla, el peso se
 corrige sin crear nada (para cuando solo era un error de digitación).
 
+**Unir cosechas (lo inverso — varios días, un solo lavado)**: a veces se
+recoge y anota café en días distintos (ej. 15 y 17 de septiembre) pero
+después se lava todo junto, así que conviene que quede como una sola
+cosecha antes de pesar el pergamino. Botón "🔗 Unir cosechas" junto al
+encabezado de "Historial de cosechas" → `abrirUnirCosechas()` abre un
+modal con checkboxes de todas las cosechas SIN pesar todavía
+(`kilosPergaminoReal == null`, de cualquier proceso). `unirCosechas()`
+exige marcar 2+ del MISMO proceso, y luego: la de fecha más reciente
+sobrevive (es de cuando en la práctica se lavó todo junto), le suma los
+kilos de las demás, le agrega una nota tipo "Cosecha combinada: 15 de
+sept (32.0 kg) + 17 de sept (24.6 kg)", y borra las otras cosechas
+(`DELETE /api/cosechas/:id`) para que no queden duplicadas en el
+historial. No toca fermentación — si la que sobrevive ya tenía
+inicio/fin puestos, se quedan igual; hay que revisarlos a mano con ⏱️ si
+hace falta. No requiere migración, reutiliza `PATCH`/`DELETE
+/api/cosechas` tal cual.
+
 **La alerta de WhatsApp NO la manda la app** — la app solo guarda los datos.
 Un endpoint público (`functions/api/cron/fermentacion.ts`) revisa cada
 cosecha de Honey/Natural sin pesar todavía, y si le faltan 2 horas o menos
