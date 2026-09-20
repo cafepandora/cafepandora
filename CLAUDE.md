@@ -366,6 +366,62 @@ monto, fecha) y un botón "✎ Corregir" por fila que cierra el modal y abre
 directo la edición de ese registro — no hay que ir a buscarlo a mano por
 pestañas y páginas.
 
+## Pasilla
+
+Subproducto de baja calidad que sale al procesar la cosecha — a
+diferencia de Lavado/Honey/Natural/Exótico, **no tiene su propia cosecha
+con cereza**: se pesa como un campo aparte ("Kilos de pasilla",
+opcional) en el mismo modal ⚖️ (`abrirPesarPergamino()`) donde se anota
+el pergamino real de una cosecha existente, se guarda en
+`cosechas.kilos_pasilla` (`migracion_pasilla.sql`), y el historial de esa
+cosecha lo muestra junto al pergamino real ("pergamino real: 32.5 kg ·
+pasilla: 2.3 kg"). El acumulado histórico (suma de `kilos_pasilla` de
+todas las cosechas) se ve como una nota aparte debajo de las tarjetas de
+"Cosecha & Tueste" (🫘 ... kg de pasilla acumulada), solo cuando hay algo
+que mostrar — no es una 5ª tarjeta de stat para no desbalancear la
+cuadrícula de 2x2.
+
+De ahí en adelante sigue el mismo camino que cualquier lote — se tuesta
+(subpestaña Tueste, escogiendo "Pasilla" como Lote, exactamente igual que
+Lavado/Honey/etc. — `ajustar_stock_inventario` ya es genérico por nombre
+de lote, no hizo falta tocar nada del backend de tuestes/inventario) y se
+vende (Ventas, escogiendo "Pasilla" como Lote) — pero **solo se vende a
+un puñado de clientes, sobre todo una empresa distribuidora**, nunca se
+ofrece en el catálogo. Por eso existe `LOTES_VENTA` (`= [...LOTES,
+'Pasilla']`), una lista aparte de `LOTES` que se usa SOLO en los 3
+lugares donde Pasilla debe poder elegirse (el Lote de una línea de venta,
+el Lote al editar una venta, el Lote de Tueste) — `LOTES` (sin Pasilla)
+se queda igual en los 3 desplegables de "Proceso" (Cosecha, Cereza
+comprada, Pergamino comprado), porque Pasilla no se cosecha aparte.
+Tampoco se agregó a `QUICK_ADD` (los atajos ⚡ de Ventas, ya de por sí una
+lista fija a mano, no derivada de `LOTES`) ni a `pedidos/index.html`
+(que tiene su PROPIO `LOTES` independiente, sin tocar) — así queda fuera
+tanto de los atajos rápidos como de la página pública, tal como pidió
+Juan.
+
+Pasilla **solo se vende en una presentación, Libra (500 g)** — el
+desplegable de Presentación en Ventas (`ln-presentacion`/
+`em-ln-presentacion`) normalmente ofrece las 4 de siempre
+(`PRESENTACIONES`), pero `presentacionesDeLote(lote)` lo reduce a solo
+`['Libra']` cuando el lote elegido es Pasilla — se llama desde
+`onLnLoteChange()`/`onEmLnLoteChange()`, el mismo sitio que ya
+mostraba/ocultaba el campo de Tostión según si el lote es Lavado.
+
+**Precio**: solo tarifa de distribuidor, $22.000 la Libra —
+`migracion_pasilla.sql` inserta las 4 filas de presentación (Media
+lb/Kilo/Cuarterón en $0, Libra en $22.000) SOLO en `tipo_cliente =
+'distribuidor'`; no se crean filas `normal` ni `web` a propósito, para
+que Pasilla no aparezca ni en "Precio normal" de Configuración ni pueda
+llegar nunca a la tarifa pública. Como Configuración → Precios
+(`renderConfig()`) solo edita filas que YA EXISTEN en `precios_cafe`
+(no hay forma de crear un precio nuevo desde la UI, siempre ha sido así
+para los 4 lotes de siempre porque ya venían todos sembrados) hizo falta
+la migración para que "Pasilla" aparezca ahí. De paso, `renderConfig()`
+se blindó para no mostrar un encabezado "Precio normal"/una sección web
+completamente vacíos cuando un lote (como Pasilla) no tiene filas en esa
+tarifa — antes nunca se había dado el caso porque los 4 lotes de siempre
+siempre tienen las 3 tarifas sembradas aunque sea en $0.
+
 ## Cereza comprada a terceros
 
 "Cosecha & Tueste" tiene una 4ª subpestaña, "Cereza comprada", para cuando
@@ -603,6 +659,13 @@ carrito sin pisarse.
 
 ## Pendiente / a medias
 
+- **Pasilla — falta correr la migración**: el código ya está (ver sección
+  "Pasilla" arriba), pero hasta que no se corra `migracion_pasilla.sql`
+  en Supabase, anotar kilos de pasilla al pesar pergamino va a fallar
+  (columna `kilos_pasilla` inexistente) y el desplegable de Lote en
+  Ventas/Tueste va a mostrar "Pasilla" pero sin precio sugerido (no
+  existe todavía la fila en `precios_cafe`) — hay que corregir el valor a
+  mano hasta que se corra.
 - **Ventas/maquila pagadas en Efectivo antes del backfill**: el backfill
   (`migracion_backfill_recibido_por.sql`, ya corrida) solo pudo rellenar
   `recibido_por` en filas cuyo `metodo` ya nombraba a alguien — las que se

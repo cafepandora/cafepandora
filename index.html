@@ -633,6 +633,15 @@ const TITULARES_CUENTA_COBRO = {
 const datosTitularCC = titular => TITULARES_CUENTA_COBRO[titular] || TITULARES_CUENTA_COBRO.juan;
 const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 const PRESENTACIONES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
+// Pasilla no se cosecha aparte (sale como sobrante al pesar el pergamino
+// de una cosecha existente, ver ⚖️ en Cosecha & Tueste) así que NO se
+// agrega a LOTES (el desplegable de "Proceso" al registrar cosecha/cereza
+// comprada/pergamino comprado) — pero sí se puede tostar y vender, por
+// eso existe esta lista aparte para esos dos formularios.
+const LOTES_VENTA = [...LOTES, 'Pasilla'];
+// Pasilla solo se vende en una presentación (Libra = 500 g) — para los
+// demás lotes se ofrecen las 4 de siempre.
+const presentacionesDeLote = lote => lote === 'Pasilla' ? ['Libra'] : PRESENTACIONES;
 const TIPOS_CLIENTE = ['Cliente normal', 'Mayorista', 'Distribuidor', 'Interno'];
 const METODOS_PAGO = ['Efectivo', 'Transferencia a Joaquín', 'Transferencia a Inés', 'Juan Nequi', 'Juan Bancolombia'];
 // El método de pago ya dice a quién le llegó la plata en 4 de los 5 casos
@@ -1945,7 +1954,7 @@ function renderVentas() {
 
       <div class="row">
         <div class="field"><label>Lote</label>
-          <select id="ln-lote" onchange="onLnLoteChange()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select>
+          <select id="ln-lote" onchange="onLnLoteChange()">${LOTES_VENTA.map(l => `<option>${l}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Presentación</label>
           <select id="ln-presentacion" onchange="recalcularLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select>
@@ -2021,8 +2030,9 @@ function cambiarVentasSubTab(tab) {
 
 /* ---------- Línea nueva (café o un servicio de maquila) ---------- */
 function onLnLoteChange() {
-  const esLavado = document.getElementById('ln-lote').value === 'Lavado';
-  document.getElementById('ln-campo-tueste').style.display = esLavado ? 'flex' : 'none';
+  const lote = document.getElementById('ln-lote').value;
+  document.getElementById('ln-campo-tueste').style.display = lote === 'Lavado' ? 'flex' : 'none';
+  document.getElementById('ln-presentacion').innerHTML = presentacionesDeLote(lote).map(p => `<option>${p}</option>`).join('');
   recalcularLinea();
 }
 
@@ -2370,7 +2380,7 @@ function abrirEdicionVenta(id) {
 
     <h3 class="section-title" style="margin-top:4px">Agregar línea</h3>
     <div class="row">
-      <div class="field"><label>Lote</label><select id="em-ln-lote" onchange="onEmLnLoteChange()">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Lote</label><select id="em-ln-lote" onchange="onEmLnLoteChange()">${LOTES_VENTA.map(l => `<option>${l}</option>`).join('')}</select></div>
       <div class="field"><label>Presentación</label><select id="em-ln-presentacion" onchange="recalcularEmLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select></div>
       <div class="field"><label>Cantidad</label><input id="em-ln-cantidad-cafe" type="number" value="1" min="1" onchange="recalcularEmLinea()"></div>
     </div>
@@ -2400,8 +2410,9 @@ function abrirEdicionVenta(id) {
 }
 
 function onEmLnLoteChange() {
-  const esLavado = document.getElementById('em-ln-lote').value === 'Lavado';
-  document.getElementById('em-ln-campo-tueste').style.display = esLavado ? 'flex' : 'none';
+  const lote = document.getElementById('em-ln-lote').value;
+  document.getElementById('em-ln-campo-tueste').style.display = lote === 'Lavado' ? 'flex' : 'none';
+  document.getElementById('em-ln-presentacion').innerHTML = presentacionesDeLote(lote).map(p => `<option>${p}</option>`).join('');
   recalcularEmLinea();
 }
 
@@ -3228,6 +3239,7 @@ function renderTrazabilidad() {
   const pergaminoTotal = pergaminoDeCosechas + pergaminoDeCerezaComprada + pergaminoComprado;
   const proy = proyectarDesdePergamino(pergaminoTotal);
   const yaTostado = state.tuestes.reduce((s, t) => s + Number(t.kilosTostado || 0), 0);
+  const pasillaTotal = state.cosechas.reduce((s, c) => s + (Number(c.kilosPasilla) || 0), 0);
 
   cont.innerHTML = `
     <div class="stat-grid">
@@ -3236,6 +3248,7 @@ function renderTrazabilidad() {
       <div class="stat"><div class="n pos">${Math.round(proy.libras)}</div><div class="l">Libras de 500 g esperadas</div></div>
       <div class="stat"><div class="n">${yaTostado.toFixed(1)} kg</div><div class="l">Ya tostado a la fecha</div></div>
     </div>
+    ${pasillaTotal > 0 ? `<p style="font-size:13px;color:var(--cafe-soft);margin:10px 0 0">🫘 ${pasillaTotal.toFixed(1)} kg de pasilla acumulada en pergamino — se tuesta y se vende aparte (lote "Pasilla" en Tueste y Ventas).</p>` : ''}
 
     ${panelRendimientos()}
 
@@ -3334,7 +3347,7 @@ function vistaCosechas(pendientes) {
               </span>
             </div>
             <div class="meta">Cosechado ${fechaCorta(c.fecha)} · ${real
-              ? 'pergamino real: ' + Number(c.kilosPergaminoReal).toFixed(1) + ' kg'
+              ? 'pergamino real: ' + Number(c.kilosPergaminoReal).toFixed(1) + ' kg' + (c.kilosPasilla > 0 ? ' · pasilla: ' + Number(c.kilosPasilla).toFixed(1) + ' kg' : '')
               : (yaSeco ? 'secado estimado listo' : 'seco aprox. ' + fechaCorta(seco.getTime()))}</div>
             ${ferm ? `<div class="meta" style="color:${ferm.vencida ? 'var(--terracota)' : 'var(--verde)'};font-weight:700">${ferm.texto}</div>` : ''}
             <div class="details">${c.kilosVerdeReal > 0
@@ -3524,6 +3537,9 @@ function abrirPesarPergamino(id) {
       ${Number(c.kilosCereza).toFixed(1)} kg de cereza del ${fechaCorta(c.fecha)} · estimado ${p.pergamino.toFixed(1)} kg</p>
     <div class="row"><div class="field"><label>Kilos de pergamino seco (pesados)</label>
       <input id="pp-kilos" type="number" min="0" step="0.1" value="${c.kilosPergaminoReal ?? p.pergamino.toFixed(1)}"></div></div>
+    <div class="row"><div class="field"><label>Kilos de pasilla (opcional)</label>
+      <input id="pp-pasilla" type="number" min="0" step="0.1" placeholder="0" value="${c.kilosPasilla ?? ''}"></div></div>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">La pasilla que salga de esta cosecha — se tuesta y se vende aparte, como lote "Pasilla".</p>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarPergaminoReal(${id}, this)">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
@@ -3533,12 +3549,14 @@ function abrirPesarPergamino(id) {
 async function guardarPergaminoReal(id, btn) {
   btn.disabled = true;
   const kilosPergaminoReal = Math.max(0, Number(document.getElementById('pp-kilos').value) || 0);
+  const pasillaInput = document.getElementById('pp-pasilla').value;
+  const kilosPasilla = pasillaInput === '' ? null : Math.max(0, Number(pasillaInput) || 0);
   const c = state.cosechas.find(x => x.id === id);
-  if (c) c.kilosPergaminoReal = kilosPergaminoReal;
+  if (c) { c.kilosPergaminoReal = kilosPergaminoReal; c.kilosPasilla = kilosPasilla; }
   guardarCacheLocal('cosechas');
   cerrarModal();
   renderTrazabilidad();
-  await apiFetch('/api/cosechas/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kilosPergaminoReal }) });
+  await apiFetch('/api/cosechas/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kilosPergaminoReal, kilosPasilla }) });
   toast('Pergamino real anotado');
 }
 
@@ -3898,7 +3916,7 @@ function vistaTueste() {
       <div class="row">
         <div class="field"><label>Fecha</label><input id="tu-fecha" type="date" value="${hoyISO()}"></div>
         <div class="field"><label>Lote</label>
-          <select id="tu-lote">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+          <select id="tu-lote">${LOTES_VENTA.map(l => `<option>${l}</option>`).join('')}</select></div>
         <div class="field"><label>Origen</label>
           <select id="tu-origen"><option>Finca</option><option>Comprado</option></select></div>
       </div>
@@ -4631,7 +4649,9 @@ function renderConfig() {
   const gruposCafe = {};
   state.preciosCafe.forEach(p => { (gruposCafe[p.lote] ||= { normal: [], distribuidor: [], web: [] })[p.tipoCliente]?.push(p); });
   const filasCafe = Object.entries(gruposCafe).map(([lote, tiers]) => {
-    const filaTier = (label, filas) => `
+    // Un lote nuevo (ej. Pasilla) puede no tener tarifa normal/web todavía
+    // — sin este `if` se veía el encabezado "Precio normal" sin nada debajo.
+    const filaTier = (label, filas) => !filas.length ? '' : `
       <div style="padding-top:4px"><div class="nombre" style="font-weight:600;font-size:12.5px;color:var(--cafe-soft)">${label}</div></div>
       ${[...filas].sort((a, b) => orden.indexOf(a.presentacion) - orden.indexOf(b.presentacion)).map(p => `
         <div class="tarifa-row" style="padding-left:16px">
@@ -4645,7 +4665,7 @@ function renderConfig() {
     </div>`;
   }).join('');
 
-  const filasCafeWeb = Object.entries(gruposCafe).map(([lote, tiers]) => `
+  const filasCafeWeb = Object.entries(gruposCafe).filter(([, tiers]) => tiers.web.length).map(([lote, tiers]) => `
     <div style="padding-top:10px"><div class="nombre" style="font-weight:700;font-size:14.5px">${lote}</div>
       ${[...tiers.web].sort((a, b) => orden.indexOf(a.presentacion) - orden.indexOf(b.presentacion)).map(p => `
         <div class="tarifa-row" style="padding-left:16px">
@@ -4938,12 +4958,12 @@ function exportarExcel() {
   /* ---------- 8) Cosechas ---------- */
   const hojaCosechas = {
     name: 'Cosechas',
-    cols: [16, 14, 14, 18, 16, 30],
+    cols: [16, 14, 14, 18, 16, 14, 30],
     rows: [
-      [HEAD('Fecha'), HEAD('Kg cereza'), HEAD('Proceso'), HEAD('Kg pergamino real'), HEAD('Kg pergamino esperado'), HEAD('Notas')],
+      [HEAD('Fecha'), HEAD('Kg cereza'), HEAD('Proceso'), HEAD('Kg pergamino real'), HEAD('Kg pergamino esperado'), HEAD('Kg pasilla'), HEAD('Notas')],
       ...state.cosechas.slice().sort((a,b)=>b.fecha-a.fecha).map(c => {
         const p = proyectarDesdeCereza(c.kilosCereza);
-        return [FECHA(c.fecha), NUM2(c.kilosCereza), c.proceso, c.kilosPergaminoReal!=null ? NUM2(c.kilosPergaminoReal) : '', NUM2(p.pergamino), c.notas || ''];
+        return [FECHA(c.fecha), NUM2(c.kilosCereza), c.proceso, c.kilosPergaminoReal!=null ? NUM2(c.kilosPergaminoReal) : '', NUM2(p.pergamino), c.kilosPasilla!=null ? NUM2(c.kilosPasilla) : '', c.notas || ''];
       }),
     ],
   };
@@ -5013,7 +5033,7 @@ function exportarExcel() {
     cols: [14, 16, 16, 16],
     rows: [
       [HEAD('Lote'), HEAD('Presentación'), HEAD('Precio normal'), HEAD('Precio distribuidor')],
-      ...LOTES.map(lote => ordenPres.map(p => {
+      ...LOTES_VENTA.map(lote => ordenPres.map(p => {
         const n = state.preciosCafe.find(x => x.lote === lote && x.presentacion === p && x.tipoCliente === 'normal');
         const d = state.preciosCafe.find(x => x.lote === lote && x.presentacion === p && x.tipoCliente === 'distribuidor');
         return [lote, p, MONEY(n ? n.precio : 0), MONEY(d ? d.precio : 0)];
