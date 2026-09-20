@@ -366,6 +366,67 @@ monto, fecha) y un botón "✎ Corregir" por fila que cierra el modal y abre
 directo la edición de ese registro — no hay que ir a buscarlo a mano por
 pestañas y páginas.
 
+**Saldo inicial de cada cuenta**: `calcularBalancePersonas()` suma todo
+el histórico DESDE QUE EMPEZÓ A USARSE LA APP — antes de esto, si
+alguien ya tenía plata guardada (o ya le debía al negocio) desde antes,
+el balance arrancaba en $0 para todos y se veía como si el negocio le
+debiera a todo el mundo desde el día uno, sin serlo. Configuración →
+Precios → "Saldo inicial de cada cuenta" (arriba del todo, antes de
+"Precios de café") deja poner un valor único por persona/Efectivo — tabla
+nueva `saldos_iniciales` (`migracion_saldos_iniciales.sql`, persona como
+llave primaria, un solo valor que se sobreescribe, no un histórico) y
+endpoint `POST /api/saldos-iniciales` que hace upsert. Se pone UNA SOLA
+VEZ (septiembre 2026 fue el primer mes con la app) — de ahí en adelante
+el balance sigue solo, sumando/restando lo que se vaya registrando; no
+hace falta (ni está pensado) tocarlo cada mes. `calcularBalancePersonas()`
+le suma ese `inicial` al cálculo de siempre (`recibido - gastado`); en la
+tabla "Balance por persona" de Resumen se ve como una líneita chica
+"saldo inicial $X" debajo del nombre, solo cuando no es $0, para que se
+entienda de dónde sale la diferencia sin agregar una columna nueva.
+
+**"Pendientes de meses anteriores"**: Ventas ya tenía "Deudas de meses
+anteriores" (ventas con `estado === 'Pendiente'` de un mes distinto al
+que estás viendo, para no perderlas de vista al cambiar de mes) — se
+amplió para que TAMBIÉN muestre lo que sigue sin enviar
+(`estadoEnvio !== 'Enviado'`), y se le cambió el nombre a "Pendientes de
+meses anteriores" porque ya no es solo plata. Maquila no tenía nada
+parecido — ahora tiene el mismo bloque (mismo filtro, mismo texto,
+mismas clases CSS `deuda-anterior`/`envio-pendiente`, reutilizando
+`filaOrdenMaquila(o, true)` con el nuevo segundo parámetro `esDeuda`
+igual que ya hacía `filaVenta(v, esDeuda)`). La idea: todo lo que ya
+quedó resuelto (pagado Y entregado/enviado) desaparece de la vista al
+cambiar de mes — no hay que revisarlo de nuevo — pero nada pendiente se
+pierde nunca, sin importar de qué mes sea.
+
+## Órdenes de maquila — orden de servicios y estado de entrega
+
+Los servicios de una orden de maquila (`mq-servicio`/`emq-servicio`, y el
+agrupamiento de "Tarifas de maquila" en Configuración) antes salían en el
+orden que devolvía la base de datos (alfabético) — Juan pidió un orden
+fijo que sigue el proceso real: **Trilla, Tostión, Molienda, Empaque,
+Bolsas (Negras/Ziploc), Transporte**. `ORDEN_SERVICIOS_MAQUILA` (junto a
+`SERVICIO_TRANSPORTE`) fija ese orden; `ordenarServiciosMaquila()`
+(desplegables) y `ordenServicioMaquila()` (para `.sort()` de pares
+`[servicio, ...]` o de `state.maquila` directo) lo aplican en los 4
+lugares donde se listan servicios: el desplegable de "Servicio" al
+registrar una orden, el de editar una orden, "Tarifas de maquila" en
+Configuración, y la hoja "Tarifas maquila" del Excel. Un servicio que no
+esté en la lista (ej. uno nuevo que se agregue después) se va al final
+solo, sin romper nada — no hace falta acordarse de actualizar esto cada
+vez.
+
+**Estado de entrega**, independiente del estado de pago — igual patrón
+que ya existía en Ventas (`estadoEnvio`/`toggleEstadoEnvio`): columna
+nueva `ordenes_maquila.estado_entrega` (`migracion_entrega_maquila.sql`,
+default `'Pendiente'`), `estadoEntrega` en el SELECT/PATCH/POST del
+backend, y en `filaOrdenMaquila()` un botón-etiqueta 📦 "Pendiente de
+entrega" / ✅ "Entregado" (`toggleEstadoEntregaMaquila()`) — mismas clases
+CSS `envio-pendiente`/`envio-enviado` que Ventas (esas clases ya eran
+genéricas "azul = pendiente de algo" antes de esto, ver el mismo patrón
+reutilizado en el historial de Tueste). No hay un campo para elegirlo al
+registrar la orden — igual que el envío en Ventas, siempre arranca
+"Pendiente" y se marca "Entregado" después, tocando el botón.
+
 ## Pasilla
 
 Subproducto de baja calidad que sale al procesar la cosecha — a
@@ -659,6 +720,14 @@ carrito sin pisarse.
 
 ## Pendiente / a medias
 
+- **Entrega de maquila y saldo inicial — falta correr las migraciones**:
+  el código ya está (ver secciones "Órdenes de maquila..." y "Balance de
+  cuentas por persona" arriba), pero hasta que no se corran
+  `migracion_entrega_maquila.sql` y `migracion_saldos_iniciales.sql` en
+  Supabase, `sincronizar()` va a mostrar el aviso de error (columna/tabla
+  inexistente) en vez de cargar los datos — es el mismo caso que ya pasó
+  antes con `transporte` en cuentas de cobro, documentado en Gotchas más
+  abajo. Corre las dos migraciones antes de dar por bueno el deploy.
 - **Pasilla — falta correr la migración**: el código ya está (ver sección
   "Pasilla" arriba), pero hasta que no se corra `migracion_pasilla.sql`
   en Supabase, anotar kilos de pasilla al pesar pergamino va a fallar
