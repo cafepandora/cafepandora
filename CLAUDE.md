@@ -490,33 +490,54 @@ invisible que tiene la carta real. El logo del isotipo y las ramas de
 café del mismo PDF no se usaron todavía — quedan disponibles si más
 adelante se quiere decorar algo más (ej. la pantalla de confirmación).
 
-**Mockup de bolsa (Lavado)**: Juan mandó `Bolsa.pdf` — el arte de
-impresión real de la bolsa de Lavado (2 páginas, vectorial, línea negra
-sin relleno; la página 2 es la cara de atrás/ficha técnica, no se usó).
-De la página 1 se recortó solo el bloque de logo + ilustración (árbol/
-sol/montaña/finca) + arco "100% CAFÉ DE ORIGEN" — sin el bloque de abajo
-("PESO NETO: 500GR", perfil de taza, tostión/molienda), porque eso es
-específico de una presentación y no se ve en las fotos reales del
-producto. Con Pillow se armó un mockup completo (no solo el logo
-pegado):
-1. El arte (que venía en negro puro) se recoloreó a un café oscuro
-   (`#3B3025`) — en la bolsa real la tinta no es negra sobre el kraft.
-2. Se generó un rectángulo con esquinas redondeadas y degradado
-   vertical de kraft (`#D6B38C` arriba → `#9E8463` abajo — colores
-   sacados muestreando una foto real de las bolsas en Instagram, no
-   inventados), más dos líneas verticales tenues simulando los pliegues
-   laterales de una bolsa stand-up.
-3. Una franja negra redondeada cerca de arriba simula el cierre zip.
-4. El arte recoloreada se pega centrada debajo de esa franja, y un
-   viñeteado suave en los bordes le da algo de volumen.
+**Tarjeta-bolsa interactiva (Lavado)**: Juan mandó `Bolsa.pdf` — el arte
+de impresión real de la bolsa de Lavado (2 páginas, vectorial, línea
+negra sin relleno; la página 2 es la cara de atrás/ficha técnica, no se
+usó). Primer intento: pegar el arte sobre un kraft de fondo y tratarlo
+como una foto de producto arriba de la lista de siempre — Juan pidió ir
+más allá: que la bolsa misma sea la interfaz de pedido (el "peso neto"
+desplegable, molido/en grano seleccionable), no una imagen decorativa.
+Por eso el kraft de fondo y el arte quedaron SEPARADOS:
 
-Resultado: `BOLSA_LAVADO_B64` (JPEG en vez de PNG — el degradado
-comprime mucho mejor así — `BOLSAS_LOTE.Lavado` en `pedidos/index.html`).
-`pintarCatalogo()` usa `BOLSAS_LOTE[lote]` para decidir: si existe,
-`.lote-cabecera` muestra la bolsa (`<img class="bolsa-foto">`, con
-sombra) en vez del `<h3>` de texto — Honey/Natural, que no están en
-`BOLSAS_LOTE` todavía, siguen mostrando el `<h3>` como antes. Mismo
-patrón para repetir con la bolsa de Honey/Natural cuando Juan la mande.
+- El arte (recortado a solo logo + ilustración árbol/sol/montaña/finca +
+  arco "100% CAFÉ DE ORIGEN", sin el bloque de "PESO NETO"/perfil de
+  taza/tostión de la página 1 porque eso es específico de una
+  presentación) se recoloreó de negro puro a café oscuro (`#3B3025`) y se
+  guardó SIN fondo, transparente — `BOLSA_LAVADO_B64` (PNG) en
+  `BOLSAS_LOTE.Lavado`.
+- El kraft (degradado `#DABB93` → `#9E7E4E`, colores muestreados de una
+  foto real de las bolsas en Instagram, no inventados), los pliegues
+  laterales, y el cierre zip son CSS puro (`.tarjeta-bolsa`, `.bolsa-zip`,
+  `.bolsa-cuerpo::before/::after`) — no están horneados en la imagen, así
+  el panel de controles de abajo puede compartir la misma superficie
+  continua sin que se note la costura.
+
+`pintarCatalogo()` llama a `tarjetaBolsaHTML()` cuando el lote tiene
+`BOLSAS_LOTE[lote]` (si no, cae a `tarjetaListaHTML()`, la tarjeta de
+texto de siempre — así siguen Honey/Natural hasta que Juan mande esa
+bolsa). Dentro de `.tarjeta-bolsa`, debajo del arte, `panelBolsaHTML()`
+pinta sobre el mismo kraft:
+- **"PESO NETO" como desplegable real**: `.bolsa-peso-bar` (botón negro
+  redondeado, como la franja impresa) muestra la presentación elegida
+  (`pesoSeleccionado[lote]`, clave nueva) y al tocarlo abre
+  `.peso-pills` (`togglePesoPills()`) con las presentaciones disponibles;
+  elegir una (`elegirPeso()`) repinta solo `#bolsa-panel-${lote}` — no
+  toca el carrito, solo decide qué combinación lote|peso están editando
+  ahora mismo la molienda y el contador de abajo.
+- **Molido/En grano y el contador +/−** son los MISMOS
+  `cambiarMolienda()`/`cambiarCantidad()` que usa la tarjeta de lista —
+  reciben `pesoSeleccionado[lote]` en vez de un valor fijo por fila, así
+  que no hubo que duplicar la lógica del carrito, solo la plantilla.
+- Cambiar de peso no pierde nada: cada combinación lote|peso|molienda es
+  su propia línea en `carrito` (igual que ya pasaba entre molido/en
+  grano), así que un cliente puede pedir Media lb Y Kilo en el mismo
+  pedido pasando por el desplegable dos veces — se probó armando ambas
+  líneas y confirmando que las dos sobreviven y sale bien en "Tu pedido".
+
+Mismo patrón para repetir con la bolsa de Honey/Natural cuando Juan la
+mande: recortar el arte igual, sumar `BOLSAS_LOTE.Honey`/`.Natural`, y
+listo — `tarjetaBolsaHTML()`/`panelBolsaHTML()` ya son genéricas por
+lote, no hace falta tocarlas.
 
 ## Pendiente / a medias
 
