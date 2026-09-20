@@ -1517,6 +1517,15 @@ function renderCuentasCobro() {
       <div class="row" style="margin-top:10px">
         <div class="field"><label>Otros (opcional)</label><input id="cc-otros" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
       </div>
+      <div class="row" style="margin-top:6px;align-items:center">
+        <label style="display:flex;align-items:center;gap:7px;font-size:13.5px;cursor:pointer">
+          <input id="cc-incluye-transporte" type="checkbox" onchange="actualizarTransporteVisible()">
+          Incluir costo de transporte (envío)
+        </label>
+      </div>
+      <div class="row" id="cc-transporte-fila" style="display:none;margin-top:6px">
+        <div class="field"><label>Costo de transporte</label><input id="cc-transporte" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
+      </div>
       <div style="text-align:right;font-weight:800;font-size:17px;margin:8px 0">Total: <span id="cc-total">$0</span></div>
 
       <button class="add-btn" onclick="guardarCuentaCobro(this)">Generar y guardar (PDF)</button>
@@ -1536,7 +1545,7 @@ function filaCuentaCobro(cc) {
     <div class="ledger-row">
       <div class="main">
         <div class="title">No. ${cc.id} — ${escapeHtml(cc.cliente)}</div>
-        <div class="meta">${new Date(Number(cc.ts)).toLocaleDateString('es-CO')}${cc.clienteNit ? ' · ' + escapeHtml(cc.clienteNit) : ''} · a nombre de ${escapeHtml(datosTitularCC(cc.titular).label)}</div>
+        <div class="meta">${new Date(Number(cc.ts)).toLocaleDateString('es-CO')}${cc.clienteNit ? ' · ' + escapeHtml(cc.clienteNit) : ''} · a nombre de ${escapeHtml(datosTitularCC(cc.titular).label)}${cc.transporte > 0 ? ' · + transporte ' + fmt(cc.transporte) : ''}</div>
         <div class="details">${escapeHtml(detalle)}</div>
       </div>
       <div class="amount pos">${fmt(cc.total)}</div>
@@ -1606,9 +1615,18 @@ function pintarCarritoCC() {
       </div>`).join('')
     : '<div class="empty">Aún no has agregado ninguna línea.</div>';
   const otros = Number(document.getElementById('cc-otros')?.value) || 0;
+  const transporte = document.getElementById('cc-incluye-transporte')?.checked ? (Number(document.getElementById('cc-transporte')?.value) || 0) : 0;
   const subtotal = carritoCuentaCobro.reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
   const totalEl = document.getElementById('cc-total');
-  if (totalEl) totalEl.textContent = fmt(subtotal + otros);
+  if (totalEl) totalEl.textContent = fmt(subtotal + otros + transporte);
+}
+// Muestra/oculta el campo de costo cuando se marca "Incluir transporte" —
+// se factura aparte porque es un servicio distinto (no lleva retención).
+function actualizarTransporteVisible() {
+  const fila = document.getElementById('cc-transporte-fila');
+  if (!fila) return;
+  fila.style.display = document.getElementById('cc-incluye-transporte').checked ? 'flex' : 'none';
+  pintarCarritoCC();
 }
 
 async function guardarCuentaCobro(btn) {
@@ -1618,11 +1636,13 @@ async function guardarCuentaCobro(btn) {
   btn.disabled = true;
   try {
     const titular = document.getElementById('cc-titular').value;
+    const transporte = document.getElementById('cc-incluye-transporte').checked ? (Number(document.getElementById('cc-transporte').value) || 0) : 0;
     const payload = {
       cliente,
       clienteNit: document.getElementById('cc-nit').value.trim() || null,
       items: carritoCuentaCobro,
       otros: Number(document.getElementById('cc-otros').value) || 0,
+      transporte,
       titular,
       usuario: localStorage.getItem('cp_usuario') || 'Equipo',
     };
@@ -1729,9 +1749,24 @@ function generarPdfCuentaCobro(cc, ciudad) {
   const subtotal = (cc.items || []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
   doc.setFontSize(9.5);
   doc.text('Subtotal', colX.unit, y, { align: 'right' }); doc.setFont('helvetica', 'bold'); doc.text(fmt(subtotal), colX.tot, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += 5.5;
+  if (cc.transporte > 0) {
+    doc.text('Transporte', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.transporte), colX.tot, y, { align: 'right' }); y += 5.5;
+  }
   doc.text('Otros', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.otros || 0), colX.tot, y, { align: 'right' }); y += 6.5;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-  doc.text('TOTAL', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.total), colX.tot, y, { align: 'right' }); y += 14;
+  doc.text('TOTAL', colX.unit, y, { align: 'right' }); doc.text(fmt(cc.total), colX.tot, y, { align: 'right' }); y += 10;
+
+  if (cc.transporte > 0) {
+    // El transporte es un servicio aparte (no va en la base de retención) —
+    // se aclara para que quien recibe la cuenta de cobro no lo confunda
+    // con el resto del concepto facturado.
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(120);
+    doc.text('El transporte es un servicio aparte, excluido de la base de retención.', colX.tot, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(30);
+    y += 8;
+  } else {
+    y += 4;
+  }
 
   doc.setDrawColor(200); doc.line(18, y, ancho - 18, y); y += 6;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(90);

@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
-const SELECT = 'id, cliente, clienteNit:cliente_nit, items, otros, total, ventaId:venta_id, titular, usuario, ts';
+const SELECT = 'id, cliente, clienteNit:cliente_nit, items, otros, transporte, total, ventaId:venta_id, titular, usuario, ts';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -26,14 +26,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!cliente) return new Response('Falta el cliente', { status: 400 });
 
   const otros = Math.max(0, Number(body.otros) || 0);
+  const transporte = Math.max(0, Number(body.transporte) || 0);
   const subtotal = items.reduce((s: number, it: any) => s + (Number(it.valorTotal) || 0), 0);
-  const total = subtotal + otros;
+  const total = subtotal + otros + transporte;
 
   const { data, error } = await supabase.from('cuentas_cobro').insert({
     cliente,
     cliente_nit: body.clienteNit || null,
     items,
     otros,
+    transporte,
     total,
     venta_id: body.ventaId || null,
     titular: body.titular || 'juan',
