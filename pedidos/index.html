@@ -246,6 +246,10 @@ const HONEY_RAMA_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAXwAAADoCAYAAADsZ18rAAD6L0lEQVR4
 const BOLSAS_LOTE = { Lavado: BOLSA_LAVADO_B64, Honey: HONEY_BADGE_B64, Natural: HONEY_BADGE_B64 };
 const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 const ORDEN_PRES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
+// El selector de peso muestra el peso neto (más claro que el nombre de la
+// presentación) — el total y el mensaje de WhatsApp siguen hablando por
+// presentación, así que esto es solo la etiqueta que se ve al elegir.
+const PESO_NETO_POR_PRES = { 'Media lb': '250 gr', 'Libra': '500 gr', 'Kilo': '1000 gr', 'Cuarterón': '2500 gr' };
 
 const MOLIENDAS = ['Molido', 'En grano'];
 
@@ -300,7 +304,7 @@ function pintarNavRapida() {
     ? precioDe('Exotico', 'Media lb') > 0
     : ORDEN_PRES.some(p => precioDe(l, p) > 0));
   if (disponibles.length < 2) { nav.style.display = 'none'; return; }
-  nav.innerHTML = disponibles.map(l => `<a href="#${l === 'Exotico' ? 'bannerExoticos' : 'lote-' + l.toLowerCase()}" class="${l.toLowerCase()}">${l === 'Exotico' ? 'Exóticos' : l}</a>`).join('');
+  nav.innerHTML = disponibles.map(l => `<a href="#${l === 'Exotico' ? 'bannerExoticos' : (LOTES_GRUPO_HONEY_NATURAL.includes(l) ? 'lote-honeynatural' : 'lote-' + l.toLowerCase())}" class="${l.toLowerCase()}" onclick="${LOTES_GRUPO_HONEY_NATURAL.includes(l) ? `elegirProceso('${l}')` : ''}">${l === 'Exotico' ? 'Exóticos' : l}</a>`).join('');
 }
 
 // El precio de Exóticos sale de lo que dejes puesto en Configuración → la
@@ -408,11 +412,11 @@ function panelBolsaHTML(lote, filas) {
   return `
     <button type="button" class="bolsa-peso-bar" id="peso-bar-${lote}" onclick="togglePesoPills('${lote}')">
       <span class="etiqueta">Peso neto</span>
-      <span class="valor">${peso} · ${fmt(precioDe(lote, peso))}</span>
+      <span class="valor">${PESO_NETO_POR_PRES[peso] || peso} · ${fmt(precioDe(lote, peso))}</span>
       <span class="flecha">▼</span>
     </button>
     <div class="peso-pills" id="peso-pills-${lote}">
-      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPeso('${lote}','${p}')">${p}</button>`).join('')}
+      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPeso('${lote}','${p}')">${PESO_NETO_POR_PRES[p] || p}</button>`).join('')}
     </div>
     <div class="molienda-toggle">
       ${MOLIENDAS.map(m => `<button type="button" class="molienda-btn ${m === molienda ? 'activo' : ''}" onclick="cambiarMolienda('${lote}','${peso}','${m}', this)">${m}</button>`).join('')}
@@ -480,11 +484,11 @@ function panelBolsaGrupoHTML(procesos) {
     </div>
     <button type="button" class="bolsa-peso-bar" id="peso-bar-${lote}" onclick="togglePesoPills('${lote}')">
       <span class="etiqueta">Peso neto</span>
-      <span class="valor">${peso} · ${fmt(precioDe(lote, peso))}</span>
+      <span class="valor">${PESO_NETO_POR_PRES[peso] || peso} · ${fmt(precioDe(lote, peso))}</span>
       <span class="flecha">▼</span>
     </button>
     <div class="peso-pills" id="peso-pills-${lote}">
-      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPesoGrupo('${p}')">${p}</button>`).join('')}
+      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPesoGrupo('${p}')">${PESO_NETO_POR_PRES[p] || p}</button>`).join('')}
     </div>
     <div class="molienda-toggle">
       ${MOLIENDAS.map(m => `<button type="button" class="molienda-btn ${m === molienda ? 'activo' : ''}" onclick="cambiarMolienda('${lote}','${peso}','${m}', this)">${m}</button>`).join('')}

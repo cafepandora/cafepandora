@@ -681,6 +681,29 @@ carrito sin pisarse.
   Pasó con las subpestañas de "Detalle del mes" en Resumen
   (`cambiarResumenSubTab`), el selector de rango de las gráficas
   (`cambiarRango`) y el de "Mejores clientes" (`cambiarPeriodoClientes`).
+- `pintarNavRapida()` (los atajos ☕ Lavado · Honey · Natural · Exóticos
+  pegados arriba de `pedidos/index.html`) arma cada `href="#lote-..."`
+  con el nombre del lote en minúsculas — pero Honey y Natural NO tienen
+  su propia tarjeta, comparten una sola con `id="lote-honeynatural"` (ver
+  "Tarjeta-bolsa compartida (Honey/Natural)"). Si el link de Honey/Natural
+  apunta a `#lote-honey`/`#lote-natural` (que no existe), el clic no hace
+  nada — se queda estático, sin error en consola. Ya pasó una vez; el fix
+  fue que `pintarNavRapida()` redirija esos dos casos a
+  `lote-honeynatural` y además llame `elegirProceso(l)` en el `onclick`
+  para que el panel muestre el proceso correcto al llegar, no el que
+  haya quedado activo antes. Moraleja: cualquier `href`/`id` generado con
+  el mismo patrón `lote-${lote.toLowerCase()}` hay que revisarlo a mano
+  si el lote en cuestión vive agrupado con otro en una sola tarjeta.
+- El selector de peso de las tarjetas-bolsa (Lavado y Honey/Natural)
+  muestra el **peso neto** (`PESO_NETO_POR_PRES`: Media lb→250 gr,
+  Libra→500 gr, Kilo→1000 gr, Cuarterón→2500 gr) en vez del nombre de la
+  presentación — Juan pidió que fuera más claro en la elección. La clave
+  interna (`peso`, usada en `carrito`, `precioDe`, el resumen del pedido
+  y el mensaje de WhatsApp) sigue siendo el nombre de presentación de
+  siempre (`ORDEN_PRES`); solo la etiqueta que se ve en `.bolsa-peso-bar`
+  y en los `.peso-pill` pasa por `PESO_NETO_POR_PRES[peso] || peso`. Si
+  se agrega una presentación nueva, hay que sumarle su gramaje ahí
+  también o se va a ver el nombre de presentación como respaldo.
 - Los `const` de logos/firmas en base64 (`LOGO_B64`, `FIRMA_B64`,
   `FIRMA_INES_B64`, etc., todos cerca del inicio del `<script>`) están
   declarados con `const`, así que si agregas algo que los referencia
