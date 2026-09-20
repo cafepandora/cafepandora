@@ -619,8 +619,12 @@ const FIRMA_INES_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAWgAAACACAMAAAARWwO8AAAAYFBMVEX/
 // le debe (DEBE A), a qué cuenta bancaria consignar, y la firma
 // (`firma.b64` — cada quien tiene la suya, recortada de una foto real).
 const TITULARES_CUENTA_COBRO = {
-  juan: { label: 'Juan David', nombre: EMISOR_NOMBRE, cedula: EMISOR_CEDULA, cuentaBancaria: EMISOR_CUENTA_BANCARIA, firma: { b64: FIRMA_B64, ancho: 44, alto: 17.4 } },
-  ines: { label: 'Inés', nombre: 'Inés Alicia Roldán Cruz', cedula: 'C.C. 42063176', cuentaBancaria: 'CUENTA DE AHORROS - INÉS ALICIA ROLDÁN CRUZ.  03383964040', firma: { b64: FIRMA_INES_B64, ancho: 44, alto: 15.64 } },
+  // incluyeNombre: la firma de Juan ya trae su nombre y cédula escritos
+  // dentro de la misma imagen (viene de su membrete real). La de Inés es
+  // solo el trazo de la firma — su nombre y cédula se imprimen aparte,
+  // debajo de la imagen, para que el PDF quede completo igual que el de Juan.
+  juan: { label: 'Juan David', nombre: EMISOR_NOMBRE, cedula: EMISOR_CEDULA, cuentaBancaria: EMISOR_CUENTA_BANCARIA, firma: { b64: FIRMA_B64, ancho: 44, alto: 17.4, incluyeNombre: true } },
+  ines: { label: 'Inés', nombre: 'Inés Alicia Roldán Cruz', cedula: 'C.C. 42063176', cuentaBancaria: 'CUENTA DE AHORROS - INÉS ALICIA ROLDÁN CRUZ.  03383964040', firma: { b64: FIRMA_INES_B64, ancho: 44, alto: 15.64, incluyeNombre: false } },
 };
 const datosTitularCC = titular => TITULARES_CUENTA_COBRO[titular] || TITULARES_CUENTA_COBRO.juan;
 const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
@@ -1780,8 +1784,15 @@ function generarPdfCuentaCobro(cc, ciudad) {
   doc.text('PARA CONSTANCIA SE FIRMA A LOS ' + fechaTexto.toUpperCase(), ancho / 2, y, { align: 'center' }); y += 12;
 
   if (titular.firma) {
-    // Firma real de cada titular (incluye su nombre y cédula, recortada de una foto/membrete)
+    // Firma real de cada titular, recortada de una foto/membrete
     try { doc.addImage('data:image/png;base64,' + titular.firma.b64, 'PNG', 18, y, titular.firma.ancho, titular.firma.alto); } catch {}
+    if (!titular.firma.incluyeNombre) {
+      // Esta firma es solo el trazo — el nombre y cédula se escriben
+      // debajo, igual que ya vienen incluidos en la firma de Juan.
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(30);
+      doc.text(titular.nombre, 18, y + titular.firma.alto + 5);
+      doc.text(titular.cedula, 18, y + titular.firma.alto + 9.5);
+    }
   } else {
     // Sin firma escaneada — se deja el nombre y cédula escritos en el
     // espacio de la firma para que el documento quede completo.

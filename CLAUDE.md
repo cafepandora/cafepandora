@@ -347,11 +347,15 @@ cada orden hay un botón 📋 que prellena el formulario).
   bancarios del PDF. Ambos tienen **firma real recortada de una foto**
   (`FIRMA_B64` para Juan, del PDF de su membrete; `FIRMA_INES_B64` para
   Inés, de una foto que mandó — cada `titular.firma` en
-  `TITULARES_CUENTA_COBRO` trae `{ b64, ancho, alto }`, el alto varía
-  porque cada recorte tiene su propia proporción). Si algún día un
-  titular no tiene firma todavía, `generarPdfCuentaCobro()` cae a escribir
-  el nombre + cédula en el espacio de la firma en vez de una imagen
-  (rama `else` de `if (titular.firma)`).
+  `TITULARES_CUENTA_COBRO` trae `{ b64, ancho, alto, incluyeNombre }`, el
+  alto varía porque cada recorte tiene su propia proporción). La firma de
+  Juan ya trae su nombre y cédula escritos dentro de la misma imagen
+  (viene de su membrete real, `incluyeNombre: true`); la de Inés es solo
+  el trazo, así que `generarPdfCuentaCobro()` imprime su nombre y cédula
+  aparte, debajo de la imagen (`incluyeNombre: false`), para que el PDF
+  quede completo igual que el de Juan. Si algún día un titular no tiene
+  firma todavía, cae a escribir el nombre + cédula en el espacio de la
+  firma en vez de una imagen (rama `else` de `if (titular.firma)`).
 - Cada cuenta de cobro queda numerada (el `id` autoincremental de la tabla
   `cuentas_cobro`) y guardada en un historial con botón para volver a
   descargar el PDF sin tener que rehacerlo — la fila del historial muestra
