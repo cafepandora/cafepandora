@@ -759,6 +759,15 @@ const KG_POR_LIBRA_VENTA = 0.5; // la "libra" de Café Pandora son 500 g exactos
 // Días aproximados de secado desde la cosecha, según el proceso.
 const DIAS_SECADO = { Lavado: 7, Honey: 21, Natural: 35, Exotico: 35 };
 
+// Un cliente que ya compró 3+ veces (no es alguien probando) y lleva este
+// número de días o más sin volver a comprar café, se marca como "en riesgo
+// de fuga" en Resumen — ver clientesEnRiesgo().
+const DIAS_RIESGO_FUGA = 60;
+// Ventana de días hacia atrás para calcular qué tan rápido se está
+// vendiendo cada lote, y así proyectar cuánto dura el stock — ver
+// velocidadVentaLote().
+const DIAS_VELOCIDAD_INVENTARIO = 30;
+
 /* ---------- Rendimientos aprendidos de tus propios datos ----------
    Los factores de arriba son el punto de partida genérico. A medida que
    pesas pergamino real, verde real tras trillar, y registras tuestes, la app
@@ -3193,6 +3202,16 @@ async function guardarEdicionMaquila(id, btn) {
   await apiFetch('/api/ordenes-maquila/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios) });
 }
 
+// Texto de proyección de cuánto dura el stock actual, al ritmo de venta de
+// los últimos DIAS_VELOCIDAD_INVENTARIO días — null si casi no se ha
+// vendido nada de ese lote en la ventana (la proyección no diría nada útil).
+function proyeccionInventario(lote, stockLb) {
+  const vel = velocidadVentaLote(lote);
+  if (vel < 0.05) return null;
+  const dias = Number(stockLb) / vel;
+  if (dias > 90) return `Alcanza para más de 3 meses al ritmo actual`;
+  return `${dias < 1 ? '🔥 ' : ''}Se acaba en ~${Math.round(dias)} día${Math.round(dias) === 1 ? '' : 's'} al ritmo actual`;
+}
 function renderInventario() {
   document.getElementById('view-inventario').innerHTML = `
     <h3 class="section-title" style="margin-top:0">Stock de café tostado</h3>
@@ -3202,6 +3221,7 @@ function renderInventario() {
           <div class="icono">${ICONOS_LOTE[i.lote] || '☕'}</div>
           <div class="nombre">${i.lote}</div>
           <div class="stock">${Number(i.stockLb).toFixed(2)} kg</div>
+          ${proyeccionInventario(i.lote, i.stockLb) ? `<div style="font-size:12px;color:var(--cafe-soft);margin:2px 0 8px">${proyeccionInventario(i.lote, i.stockLb)}</div>` : ''}
           <button class="sec-btn" onclick="abrirEdicionInventario(${i.id})">Editar stock</button>
         </div>
       `).join('') || '<div class="empty">Aún no hay lotes cargados.</div>'}
@@ -4407,12 +4427,38 @@ function renderResumen() {
       <div class="chart-box"><canvas id="chartLotes"></canvas></div>
     </div>
 
+    <h3 class="section-title">Margen estimado por lote</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Todo el histórico, no solo este mes. Ingreso: lo vendido de cada lote. Costo: café comprado de ese proceso + una parte de los gastos de finca, repartida según cuántos kilos se cosecharon de cada uno — es un <b>estimado</b>, la finca no separa sus gastos por proceso.</p>
+    <div class="tabla-clientes">
+      <div class="fila-cliente encabezado"><span>Lote</span><span>Ingreso</span><span>Costo est.</span><span>Margen</span></div>
+      ${calcularMargenPorLote().map(m => `
+        <div class="fila-cliente">
+          <span class="nombre">${ICONOS_LOTE[m.lote] || '☕'} ${m.lote}</span>
+          <span>${fmt(m.ingreso)}</span>
+          <span>${fmt(m.costo)}</span>
+          <span class="dinero" style="color:${m.margen >= 0 ? 'var(--verde)' : 'var(--terracota)'}">${fmt(m.margen)}${m.margenPct != null ? ` (${m.margenPct.toFixed(0)}%)` : ''}</span>
+        </div>`).join('') || '<div class="empty">Sin datos suficientes todavía.</div>'}
+    </div>
+
     <h3 class="section-title">Mejores clientes</h3>
     <div class="rangos">
       ${[['semana','Semanal'],['mes','Mensual'],['ano','Anual']].map(([k,l]) =>
         `<button class="${periodoClientes===k?'active':''}" onclick="cambiarPeriodoClientes('${k}')">${l}</button>`).join('')}
     </div>
     <div id="bloqueMejoresClientes"></div>
+
+    <h3 class="section-title">Clientes que podrían estar dejando de comprar</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Compraron 3 veces o más antes, pero llevan ${DIAS_RIESGO_FUGA}+ días sin volver — ordenados por cuánto le han comprado históricamente.</p>
+    <div class="tabla-clientes">
+      <div class="fila-cliente encabezado"><span>Cliente</span><span>Compras</span><span>Última compra</span><span>Total histórico</span></div>
+      ${clientesEnRiesgo().map(c => `
+        <div class="fila-cliente">
+          <span class="nombre">${escapeHtml(c.nombre)}</span>
+          <span>${c.compras}</span>
+          <span>Hace ${c.dias} días</span>
+          <span class="dinero">${fmt(c.total)}</span>
+        </div>`).join('') || '<div class="empty">Ningún cliente frecuente lleva tanto tiempo sin comprar. 🎉</div>'}
+    </div>
 
     <h3 class="section-title">Balance de cuentas</h3>
     <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Lo que cada uno ha recibido (ventas + maquila ya pagadas) menos lo que ha pagado (gastos, finca, café comprado) — todo el tiempo, no solo este mes. Positivo: tiene plata del negocio en la mano. Negativo: el negocio le debe.</p>
@@ -4474,6 +4520,79 @@ function kilosDeVenta(v) {
   return 0;
 }
 const KG_PRESENTACION = { 'Media lb': 0.25, 'Libra': 0.5, 'Kilo': 1, 'Cuarterón': 2.5 };
+
+// Cuántos kilos de café, por lote, lleva una venta — igual que
+// kilosDeVenta() pero sin sumar todos los lotes en un solo número, para
+// poder medir qué tan rápido se vende CADA lote por separado.
+function kilosDeVentaPorLote(v) {
+  const out = {};
+  if (v.items && v.items.length && v.items[0] && v.items[0].tipo) {
+    v.items.filter(it => it.tipo === 'cafe' && it.lote && it.presentacion).forEach(it => {
+      out[it.lote] = (out[it.lote] || 0) + (KG_PRESENTACION[it.presentacion] || 0) * (Number(it.cantidad) || 0);
+    });
+  } else if (v.tipoVenta !== 'maquila' && v.lote && v.presentacion) {
+    out[v.lote] = (KG_PRESENTACION[v.presentacion] || 0) * (Number(v.cantidad) || 1);
+  }
+  return out;
+}
+// Kilos/día vendidos de un lote en los últimos DIAS_VELOCIDAD_INVENTARIO
+// días — usado para proyectar cuánto dura el stock actual (ver
+// renderInventario()).
+function velocidadVentaLote(lote) {
+  const desde = Date.now() - DIAS_VELOCIDAD_INVENTARIO * 86400000;
+  const kilos = state.ventas.filter(v => v.ts >= desde)
+    .reduce((s, v) => s + (kilosDeVentaPorLote(v)[lote] || 0), 0);
+  return kilos / DIAS_VELOCIDAD_INVENTARIO;
+}
+
+// Margen ESTIMADO por lote, con todo el histórico (no solo el mes filtrado
+// — igual que el balance de cuentas, porque lo que se vende un mes casi
+// nunca es lo que se cosechó ese mismo mes, comparar mes a mes daría un
+// número que no significa nada). Ingreso: suma real de lo vendido de cada
+// lote. Costo: cereza comprada de ese proceso (costo real, directo) MÁS
+// una porción de los gastos de finca, repartida proporcional a cuántos
+// kilos de cereza propia se cosecharon de cada proceso — es una
+// aproximación (la finca no separa sus gastos por proceso), no contabilidad
+// exacta, así que la UI lo deja claro como "estimado".
+function calcularMargenPorLote() {
+  const ingresoPorLote = {};
+  state.ventas.forEach(v => lotesDeVenta(v).forEach(([lote, val]) => {
+    ingresoPorLote[lote] = (ingresoPorLote[lote] || 0) + (Number(val) || 0);
+  }));
+  const kilosCosechaPorLote = {};
+  let kilosCosechaTotal = 0;
+  state.cosechas.forEach(c => {
+    const k = Number(c.kilosCereza) || 0;
+    kilosCosechaPorLote[c.proceso] = (kilosCosechaPorLote[c.proceso] || 0) + k;
+    kilosCosechaTotal += k;
+  });
+  const costoCerezaPorLote = {};
+  state.cerezaComprada.forEach(c => {
+    costoCerezaPorLote[c.proceso] = (costoCerezaPorLote[c.proceso] || 0) + (Number(c.costo) || 0);
+  });
+  const totalFinca = state.finca.reduce((s, f) => s + (Number(f.monto) || 0), 0);
+  return LOTES.map(lote => {
+    const ingreso = ingresoPorLote[lote] || 0;
+    const propKilos = kilosCosechaTotal > 0 ? (kilosCosechaPorLote[lote] || 0) / kilosCosechaTotal : 0;
+    const costo = (costoCerezaPorLote[lote] || 0) + totalFinca * propKilos;
+    const margen = ingreso - costo;
+    return { lote, ingreso, costo, margen, margenPct: ingreso > 0 ? (margen / ingreso) * 100 : null };
+  }).filter(x => x.ingreso > 0 || x.costo > 0);
+}
+
+// Clientes de café con 3+ compras (ya no están "probando") que llevan
+// DIAS_RIESGO_FUGA días o más sin volver a comprar — ordenados por cuánto
+// le han comprado históricamente, para priorizar a quién vale más la pena
+// contactar primero.
+function clientesEnRiesgo() {
+  const ahora = Date.now();
+  return listaClientes()
+    .filter(c => c.compras >= 3 && c.ultima)
+    .map(c => ({ ...c, dias: Math.floor((ahora - c.ultima.ts) / 86400000) }))
+    .filter(c => c.dias >= DIAS_RIESGO_FUGA)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+}
 
 // El lunes (00:00) de la semana a la que pertenece ts — así una "semana"
 // siempre va de lunes a lunes, sin aproximaciones de semana ISO.

@@ -655,6 +655,43 @@ función vieja que agrupaba por semana/mes/año para contar períodos) ya
 no se usa y se quitó — cada vista ahora filtra directo por su propio
 criterio en vez de agrupar genéricamente.
 
+## Margen por lote, clientes en riesgo de fuga, proyección de inventario
+
+Tres tarjetas nuevas (2026-09-21), pensadas para usar mejor datos que ya
+existían en vez de agregar nada nuevo que llenar a mano:
+
+- **Margen estimado por lote** (Resumen, `calcularMargenPorLote()`): como
+  el balance de cuentas, es TODO el histórico, no el mes filtrado —
+  comparar mes a mes no tendría sentido porque lo que se vende un mes casi
+  nunca es lo que se cosechó ese mismo mes (entre secado, trilla y tueste
+  pasan semanas). Ingreso: suma real de `lotesDeVenta()` por lote. Costo:
+  cereza comprada de ese proceso (costo real y directo, de
+  `compras_cereza`) MÁS una porción de los gastos de finca (`state.finca`,
+  TODOS, la finca no separa gasto por proceso) repartida proporcional a
+  cuántos kilos de cereza PROPIA se cosecharon de cada proceso — es una
+  aproximación tipo costeo por actividad, no contabilidad exacta, por eso
+  la tarjeta dice "estimado" en el texto de ayuda. Un lote con cosecha
+  pero sin ventas todavía (ej. Natural recién cosechado) sale con margen
+  negativo a propósito — sí tiene costo de finca asignado, pero $0 de
+  ingreso porque no se ha vendido nada; no es un error, es literal.
+- **Clientes que podrían estar dejando de comprar** (Resumen, justo debajo
+  de Mejores Clientes, `clientesEnRiesgo()`): clientes de café con 3+
+  compras (ya no están "probando") que llevan `DIAS_RIESGO_FUGA` (60) días
+  o más sin volver — usa `listaClientes()` tal cual, solo le agrega el
+  filtro de días. Ordenados por `total` histórico de mayor a menor (a
+  quién vale más la pena contactar primero), limitado a los 10 primeros.
+- **Proyección de inventario** (Inventario, `proyeccionInventario()` +
+  `velocidadVentaLote()`): bajo el stock de cada lote, un texto tipo "Se
+  acaba en ~12 días al ritmo actual", calculado con los kilos vendidos de
+  ese lote en los últimos `DIAS_VELOCIDAD_INVENTARIO` (30) días. Si la
+  velocidad es casi cero (<0.05 kg/día) no muestra nada — no tendría
+  sentido proyectar "dura 400 años" para un lote que casi no se mueve. Si
+  faltan más de 90 días dice "Alcanza para más de 3 meses" en vez de un
+  número exacto (a esa distancia el número ya no aporta, solo confirma que
+  no es urgente). Este es un cálculo aparte del aviso de stock bajo que ya
+  existía (`renderAlertaStock()`, fijo en <5 kg de Lavado) — ese sigue
+  igual, esto es un complemento, no lo reemplaza.
+
 ## Órdenes de maquila — orden de servicios y estado de entrega
 
 Los servicios de una orden de maquila (`mq-servicio`/`emq-servicio`, y el
