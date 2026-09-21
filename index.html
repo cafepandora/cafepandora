@@ -219,15 +219,12 @@
   }
 
   /* ---------- Controles globales ----------
-     Fijos arriba al hacer scroll (sticky) — antes había que volver hasta
-     el principio de la página para buscar algo, incómodo con listas
-     largas; ahora el buscador viaja con vos. Fondo sólido para que el
-     contenido no se transparente por debajo cuando queda pegado. */
-  .controles-globales {
-    display: flex; gap: 8px; margin-bottom: 14px;
-    position: sticky; top: 0; z-index: 30; background: var(--crema);
-    padding: 10px 0 8px; margin-top: -10px;
-  }
+     Se probó fijo arriba al hacer scroll (sticky) para no tener que subir
+     hasta el principio para buscar, pero Juan no quería que la barra
+     quedara "moviéndose" todo el tiempo en cada pestaña — se volvió a la
+     posición normal, y en cambio buscar abre un modal aparte (ver
+     abrirBusquedaModal) que no toca el scroll de la página de atrás. */
+  .controles-globales { display: flex; gap: 8px; margin-bottom: 14px; }
   .controles-globales input[type="month"] {
     flex: 0 0 160px; padding: 12px 12px; border: 1px solid var(--linea); border-radius: 10px;
     font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco); color: var(--cafe);
@@ -238,15 +235,7 @@
   }
   .controles-globales input[type="search"] {
     width: 100%; padding: 12px 12px 12px 36px; border: 1px solid var(--linea); border-radius: 10px;
-    font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco);
-  }
-  /* Debajo del ☰ (celular) que también es sticky y se queda fijo todo el
-     scroll — si no, se encimarían. Va DESPUÉS de la regla base (misma
-     especificidad, gana la última en el archivo) para no repetir el
-     gotcha de intentar sobreescribir top:0 desde un @media que queda
-     antes en el archivo. */
-  @media (max-width: 860px) {
-    .controles-globales { top: calc(126px + env(safe-area-inset-top)); }
+    font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco); cursor: pointer;
   }
 
   .subtabs { display: flex; gap: 6px; margin-bottom: 10px; }
@@ -613,7 +602,7 @@
       <input type="month" id="filtroMes">
       <div class="busqueda-wrap">
         <span class="icono-lupa">🔍</span>
-        <input type="search" id="filtroBusqueda" placeholder="Buscar cliente, lote, concepto…">
+        <input type="search" id="filtroBusqueda" placeholder="Buscar cliente, lote, concepto…" readonly onclick="abrirBusquedaModal()">
       </div>
     </div>
 
@@ -1140,7 +1129,13 @@ function autocompletarDesdeCliente() {
 let resumenSubTab = 'pagadas';
 let ventasSubTab = 'porEnviar';
 const POR_PAGINA = 8;
-const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1, ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, ventasBusqueda: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1 };
+const paginas = {
+  ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1,
+  ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1,
+  // Paginación propia del modal de búsqueda (abrirBusquedaModal) — separada
+  // de la de cada pestaña para no interferir con la página de atrás.
+  busquedaVentas: 1, busquedaMaquila: 1, busquedaGastos: 1, busquedaFinca: 1, busquedaCuentasCobro: 1, busquedaClientes: 1,
+};
 
 // Corta una lista ya ordenada a la página actual y devuelve el HTML de las
 // filas visibles más los controles de "Anterior / Siguiente".
@@ -1364,7 +1359,83 @@ document.querySelectorAll('button[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => irATab(btn.dataset.tab));
 });
 document.getElementById('filtroMes').addEventListener('change', renderActiva);
-document.getElementById('filtroBusqueda').addEventListener('input', renderActiva);
+// filtroBusqueda ya no dispara nada por sí solo — es de solo lectura y
+// abre abrirBusquedaModal() al tocarlo (ver su onclick en el HTML); el
+// que sí filtra en vivo es el input propio de ese modal.
+
+/* ================================================================
+   BUSCAR — modal aparte en vez de barra fija arriba.
+   Juan probó el buscador pegado arriba (sticky) y no le gustó que la
+   barra de mes/buscar se quedara "moviéndose" en todas las pestañas al
+   hacer scroll. En cambio, tocar el campo de búsqueda (siempre en su
+   lugar normal, de solo lectura) abre esta ventana aparte — la página
+   de atrás no se mueve ni se filtra mientras buscas. Los resultados
+   reutilizan la MISMA fila/botones (✎ editar, 📋 cuenta de cobro, etc.)
+   que ya existían en cada pestaña, así que puedes actuar sobre un
+   resultado sin salir del modal.
+================================================================ */
+let busquedaModalQuery = '';
+function abrirBusquedaModal() {
+  busquedaModalQuery = '';
+  abrirModal(`
+    <h3>Buscar</h3>
+    <div class="field" style="margin-bottom:10px">
+      <input type="search" id="busqueda-modal-input" placeholder="Buscar cliente, lote, concepto…">
+    </div>
+    <div id="busqueda-modal-resultados"></div>
+    <div class="modal-actions"><button class="sec-btn" style="width:100%" onclick="cerrarModal()">Cerrar</button></div>
+  `);
+  const input = document.getElementById('busqueda-modal-input');
+  input.addEventListener('input', () => { busquedaModalQuery = input.value; renderResultadosBusquedaModal(); });
+  input.focus();
+  renderResultadosBusquedaModal();
+}
+
+function renderResultadosBusquedaModal() {
+  const cont = document.getElementById('busqueda-modal-resultados');
+  if (!cont) return;
+  const q = busquedaModalQuery;
+  if (!q.trim()) {
+    cont.innerHTML = '<div class="empty">Escribe algo para buscar.</div>';
+    return;
+  }
+  const mes = document.getElementById('filtroMes').value || hoyMes();
+  const tab = state.tabActiva;
+
+  if (tab === 'ventas') {
+    const lista = state.ventas.filter(v => mesDe(v.ts) === mes &&
+      (coincide(v.cliente, q) || coincide(v.lote, q) || coincide(v.usuario, q) || coincide(detalleVenta(v), q)))
+      .sort((a, b) => b.ts - a.ts);
+    cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaVentas', v => filaVenta(v, false), 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
+  } else if (tab === 'maquila') {
+    const lista = state.ordenesMaquila.filter(o => mesDe(o.ts) === mes &&
+      (coincide(o.cliente, q) || coincide(detalleOrdenMaquila(o), q)))
+      .sort((a, b) => b.ts - a.ts);
+    cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaMaquila', o => filaOrdenMaquila(o, false), 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
+  } else if (tab === 'gastos') {
+    const lista = state.gastos.filter(g => mesDe(g.ts) === mes &&
+      (coincide(g.concepto, q) || coincide(g.categoria, q)))
+      .sort((a, b) => b.ts - a.ts);
+    cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaGastos', filaGasto, 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
+  } else if (tab === 'finca') {
+    const lista = state.finca.filter(f => mesDe(f.ts) === mes &&
+      (coincide(f.concepto, q) || coincide(f.categoria, q)))
+      .sort((a, b) => b.ts - a.ts);
+    cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaFinca', filaFinca, 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
+  } else if (tab === 'cuentas-cobro') {
+    const lista = state.cuentasCobro.filter(cc => coincide(cc.cliente, q) || coincide(String(cc.id), q));
+    cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaCuentasCobro', filaCuentaCobro, 'Ninguna cuenta de cobro coincide con esa búsqueda.')}</div>`;
+  } else if (tab === 'config') {
+    const lista = listaClientes().filter(c => coincide(c.nombre, q));
+    cont.innerHTML = `<div class="tabla-clientes">${paginar(lista, 'busquedaClientes', c => `
+      <div class="tarifa-row">
+        <div class="nombre" style="cursor:pointer" onclick="abrirFichaCliente('${escapeAttr(c.nombre).replace(/'/g,"\\'")}')">${escapeHtml(c.nombre)} <span style="font-weight:400;color:var(--cafe-soft);font-size:12px">(${c.compras} compra${c.compras===1?'':'s'})</span></div>
+        <button class="sec-btn" onclick="abrirRenombrarCliente('${escapeAttr(c.nombre).replace(/'/g,"\\'")}')">✎ Renombrar</button>
+      </div>`, 'Ningún cliente coincide con esa búsqueda.')}</div>`;
+  } else {
+    cont.innerHTML = '<div class="empty">Esta pestaña no tiene búsqueda.</div>';
+  }
+}
 
 /* ---------- Sidebar: colapsar en escritorio, cajón en celular ---------- */
 function alternarSidebar() {
@@ -2069,19 +2140,16 @@ function renderVentas() {
       <div>${anteriores.map(v => filaVenta(v, true)).join('')}</div>
     ` : ''}
 
-    <h3 class="section-title">${q.trim() ? 'Resultados de la búsqueda' : `Ventas de ${mes}`}</h3>
-    ${q.trim() ? '' : `
+    <h3 class="section-title">Ventas de ${mes}</h3>
     <div class="subtabs">
       <button class="${ventasSubTab==='porEnviar'?'active':''}" onclick="cambiarVentasSubTab('porEnviar')">📦 Por enviar (${porEnviar.length})</button>
       <button class="${ventasSubTab==='pagadas'?'active':''}" onclick="cambiarVentasSubTab('pagadas')">Pagadas (${pagadasDelMes.length})</button>
       <button class="${ventasSubTab==='porPagar'?'active':''}" onclick="cambiarVentasSubTab('porPagar')">Por pagar (${porPagarDelMes.length})</button>
-    </div>`}
+    </div>
     <div class="ledger">
-      ${q.trim()
-        ? paginar(delMesOrdenadas, 'ventasBusqueda', v => filaVenta(v, false), 'Nada coincide con esa búsqueda este mes.')
-        : `${ventasSubTab === 'porEnviar' ? paginar(porEnviar, 'ventasPorEnviar', v => filaVenta(v, false), 'Nada pendiente de envío este mes.') : ''}
+      ${ventasSubTab === 'porEnviar' ? paginar(porEnviar, 'ventasPorEnviar', v => filaVenta(v, false), 'Nada pendiente de envío este mes.') : ''}
       ${ventasSubTab === 'pagadas' ? paginar(pagadasDelMes, 'ventasPagadas', v => filaVenta(v, false), 'Sin ventas pagadas este mes.') : ''}
-      ${ventasSubTab === 'porPagar' ? paginar(porPagarDelMes, 'ventasPorPagar', v => filaVenta(v, false), 'Sin ventas por pagar este mes.') : ''}`}
+      ${ventasSubTab === 'porPagar' ? paginar(porPagarDelMes, 'ventasPorPagar', v => filaVenta(v, false), 'Sin ventas por pagar este mes.') : ''}
     </div>
   `;
   onLnLoteChange();
@@ -3159,22 +3227,24 @@ function renderGastos() {
     </div>
     <h3 class="section-title">Gastos de ${mes}</h3>
     <div class="ledger">
-      ${paginar(delMes.slice().sort((a,b)=>b.ts-a.ts), 'gastos', g => `
-        <div class="ledger-row">
-          <div class="main">
-            <div class="title">${escapeHtml(g.concepto)}</div>
-            <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)}${g.categoria === CATEGORIA_TRANSFERENCIA && g.transferidoA ? ' · ' + escapeHtml(g.pagadoPor || '?') + ' → ' + escapeHtml(g.transferidoA) : (g.pagadoPor ? ' · pagó ' + escapeHtml(g.pagadoPor) : (g.usuario ? ' · ' + escapeHtml(g.usuario) : ''))}</div>
-          </div>
-          <button class="tag ${g.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoGasto(${g.id})">${g.estado}</button>
-          <div class="amount neg">-${fmt(g.monto)}</div>
-          <div class="acciones">
-            <button onclick="abrirEdicionGasto(${g.id})">✎</button>
-            <button onclick="eliminarGasto(${g.id})">✕</button>
-          </div>
-        </div>
-      `, 'Sin gastos este mes.')}
+      ${paginar(delMes.slice().sort((a,b)=>b.ts-a.ts), 'gastos', filaGasto, 'Sin gastos este mes.')}
     </div>
   `;
+}
+function filaGasto(g) {
+  return `
+    <div class="ledger-row">
+      <div class="main">
+        <div class="title">${escapeHtml(g.concepto)}</div>
+        <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)}${g.categoria === CATEGORIA_TRANSFERENCIA && g.transferidoA ? ' · ' + escapeHtml(g.pagadoPor || '?') + ' → ' + escapeHtml(g.transferidoA) : (g.pagadoPor ? ' · pagó ' + escapeHtml(g.pagadoPor) : (g.usuario ? ' · ' + escapeHtml(g.usuario) : ''))}</div>
+      </div>
+      <button class="tag ${g.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoGasto(${g.id})">${g.estado}</button>
+      <div class="amount neg">-${fmt(g.monto)}</div>
+      <div class="acciones">
+        <button onclick="abrirEdicionGasto(${g.id})">✎</button>
+        <button onclick="eliminarGasto(${g.id})">✕</button>
+      </div>
+    </div>`;
 }
 async function registrarGasto(btn) {
   // Quien paga es quien está registrando el gasto — un solo desplegable
@@ -3278,22 +3348,24 @@ function renderFinca() {
     </div>
     <h3 class="section-title">Finca — ${mes}</h3>
     <div class="ledger">
-      ${paginar(delMes.slice().sort((a,b)=>b.ts-a.ts), 'finca', f => `
-        <div class="ledger-row">
-          <div class="main">
-            <div class="title">${escapeHtml(f.concepto)}</div>
-            <div class="meta">${new Date(Number(f.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(f.categoria)}${f.pagadoPor ? ' · pagó ' + escapeHtml(f.pagadoPor) : ''}</div>
-          </div>
-          <button class="tag ${f.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoFinca(${f.id})">${f.estado}</button>
-          <div class="amount neg">-${fmt(f.monto)}</div>
-          <div class="acciones">
-            <button onclick="abrirEdicionFinca(${f.id})">✎</button>
-            <button onclick="eliminarFinca(${f.id})">✕</button>
-          </div>
-        </div>
-      `, 'Sin movimientos de finca este mes.')}
+      ${paginar(delMes.slice().sort((a,b)=>b.ts-a.ts), 'finca', filaFinca, 'Sin movimientos de finca este mes.')}
     </div>
   `;
+}
+function filaFinca(f) {
+  return `
+    <div class="ledger-row">
+      <div class="main">
+        <div class="title">${escapeHtml(f.concepto)}</div>
+        <div class="meta">${new Date(Number(f.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(f.categoria)}${f.pagadoPor ? ' · pagó ' + escapeHtml(f.pagadoPor) : ''}</div>
+      </div>
+      <button class="tag ${f.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoFinca(${f.id})">${f.estado}</button>
+      <div class="amount neg">-${fmt(f.monto)}</div>
+      <div class="acciones">
+        <button onclick="abrirEdicionFinca(${f.id})">✎</button>
+        <button onclick="eliminarFinca(${f.id})">✕</button>
+      </div>
+    </div>`;
 }
 function abrirEdicionFinca(id) {
   const f = state.finca.find(x => x.id === id); if (!f) return;

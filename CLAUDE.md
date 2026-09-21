@@ -487,42 +487,72 @@ que declararse en `paginas` de entrada, con `1`, no asumir que se crea
 sola). Solo se hizo en Ventas (fue lo que se reportó) — Maquila no tiene
 pestañas de pago/envío que dividan la lista, así que no aplica ahí.
 
-**Buscador (`.controles-globales`) fijo arriba al hacer scroll, con
-lupa**: antes vivía solo al principio de cada pestaña — con una lista
-larga (Pagadas (41), por ejemplo) había que volver a scrollear hasta
-arriba del todo cada vez que querías buscar algo, incómodo. Ahora
-`.controles-globales` es `position: sticky; top: 0` (con fondo sólido
-`var(--crema)` para que el contenido no se transparente por debajo) y
-viaja fijo mientras scrolleas, sin importar en qué parte de la lista
-estés. El campo de búsqueda además tiene un ícono 🔍 (`.busqueda-wrap`,
-envuelve el `<input>` con el ícono posicionado absoluto encima) para que
-se note a simple vista que es un buscador, no solo un campo de texto.
+**Buscar abre un modal aparte, en vez de una barra fija arriba** — con
+historia: el primer intento (`.controles-globales` con
+`position: sticky; top: 0`, con ícono 🔍) resolvía el problema real
+("con una lista larga tocaba volver arriba del todo para buscar"), pero
+Juan lo probó y no le gustó que la barra de mes/buscar se quedara
+"moviéndose" todo el tiempo en cada pestaña al hacer scroll — pidió
+explícitamente que en vez de eso, buscar abriera "una ventana sobre
+todo, de solo búsqueda" que conservara los botones de cada fila
+(✎ editar, 📋 cuenta de cobro, etc.). `.controles-globales` volvió a
+`position: static` (normal, sin sticky) — el ícono 🔍 y `.busqueda-wrap`
+si se quedaron, ya no eran el problema.
 
-⚠️ *Dos gotchas de este cambio*:
-1. En celular, el `☰` (`.mobile-menu-btn`) YA es `position: sticky; top:
-   calc(66px + safe-area)` — si `.controles-globales` usa ese MISMO
-   `top`, los dos se pegan uno encima del otro en vez de uno debajo del
-   otro (sticky no los apila secuencialmente, cada uno se pega a SU
-   propio `top` sin importar el otro). Se le puso a
-   `.controles-globales` un `top` más grande en celular
-   (`calc(126px + safe-area)`, la altura del ☰ + margen) para que quede
-   debajo, no encima.
-2. Esa regla del `top` en celular hay que declararla DESPUÉS de la regla
-   base de `.controles-globales` en el archivo — put earlier (dentro del
-   `@media` de 860px que está cerca del principio del `<style>`) el
-   `top:0` de la regla base (que vive más abajo, en la sección "Controles
-   globales") GANABA por ser la última en el archivo con la misma
-   especificidad, sin importar que el `@media` "debería" aplicar. Mismo
-   tipo de gotcha de cascada CSS que ya había pasado antes con otras
-   cosas — cuando algo con `@media` no parece estar aplicando, revisar el
-   ORDEN en el archivo, no solo si la condición del media query hace
-   match.
+`#filtroBusqueda` (el campo de siempre, arriba de cada pestaña) ahora es
+`readonly` y solo sirve de botón: `onclick="abrirBusquedaModal()"` — ya
+no dispara nada por su cuenta (se le quitó su listener de `input`).
+`abrirBusquedaModal()` abre un modal (reutilizando `abrirModal()`, el
+mismo de siempre) con su PROPIO `<input>` nuevo
+(`#busqueda-modal-input`, una variable JS aparte `busquedaModalQuery`,
+NO el mismo nodo del DOM movido de un lado a otro — mover el nodo real
+sonaba elegante pero es peligroso: `abrirModal()` hace
+`modalBox.innerHTML = html`, así que si el buscador estuviera parado
+DENTRO de `modalBox` y alguien abre OTRO modal desde ahí —ej. tocás
+✎ Editar en un resultado— ese `innerHTML` lo destruye para siempre. Con
+un input nuevo y separado no hay ese riesgo). Cada tecla llama a
+`renderResultadosBusquedaModal()`, que mira `state.tabActiva` y filtra
++ pinta usando la MISMA lista y la MISMA fila que ya existían en esa
+pestaña:
+
+- Ventas → `filaVenta()`, Maquila → `filaOrdenMaquila()` (ya eran
+  funciones aparte, no hizo falta tocarlas).
+- Gastos/Finca no tenían su fila en una función aparte (vivía inline
+  dentro de `renderGastos()`/`renderFinca()`) — se sacaron a
+  `filaGasto()`/`filaFinca()` para que el modal las pueda reusar sin
+  duplicar HTML; `renderGastos()`/`renderFinca()` ahora también llaman
+  a esas mismas funciones.
+- Cuentas de cobro → `filaCuentaCobro()` (ya existía aparte).
+- Config → Clientes usa su propia fila chiquita (nombre + botón
+  "✎ Renombrar"), calcada de la que ya tenía `bloqueClientes`.
+
+Como los botones de cada fila (editar, cuenta de cobro, eliminar…) son
+los de SIEMPRE, tocar uno desde el modal de búsqueda simplemente abre
+el modal de edición de siempre (mismo `abrirModal()` compartido,
+reemplaza el contenido) — no hizo falta ninguna plomería extra para
+que funcionaran desde ahí.
+
+Como `filtroBusqueda.value` ya nunca cambia por su cuenta (queda
+siempre vacío), las funciones `renderVentas()`/`renderMaquila()`/etc.
+que todavía leen `const q = document.getElementById('filtroBusqueda').value`
+para filtrar SU propia lista en la pestaña normal (no el modal) ahora
+reciben siempre `q = ''` — `coincide(x, '')` da `true` siempre, así que
+esas listas se ven normales, sin filtrar, como si nunca hubieras
+buscado nada — es el comportamiento correcto (la pestaña de atrás no se
+mueve mientras buscás), no hizo falta limpiar esas líneas, solo quedaron
+inertes a propósito.
+
+Paginación del modal aparte de la de cada pestaña (`paginas.busquedaVentas`,
+`.busquedaMaquila`, `.busquedaGastos`, `.busquedaFinca`,
+`.busquedaCuentasCobro`, `.busquedaClientes`) — para no pisar en qué
+página estabas parado en la lista normal si abrís el buscador y lo
+cerrás sin tocar nada.
 
 `TABS_CON_BUSQUEDA` (qué pestañas muestran el buscador) sigue igual,
-pero ahora esconde/muestra `.busqueda-wrap` completo (el `<input>` Y el
-ícono juntos) — antes solo escondía el `<input>`, así que en pestañas
-sin buscador (como Resumen) quedaba el ícono 🔍 flotando solo, sin campo
-al lado.
+esconde/muestra `.busqueda-wrap` completo (el `<input>` Y el ícono
+juntos) — antes solo escondía el `<input>`, así que en pestañas sin
+buscador (como Resumen) quedaba el ícono 🔍 flotando solo, sin campo al
+lado.
 
 **Pagos parciales de Distribuidores, paquete por paquete**: un
 Distribuidor a veces va pagando a medida que vende, no todo el pedido de
