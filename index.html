@@ -4132,6 +4132,10 @@ function renderResumen() {
   const totalMovimientosInternos = gastosMes.filter(g => !esGastoOperativo(g)).reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const totalFinca = fincaMes.reduce((s, f) => s + (Number(f.monto) || 0), 0);
   const balance = cobrado - totalGastos - totalFinca;
+  // Libras (de 500 g, la "libra" de Café Pandora) de café vendidas este
+  // mes, sin importar la presentación de cada línea — Media lb/Libra/
+  // Kilo/Cuarterón se convierten todas a la misma unidad para sumarlas.
+  const librasVendidas = ventasMes.reduce((s, v) => s + kilosDeVenta(v), 0) / KG_POR_LIBRA_VENTA;
 
   const porLote = {};
   ventasMes.forEach(v => {
@@ -4175,6 +4179,7 @@ function renderResumen() {
     <div class="stat-grid" style="margin-bottom:18px">
       <div class="stat"><div class="n ${balance >= 0 ? 'pos' : 'neg'}">${fmt(balance)}</div><div class="l">Balance real del mes (cobrado − gastos − finca)</div></div>
       <div class="stat"><div class="n pos">${fmt(facturadoMaquila)}</div><div class="l">Dinero de maquila este mes (${maquilaMes.length} orden${maquilaMes.length===1?'':'es'}, ya incluido arriba)</div></div>
+      <div class="stat"><div class="n">${librasVendidas.toFixed(1)}</div><div class="l">Libras de café vendidas este mes (todas las presentaciones)</div></div>
     </div>
     <h3 class="section-title">Comportamiento en el tiempo</h3>
     <div class="rangos">
@@ -4922,9 +4927,9 @@ function exportarExcel() {
 
   const hojaResumen = {
     name: 'Resumen mensual',
-    cols: [10, 16, 16, 16, 16, 14, 16, 14, 16],
+    cols: [10, 16, 16, 16, 16, 14, 16, 14, 16, 14],
     rows: [
-      [HEAD('Mes'), HEAD('Ventas café'), HEAD('Maquila'), HEAD('Total facturado'), HEAD('Cobrado'), HEAD('Por cobrar'), HEAD('Gastos'), HEAD('Finca'), HEAD('Balance')],
+      [HEAD('Mes'), HEAD('Ventas café'), HEAD('Maquila'), HEAD('Total facturado'), HEAD('Cobrado'), HEAD('Por cobrar'), HEAD('Gastos'), HEAD('Finca'), HEAD('Balance'), HEAD('Libras vendidas')],
       ...meses.map(mm => {
         const vMes = state.ventas.filter(v => mesDe(v.ts) === mm);
         const oMes = state.ordenesMaquila.filter(o => mesDe(o.ts) === mm);
@@ -4937,7 +4942,8 @@ function exportarExcel() {
         const totalGastos = gMes.filter(esGastoOperativo).reduce((s,g)=>s+(Number(g.monto)||0),0);
         const totalFinca = fMes.reduce((s,f)=>s+(Number(f.monto)||0),0);
         const facturado = factVentas + factMaquila;
-        return [mm, MONEY(factVentas), MONEY(factMaquila), MONEY_B(facturado), MONEY(cobrado), MONEY(facturado-cobrado), MONEY(totalGastos), MONEY(totalFinca), MONEY_B(cobrado-totalGastos-totalFinca)];
+        const libras = vMes.reduce((s,v)=>s+kilosDeVenta(v),0) / KG_POR_LIBRA_VENTA;
+        return [mm, MONEY(factVentas), MONEY(factMaquila), MONEY_B(facturado), MONEY(cobrado), MONEY(facturado-cobrado), MONEY(totalGastos), MONEY(totalFinca), MONEY_B(cobrado-totalGastos-totalFinca), NUM2(libras)];
       }),
     ],
   };
