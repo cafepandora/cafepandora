@@ -318,6 +318,16 @@
   .ledger-row .main .title { font-weight: 700; }
   .ledger-row .main .meta { font-size: 14px; color: var(--cafe-soft); margin-top: 3px; }
   .ledger-row .main .details { font-size: 14px; color: var(--cafe); margin-top: 2px; font-style: italic; opacity: .8; }
+  /* Pagos parciales por paquete (solo Distribuidor) — dentro de .main
+     para no sumarse como otro hijo flex de .ledger-row (mismo tipo de
+     problema de ancho que ya pasó con .tag/.amount/.acciones). */
+  .pagado-stepper { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--cafe-soft); }
+  .pagado-stepper button {
+    background: var(--crema-alt); border: 1px solid var(--linea); color: var(--cafe);
+    font-size: 16px; font-weight: 700; cursor: pointer; border-radius: 8px;
+    min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pagado-stepper button:disabled { opacity: .4; cursor: not-allowed; }
   .ledger-row .amount { font-weight: 700; font-size: 17.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ledger-row .amount.pos { color: var(--verde); }
   .ledger-row .amount.neg { color: var(--terracota); }
@@ -2176,14 +2186,30 @@ function detalleVenta(v) {
   return '';
 }
 
+// Para un Distribuidor que va pagando paquete por paquete: si ya pagó
+// ALGO pero no TODO, muestra cuánto lleva — null si no aplica (no es
+// Distribuidor, no tiene líneas de café, o está en 0 o en el 100%, casos
+// donde el tag de Pagado/Pendiente de siempre ya cuenta la historia solita).
+function resumenPaquetesDistribuidor(v) {
+  if (v.tipoCliente !== 'Distribuidor' || v.estado === 'Pagado') return null;
+  const items = (v.items || []).filter(it => it.tipo === 'cafe');
+  if (!items.length) return null;
+  const total = items.reduce((s, it) => s + (Number(it.cantidad) || 0), 0);
+  const pagadas = items.reduce((s, it) => s + Math.min(Number(it.cantidadPagada) || 0, Number(it.cantidad) || 0), 0);
+  if (!total || pagadas <= 0) return null;
+  return { pagadas, total };
+}
+
 function filaVenta(v, esDeuda) {
   const envioPendiente = v.estadoEnvio !== 'Enviado';
+  const paquetes = resumenPaquetesDistribuidor(v);
   return `
     <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''} ${envioPendiente ? 'envio-pendiente' : ''}">
       <div class="main">
         <div class="title">${escapeHtml(v.cliente || 'Venta directa')} ${v.origenWeb ? '<span class="badge-web">🌐 Pedido web</span>' : ''}</div>
         <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')}${v.recibidoPor ? ' · recibió ' + escapeHtml(v.recibidoPor) : (v.usuario ? ' · ' + escapeHtml(v.usuario) : '')} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
         <div class="details">${escapeHtml(detalleVenta(v))}</div>
+        ${paquetes ? `<div class="meta" style="color:var(--azul);font-weight:700">📦 ${paquetes.pagadas} de ${paquetes.total} paquetes pagados</div>` : ''}
         <div style="margin-top:5px"><button class="tag ${envioPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEnvio(${v.id})">${envioPendiente ? '📦 Pendiente de envío' : '✅ Enviado'}</button></div>
       </div>
       <button class="tag ${v.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoVenta(${v.id})">${v.estado}</button>
@@ -2507,18 +2533,51 @@ function quitarDeEdicion(i) {
   pintarEdicionCarrito();
 }
 
+// Distribuidores a veces van pagando paquete por paquete a medida que
+// venden, en vez de pagar el pedido completo de una — esto solo aplica a
+// líneas de café (no tiene sentido para maquila) y solo se ofrece cuando
+// el pedido es de un Distribuidor.
 function pintarEdicionCarrito() {
   const lista = document.getElementById('em-lista');
   if (!lista) return;
+  const esDistribuidor = editTipoCliente === 'Distribuidor';
   lista.innerHTML = editCarrito.length
-    ? editCarrito.map((it, i) => `
+    ? editCarrito.map((it, i) => {
+        const pagadas = Math.min(Number(it.cantidadPagada) || 0, Number(it.cantidad) || 0);
+        return `
       <div class="ledger-row">
-        <div class="main"><div class="title">${it.tipo === 'cafe' ? `${escapeHtml(it.lote)} · ${escapeHtml(it.presentacion)} × ${it.cantidad}` : `${escapeHtml(it.servicio)} ${it.presentacion ? it.cantidad + ' ' + escapeHtml(it.presentacion) : it.cantidad + 'kg'}`}</div></div>
+        <div class="main">
+          <div class="title">${it.tipo === 'cafe' ? `${escapeHtml(it.lote)} · ${escapeHtml(it.presentacion)} × ${it.cantidad}` : `${escapeHtml(it.servicio)} ${it.presentacion ? it.cantidad + ' ' + escapeHtml(it.presentacion) : it.cantidad + 'kg'}`}</div>
+          ${esDistribuidor && it.tipo === 'cafe' ? `
+            <div class="pagado-stepper">
+              <span>Pagado ${pagadas} de ${it.cantidad}</span>
+              <button type="button" onclick="cambiarPagadoItem(${i},-1)" ${pagadas <= 0 ? 'disabled' : ''}>−</button>
+              <button type="button" onclick="cambiarPagadoItem(${i},1)" ${pagadas >= it.cantidad ? 'disabled' : ''}>+</button>
+            </div>` : ''}
+        </div>
         <div class="amount pos">${fmt(it.valor)}</div>
         <div class="acciones"><button onclick="quitarDeEdicion(${i})" title="Quitar">✕</button></div>
-      </div>`).join('')
+      </div>`;
+      }).join('')
     : '<div class="empty">Sin líneas — agrega la primera abajo.</div>';
   document.getElementById('em-total').textContent = fmt(editCarrito.reduce((s, it) => s + (Number(it.valor) || 0), 0));
+}
+
+function cambiarPagadoItem(i, delta) {
+  const it = editCarrito[i]; if (!it) return;
+  const actual = Number(it.cantidadPagada) || 0;
+  it.cantidadPagada = Math.max(0, Math.min(Number(it.cantidad) || 0, actual + delta));
+  pintarEdicionCarrito();
+  // Si con este cambio quedó todo pagado, sugiere pasar el pedido a
+  // Pagado (sin forzarlo — el equipo puede corregir Quién recibió ahí
+  // mismo antes de guardar).
+  const itemsCafe = editCarrito.filter(x => x.tipo === 'cafe');
+  const todoPagado = itemsCafe.length && itemsCafe.every(x => (Number(x.cantidadPagada) || 0) >= (Number(x.cantidad) || 0));
+  const estadoSel = document.getElementById('m-estado');
+  if (todoPagado && estadoSel && estadoSel.value !== 'Pagado') {
+    estadoSel.value = 'Pagado';
+    toast('Ya quedaron pagados todos los paquetes — se pasó el pedido a Pagado, revisa Quién recibió antes de guardar.');
+  }
 }
 
 async function guardarEdicionVenta(id, btn) {
@@ -4341,6 +4400,23 @@ function inicioSemana(ts) {
    pantalla, el balance arrancaba en $0 para todos y se veía como si el
    negocio le debiera a todo el mundo, aunque en la vida real cada uno ya
    tenía su propia plata guardada antes de usar la app. */
+// Cuánto de una venta ya está efectivamente pagado. Para la mayoría de
+// ventas es el valor completo (si quedó "Pagado") o $0 (si no) — pero un
+// Distribuidor puede ir pagando paquete por paquete (ver ✎ Editar,
+// pagado-stepper) sin que el pedido entero pase a "Pagado" todavía, así
+// que ahí se cuenta solo la parte de cada línea que ya tiene
+// cantidadPagada, aunque el pedido como un todo siga "Pendiente".
+function valorPagadoVenta(v) {
+  if (v.estado === 'Pagado') return Number(v.valor) || 0;
+  return (v.items || []).reduce((s, it) => {
+    if (it.tipo !== 'cafe') return s;
+    const cantidad = Number(it.cantidad) || 0;
+    const pagadas = Math.min(Number(it.cantidadPagada) || 0, cantidad);
+    if (!cantidad || !pagadas) return s;
+    return s + (Number(it.valor) || 0) * (pagadas / cantidad);
+  }, 0);
+}
+
 function calcularBalancePersonas() {
   const totalRetiros = state.gastos
     .filter(g => g.categoria === CATEGORIA_RETIRO && g.estado === 'Pagado')
@@ -4348,7 +4424,7 @@ function calcularBalancePersonas() {
   const transferencias = state.gastos.filter(g => g.categoria === CATEGORIA_TRANSFERENCIA && g.estado === 'Pagado');
 
   return CUENTAS_BALANCE.map(persona => {
-    const recibidoVentas = state.ventas.filter(v => v.recibidoPor === persona && v.estado === 'Pagado').reduce((s, v) => s + (Number(v.valor) || 0), 0);
+    const recibidoVentas = state.ventas.filter(v => v.recibidoPor === persona).reduce((s, v) => s + valorPagadoVenta(v), 0);
     const recibidoMaquila = state.ordenesMaquila.filter(o => o.recibidoPor === persona && o.estado === 'Pagado').reduce((s, o) => s + (Number(o.valor) || 0), 0);
     const recibidoRetiros = persona === 'Efectivo' ? totalRetiros : 0;
     const recibidoTransferencias = transferencias.filter(g => g.transferidoA === persona).reduce((s, g) => s + (Number(g.monto) || 0), 0);
@@ -4368,7 +4444,7 @@ function calcularBalancePersonas() {
 // alguno que se coló por otro camino) para que se corrija a mano.
 function listaHuerfanos() {
   return {
-    ventas: state.ventas.filter(v => v.estado === 'Pagado' && !v.recibidoPor),
+    ventas: state.ventas.filter(v => valorPagadoVenta(v) > 0 && !v.recibidoPor),
     maquila: state.ordenesMaquila.filter(o => o.estado === 'Pagado' && !o.recibidoPor),
     gastos: state.gastos.filter(g => g.estado === 'Pagado' && !g.pagadoPor),
     finca: state.finca.filter(f => f.estado === 'Pagado' && !f.pagadoPor),

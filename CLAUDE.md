@@ -524,6 +524,36 @@ pero ahora esconde/muestra `.busqueda-wrap` completo (el `<input>` Y el
 sin buscador (como Resumen) quedaba el ícono 🔍 flotando solo, sin campo
 al lado.
 
+**Pagos parciales de Distribuidores, paquete por paquete**: un
+Distribuidor a veces va pagando a medida que vende, no todo el pedido de
+una — así que un pedido con `tipoCliente === 'Distribuidor'` puede
+quedar "Pendiente" en general pero con ALGUNOS paquetes ya pagados.
+Cada línea de café de `venta.items[]` ganó un campo nuevo opcional
+`cantidadPagada` (nada de migración — `items` ya era una columna jsonb
+genérica, así que el campo nuevo se guarda solo). Se edita SOLO desde
+✎ Editar (`abrirEdicionVenta()` → `pintarEdicionCarrito()`), no al
+registrar el pedido — cada línea de café muestra, solo si
+`editTipoCliente === 'Distribuidor'`, un `.pagado-stepper` ("Pagado 3 de
+10" con −/+) que llama a `cambiarPagadoItem(i, delta)`. Si con un clic
+quedan TODOS los paquetes pagados, el desplegable "Estado" salta solo a
+"Pagado" (con un toast avisando) — pero sigue siendo editable, no se
+fuerza a guardar así ni se salta el guardarraíl de "elige quién recibió"
+si falta.
+
+`valorPagadoVenta(v)` es la función nueva que todo lo demás usa para
+saber cuánto de una venta ya es plata real: si `estado === 'Pagado'`
+devuelve el valor completo (como siempre); si no, suma
+`valor × (cantidadPagada / cantidad)` de cada línea de café — $0 para
+cualquier venta que nunca usó el stepper. **`calcularBalancePersonas()`
+y `listaHuerfanos()` se actualizaron para usar esto** — antes
+`recibidoVentas` solo contaba ventas con `estado === 'Pagado'` a valor
+completo; ahora un Distribuidor con 3 de 10 paquetes pagados ya suma esa
+parte al balance de quien la recibió, sin esperar a que pague el
+pedido completo. El indicador "📦 X de Y paquetes pagados" en
+`filaVenta()` (color azul, junto al de envío) solo aparece cuando hay
+ALGO pagado pero no TODO — en $0 o al 100% el tag de siempre
+(Pendiente/Pagado) ya cuenta toda la historia, no hace falta duplicar.
+
 ## Mejores clientes — Semanal/Mensual/Anual, cada uno con reglas distintas
 
 `renderMejoresClientes()` (Resumen) rediseñado — antes las 3 vistas
