@@ -5262,6 +5262,179 @@ function dibujarGraficos(mesBase) {
 /* ================================================================
    CONFIGURACIÓN / MAQUILA
 ================================================================ */
+/* ================================================================
+   CONCILIACIÓN BANCARIA — sube el extracto que descargas de tu banco
+   (CSV) y lo compara contra lo ya registrado en la app, para encontrar
+   transferencias que falten por anotar o que no cuadren. Todo pasa en el
+   navegador: no se guarda nada en Supabase, no hay migración ni endpoint
+   nuevo — es un reporte de una sola vez, cada vez que se sube un archivo.
+================================================================ */
+let extractoCSV = null; // { headers, filas } del último archivo leído
+
+// Separador por comas o por punto y coma (varía según el banco) — se
+// detecta contando cuál aparece más veces en el encabezado. Comillas se
+// usan para poder tener el separador dentro de un campo (ej. una
+// descripción con comas).
+function parsearCSV(texto) {
+  const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+  if (!lineas.length) return [];
+  const delim = (lineas[0].split(';').length > lineas[0].split(',').length) ? ';' : ',';
+  return lineas.map(linea => {
+    const out = []; let actual = ''; let enComillas = false;
+    for (let i = 0; i < linea.length; i++) {
+      const ch = linea[i];
+      if (ch === '"') { enComillas = !enComillas; continue; }
+      if (ch === delim && !enComillas) { out.push(actual.trim()); actual = ''; continue; }
+      actual += ch;
+    }
+    out.push(actual.trim());
+    return out;
+  });
+}
+// Adivina cuál columna es cuál por el nombre del encabezado, para
+// preseleccionar los desplegables — el usuario los puede corregir si
+// adivinó mal (bancos distintos usan nombres distintos).
+function adivinarColumna(headers, palabras) {
+  const idx = headers.findIndex(h => palabras.some(p => normalizar(h).includes(normalizar(p))));
+  return idx === -1 ? 0 : idx;
+}
+function parsearFechaExtracto(s) {
+  s = String(s || '').trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+  return null;
+}
+// Formato colombiano (punto de miles, coma decimal) igual que numeroCO()
+// del precio FNC — aquí aparte porque este vive en el frontend, no en
+// functions/. Siempre devuelve el valor absoluto: no tratamos de adivinar
+// si el banco representa gastos con signo negativo o con una columna
+// aparte, eso varía demasiado de un banco a otro.
+function parsearValorExtracto(s) {
+  const limpio = String(s || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  return Math.abs(Number(limpio)) || 0;
+}
+
+async function cargarExtractoBanco(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const texto = await file.text();
+  const filas = parsearCSV(texto);
+  if (filas.length < 2) { toast('El archivo está vacío o no se pudo leer.'); return; }
+  extractoCSV = { headers: filas[0], filas: filas.slice(1) };
+  renderConfig();
+}
+
+// Todo lo que ya está marcado Pagado en el mes elegido y con un método
+// que SÍ pasa por el banco (no Efectivo — eso nunca va a aparecer en un
+// extracto). Se compara por valor absoluto: no importa si es un ingreso
+// (venta/maquila) o un egreso (gasto/finca), el extracto trae ambos
+// mezclados y los bancos no siempre marcan el signo del mismo modo.
+function registrosBancariosDelMes(mes) {
+  const out = [];
+  state.ventas.filter(v => v.estado === 'Pagado' && mesDe(v.ts) === mes && v.metodo !== 'Efectivo')
+    .forEach(v => out.push({ tipo: 'Venta', nombre: v.cliente || 'Venta', valor: Number(v.valor) || 0, ts: v.ts }));
+  state.ordenesMaquila.filter(o => o.estado === 'Pagado' && mesDe(o.ts) === mes && o.metodo !== 'Efectivo')
+    .forEach(o => out.push({ tipo: 'Maquila', nombre: o.cliente || 'Maquila', valor: Number(o.valor) || 0, ts: o.ts }));
+  state.gastos.filter(g => g.estado === 'Pagado' && mesDe(g.ts) === mes && g.pagadoPor !== 'Efectivo' && esGastoOperativo(g))
+    .forEach(g => out.push({ tipo: 'Gasto', nombre: g.concepto || 'Gasto', valor: Number(g.monto) || 0, ts: g.ts }));
+  state.finca.filter(f => f.estado === 'Pagado' && mesDe(f.ts) === mes)
+    .forEach(f => out.push({ tipo: 'Finca', nombre: f.concepto || 'Finca', valor: Number(f.monto) || 0, ts: f.ts }));
+  return out;
+}
+
+// Empareja cada fila del extracto con el registro más cercano de la app
+// por VALOR (exacto, tolerancia de $1 por redondeo) y FECHA (±3 días, el
+// banco a veces consigna un día después de lo registrado) — el primero
+// que calce se marca usado y no vuelve a competir por otra fila.
+function conciliarExtracto(idxFecha, idxDesc, idxValor, mes) {
+  const registros = registrosBancariosDelMes(mes);
+  const usados = new Set();
+  const coincidencias = [];
+  const sinApp = [];
+  extractoCSV.filas.forEach(fila => {
+    const ts = parsearFechaExtracto(fila[idxFecha]);
+    const valor = parsearValorExtracto(fila[idxValor]);
+    if (!valor) return; // fila sin valor (ej. línea de saldo/encabezado repetido) — se ignora
+    const idx = registros.findIndex((r, i) =>
+      !usados.has(i) && Math.abs(r.valor - valor) < 1 && (ts == null || Math.abs(r.ts - ts) <= 3 * 86400000));
+    if (idx !== -1) { usados.add(idx); coincidencias.push({ fila, desc: fila[idxDesc], registro: registros[idx] }); }
+    else sinApp.push({ fila, desc: fila[idxDesc], ts, valor });
+  });
+  const sinExtracto = registros.filter((r, i) => !usados.has(i));
+  return { coincidencias, sinApp, sinExtracto };
+}
+
+function bloqueConciliacion() {
+  const mes = document.getElementById('filtroMes').value || hoyMes();
+  if (!extractoCSV) {
+    return `
+      <h3 class="section-title" style="margin-top:0">Conciliar extracto bancario</h3>
+      <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Sube el extracto (.csv) que descargas de tu banco para <b>${mes}</b> (el mes elegido arriba) y compáralo con lo ya registrado en la app — para encontrar transferencias que falten por anotar o que no cuadren. No se guarda nada, es solo un reporte de una vez cada vez que subes un archivo.</p>
+      <input type="file" accept=".csv,text/csv" onchange="cargarExtractoBanco(event)">
+    `;
+  }
+  const { headers } = extractoCSV;
+  const iFecha = adivinarColumna(headers, ['fecha', 'date']);
+  const iDesc = adivinarColumna(headers, ['descripcion', 'descripción', 'detalle', 'concepto', 'referencia', 'observacion', 'observación']);
+  const iValor = adivinarColumna(headers, ['valor', 'monto', 'importe', 'debito', 'débito', 'credito', 'crédito', 'amount']);
+  const opciones = sel => headers.map((h, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(h || '(columna ' + (i + 1) + ')')}</option>`).join('');
+
+  return `
+    <h3 class="section-title" style="margin-top:0">Conciliar extracto bancario</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">${extractoCSV.filas.length} filas leídas. Revisa que las 3 columnas de abajo sean las correctas (se adivinan solas, pero cada banco las llama distinto) y compara contra <b>${mes}</b>.</p>
+    <div class="row">
+      <div class="field"><label>Columna de fecha</label><select id="cb-fecha">${opciones(iFecha)}</select></div>
+      <div class="field"><label>Columna de descripción</label><select id="cb-desc">${opciones(iDesc)}</select></div>
+      <div class="field"><label>Columna de valor</label><select id="cb-valor">${opciones(iValor)}</select></div>
+    </div>
+    <div class="row">
+      <button class="add-btn" onclick="ejecutarConciliacion()">Comparar</button>
+      <button class="sec-btn" onclick="extractoCSV=null;renderConfig()">Subir otro archivo</button>
+    </div>
+    <div id="conciliar-resultado"></div>
+  `;
+}
+
+function ejecutarConciliacion() {
+  const mes = document.getElementById('filtroMes').value || hoyMes();
+  const iFecha = Number(document.getElementById('cb-fecha').value);
+  const iDesc = Number(document.getElementById('cb-desc').value);
+  const iValor = Number(document.getElementById('cb-valor').value);
+  const { coincidencias, sinApp, sinExtracto } = conciliarExtracto(iFecha, iDesc, iValor, mes);
+  const cont = document.getElementById('conciliar-resultado');
+  if (!cont) return;
+  cont.innerHTML = `
+    <h4 style="margin:16px 0 6px;color:var(--verde)">✅ Coinciden (${coincidencias.length})</h4>
+    <div class="ledger">
+      ${coincidencias.map(c => `
+        <div class="ledger-row">
+          <div class="main"><div class="title">${escapeHtml(c.registro.nombre)}</div><div class="meta">${c.registro.tipo} · ${new Date(Number(c.registro.ts)).toLocaleDateString('es-CO')} · extracto: ${escapeHtml(c.desc || '')}</div></div>
+          <div class="amount">${fmt(c.registro.valor)}</div>
+        </div>`).join('') || '<div class="empty">Ninguna todavía.</div>'}
+    </div>
+    <h4 style="margin:16px 0 6px;color:var(--terracota)">⚠️ En el extracto pero no en la app (${sinApp.length})</h4>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Movimientos del banco que no encontramos registrados — puede que falte anotar un gasto o una venta.</p>
+    <div class="ledger">
+      ${sinApp.map(s => `
+        <div class="ledger-row">
+          <div class="main"><div class="title">${escapeHtml(s.desc || 'Sin descripción')}</div><div class="meta">${s.ts ? new Date(s.ts).toLocaleDateString('es-CO') : 'Sin fecha reconocida'}</div></div>
+          <div class="amount">${fmt(s.valor)}</div>
+        </div>`).join('') || '<div class="empty">Ninguno — el extracto cuadra completo con la app.</div>'}
+    </div>
+    <h4 style="margin:16px 0 6px;color:var(--terracota)">⚠️ En la app pero no en el extracto (${sinExtracto.length})</h4>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Está marcado Pagado por un método bancario, pero no aparece en el extracto que subiste — puede que sea de otra cuenta, o que en realidad no haya entrado/salido todavía.</p>
+    <div class="ledger">
+      ${sinExtracto.map(r => `
+        <div class="ledger-row">
+          <div class="main"><div class="title">${escapeHtml(r.nombre)}</div><div class="meta">${r.tipo} · ${new Date(Number(r.ts)).toLocaleDateString('es-CO')}</div></div>
+          <div class="amount">${fmt(r.valor)}</div>
+        </div>`).join('') || '<div class="empty">Ninguno — todo lo del mes ya aparece en el extracto.</div>'}
+    </div>
+  `;
+}
+
 function renderConfig() {
   const orden = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
 
@@ -5360,8 +5533,9 @@ function renderConfig() {
     <div class="subtabs">
       <button class="${configSubTab === 'precios' ? 'active' : ''}" onclick="cambiarConfigSubTab('precios')">Precios</button>
       <button class="${configSubTab === 'clientes' ? 'active' : ''}" onclick="cambiarConfigSubTab('clientes')">Clientes (${todosClientes.length})</button>
+      <button class="${configSubTab === 'conciliacion' ? 'active' : ''}" onclick="cambiarConfigSubTab('conciliacion')">Conciliar banco</button>
     </div>
-    ${configSubTab === 'clientes' ? bloqueClientes : bloquePrecios}
+    ${configSubTab === 'clientes' ? bloqueClientes : (configSubTab === 'conciliacion' ? bloqueConciliacion() : bloquePrecios)}
   `;
 }
 let configSubTab = 'precios';

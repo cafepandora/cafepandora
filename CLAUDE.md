@@ -894,6 +894,48 @@ cosechó realmente la finca), pero **sí** suma a `rendimientosReales()` —
 es cereza real entrando a secarse igual que la propia, así que también
 sirve para calcular los rendimientos reales de secado/trilla.
 
+## Conciliación bancaria (Configuración → Conciliar banco)
+
+Herramienta nueva (2026-09-21) para subir el extracto que se descarga del
+banco (.csv) y compararlo contra lo ya registrado en la app — para
+encontrar transferencias que falten por anotar o que no cuadren. A
+propósito NO se guarda nada en Supabase, no hay tabla ni endpoint nuevo:
+todo el archivo se lee y se compara en el navegador (`parsearCSV()`,
+`conciliarExtracto()`), es un reporte de una sola vez cada vez que se
+sube un archivo — nunca conectamos una cuenta bancaria real ni manejamos
+credenciales, eso no es algo que se pueda ni se deba automatizar aquí.
+
+- **No hay "el" formato de extracto** — cada banco colombiano nombra sus
+  columnas distinto (Bancolombia, Nequi, etc.), así que en vez de adivinar
+  en silencio y arriesgarse a comparar la columna equivocada,
+  `bloqueConciliacion()` SIEMPRE muestra 3 desplegables (fecha,
+  descripción, valor) con las columnas del archivo — `adivinarColumna()`
+  preselecciona la más probable por el nombre del encabezado, pero el
+  usuario puede corregir antes de darle "Comparar". `parsearCSV()`
+  detecta solo (coma o punto y coma) cuál separador usa el archivo,
+  contando cuál aparece más veces en el encabezado.
+- `parsearValorExtracto()` siempre devuelve el valor ABSOLUTO — no se
+  intenta adivinar si el banco marca los egresos con signo negativo o con
+  una columna aparte de "Débitos", eso varía demasiado. Por eso
+  `conciliarExtracto()` tampoco distingue ingreso de egreso: compara cada
+  fila del extracto contra TODO lo marcado Pagado en el mes (ventas +
+  maquila + gastos operativos + finca) con un método que sí pasa por el
+  banco (`metodo !== 'Efectivo'` en ventas/maquila, `pagadoPor !==
+  'Efectivo'` en gastos/finca — el efectivo nunca va a aparecer en un
+  extracto). El emparejamiento es por valor exacto (tolerancia de $1 por
+  redondeo) y fecha ±3 días (el banco a veces consigna un día después de
+  lo registrado en la app).
+- Tres resultados, no solo "coincide/no coincide": **coincidencias**
+  (para confirmar que sí cuadra), **en el extracto pero no en la app**
+  (probablemente falta anotar algo), y **en la app pero no en el
+  extracto** (está marcado Pagado pero no aparece en ESTE extracto — puede
+  ser de otra cuenta, o que en realidad no haya entrado/salido todavía).
+- Si dos movimientos reales tienen el mismo valor y caen en la misma
+  fecha (ej. dos ventas de $100.000 el mismo día), el emparejamiento toma
+  el primero que encuentra — no hay forma de distinguirlos solo con
+  monto+fecha, sin un número de referencia no se puede hacer mejor que
+  eso. No es un bug, es un límite real de conciliar así.
+
 ## Cuentas de cobro (módulo formal, con membrete)
 
 Pestaña "Cuentas de cobro" en el sidebar, independiente de los recibos
