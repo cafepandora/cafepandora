@@ -95,6 +95,9 @@ tener que adivinar revisando curl o los logs de Cloudflare.
 - **Cloudflare Pages**, usadas solo por `functions/api/cron/fermentacion.ts`
   (alerta de WhatsApp — ver sección "Fermentación en caneca" más abajo):
   `CALLMEBOT_PHONE`, `CALLMEBOT_APIKEY`, `CRON_SECRET`.
+- `functions/api/cron/precio-fnc.ts` (precio de referencia del café — ver
+  sección propia más abajo) reutiliza el MISMO `CRON_SECRET` de arriba, no
+  necesita ninguna variable nueva.
 
 ## Convenciones importantes del código
 
@@ -241,7 +244,10 @@ functions/api/pedidos-web/         # bandeja de pedidos de la página pública
 functions/api/catalogo-publico/    # GET público de precios "web"
 functions/api/cron/fermentacion.ts # alerta de WhatsApp — la llama un cron externo, no la app
 functions/api/cereza-comprada/     # café en cereza comprado a terceros (cereza → pergamino → verde)
-migracion_*.sql, migration.sql     # todas ya corridas en producción
+functions/api/cron/precio-fnc.ts   # scrape del precio de referencia FNC — la llama un cron externo, no la app
+functions/api/precio-fnc/          # GET del historial de precio de referencia (con login)
+functions/api/saldos-iniciales/    # saldo inicial por persona, para el balance de cuentas
+migracion_*.sql, migration.sql     # ver "Pendiente / a medias" — no todas están corridas en producción
 ```
 
 ## Fermentación en caneca (Honey/Natural) + alerta de WhatsApp
@@ -344,6 +350,49 @@ clientes, así que no sirve para avisarle al cliente:
   `numeroWhatsapp()` le antepone `57` a números de 10 dígitos, porque el
   campo de teléfono en `pedidos/index.html` se llena sin indicativo (el
   placeholder es "300 000 0000") pero `wa.me` sí lo necesita.
+
+## Precio de referencia del café (Federación Nacional de Cafeteros)
+
+Tarjeta en Resumen (2026-09-21) con el precio interno de referencia que
+publica la Federación para café pergamino seco (carga de 125 kg) — de
+lunes a viernes en la tarde. Investigado a fondo antes de construirlo: la
+Federación **no tiene API ni JSON**, solo esta página HTML pública
+(`https://federaciondecafeteros.org/wp/estadisticas-cafeteras/`), así que
+esto es scraping, no una integración oficial — si un día deja de
+funcionar, lo primero es abrir esa URL a mano y ver si cambió el marcado
+(busca `fnc-ticker-name`/`fnc-ticker-value`/`t-fecha` en el HTML fuente).
+
+- `functions/api/cron/precio-fnc.ts`: mismo patrón que
+  `cron/fermentacion.ts` (protegido con el mismo `CRON_SECRET`, lo llama
+  un cron externo, NO la app) — hace `fetch()` de esa página, saca el
+  precio con `extraerValor()`/`extraerFecha()` (busca el bloque
+  `fnc-ticker-name">Precio interno de referencia:` y lee el `fnc-ticker-value`
+  y la fecha que le siguen) y hace `upsert` en `precio_cafe_fnc` por
+  `fecha` (para poder correrlo varias veces el mismo día sin duplicar).
+  `numeroCO()` convierte el formato colombiano ("$2.030.000" con puntos de
+  miles, "280,50" con coma decimal) a número de JS — ojo si se reutiliza
+  en otro lado, es lo contrario del formato en inglés.
+- Necesita correr **antes** `migracion_precio_fnc.sql` (crea la tabla
+  `precio_cafe_fnc`) y configurar un cron en cron-job.org apuntando a
+  `https://cafepandora.pages.dev/api/cron/precio-fnc?clave=<CRON_SECRET>`
+  — una vez al día en la tarde entre semana es suficiente (la Federación
+  no publica los fines de semana). Ver "Pendiente" más abajo.
+- `functions/api/precio-fnc/index.ts` (GET, con login) le sirve a la app
+  el historial guardado, más reciente primero, máximo 60 registros.
+- `index.html`: `state.precioFnc` se suma a `sincronizar()` como un
+  endpoint más (mismo patrón que los otros 15) y `bloquePrecioFnc()`
+  pinta el último precio + la variación contra el reporte anterior en
+  Resumen. **Ojo**: como CUALQUIER otro endpoint nuevo en esa lista, si la
+  tabla `precio_cafe_fnc` no existe todavía (falta correr la migración),
+  `sincronizar()` va a fallar para TODA la app (no solo esta tarjeta) con
+  el mensaje de error real de Supabase — el mismo comportamiento ya
+  documentado para `saldos_iniciales`/`estado_entrega`, no es un bug
+  nuevo, es el patrón ya establecido de "corre la migración antes de que
+  esto llegue a producción".
+- No es el precio de venta de Café Pandora (que tuesta y vende café, no
+  vende pergamino) — es contexto de mercado, útil sobre todo para
+  negociar cereza/pergamino comprado a terceros y para tener una
+  referencia de hacia dónde va el mercado en general.
 
 ## Balance de cuentas por persona
 
@@ -1040,14 +1089,18 @@ carrito sin pisarse.
 
 ## Pendiente / a medias
 
-- **Entrega de maquila y saldo inicial — falta correr las migraciones**:
-  el código ya está (ver secciones "Órdenes de maquila..." y "Balance de
-  cuentas por persona" arriba), pero hasta que no se corran
-  `migracion_entrega_maquila.sql` y `migracion_saldos_iniciales.sql` en
+- **Entrega de maquila, saldo inicial y precio FNC — falta correr 3
+  migraciones**: el código ya está (ver secciones "Órdenes de maquila...",
+  "Balance de cuentas por persona" y "Precio de referencia del café"
+  arriba), pero hasta que no se corran `migracion_entrega_maquila.sql`,
+  `migracion_saldos_iniciales.sql` y `migracion_precio_fnc.sql` en
   Supabase, `sincronizar()` va a mostrar el aviso de error (columna/tabla
   inexistente) en vez de cargar los datos — es el mismo caso que ya pasó
   antes con `transporte` en cuentas de cobro, documentado en Gotchas más
-  abajo. Corre las dos migraciones antes de dar por bueno el deploy.
+  abajo. Corre las tres migraciones antes de dar por bueno el deploy.
+  Además, el precio FNC no muestra nada real hasta que también se
+  configure el cron externo (ver esa sección: mismo `CRON_SECRET` que ya
+  existe, apuntando a `/api/cron/precio-fnc`).
 - **Pasilla — falta correr la migración**: el código ya está (ver sección
   "Pasilla" arriba), pero hasta que no se corra `migracion_pasilla.sql`
   en Supabase, anotar kilos de pasilla al pesar pergamino va a fallar

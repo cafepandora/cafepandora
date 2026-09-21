@@ -912,6 +912,7 @@ const state = {
   pedidosWeb: [],
   cuentasCobro: [],
   saldosIniciales: [],
+  precioFnc: [],
   tabActiva: 'ventas',
 };
 // Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
@@ -1327,7 +1328,7 @@ supabaseClient.auth.onAuthStateChange((_evento, session) => { if (session) sesio
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -1344,7 +1345,7 @@ function guardarCacheLocal(k) {
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
-  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales'];
+  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc'];
 
   let respuestas;
   try {
@@ -1374,11 +1375,11 @@ async function sincronizar() {
   }
 
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si] = await Promise.all(respuestas.map(r => r.json()));
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf] = await Promise.all(respuestas.map(r => r.json()));
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
-    state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si;
+    state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si; state.precioFnc = pf;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -4394,6 +4395,35 @@ async function eliminarTueste(id) {
 /* ================================================================
    RESUMEN
 ================================================================ */
+// Tarjeta con el último precio interno de referencia guardado por el cron
+// (functions/api/cron/precio-fnc.ts) y cómo cambió frente al reporte
+// anterior. state.precioFnc viene ordenado más reciente primero (lo pide
+// así el GET /api/precio-fnc). No es el precio de venta de Café Pandora
+// (que tuesta y vende, no vende pergamino) — es contexto de mercado, útil
+// sobre todo para negociar cereza/pergamino comprado a terceros.
+function bloquePrecioFnc() {
+  const hist = state.precioFnc || [];
+  if (!hist.length) return '<p class="empty">Todavía no hay ningún precio guardado — falta configurar el cron externo que lo trae (ver CLAUDE.md, sección "Precio de referencia del café").</p>';
+  const ultimo = hist[0];
+  const anterior = hist[1];
+  const delta = anterior && anterior.precioCarga ? ultimo.precioCarga - anterior.precioCarga : null;
+  const deltaPct = delta != null ? (delta / anterior.precioCarga) * 100 : null;
+  const fechaFmt = f => new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  return `
+    <div class="stat-grid" style="margin-bottom:8px">
+      <div class="stat">
+        <div class="n">${fmt(ultimo.precioCarga)}</div>
+        <div class="l">Por carga de 125 kg de pergamino seco (${fechaFmt(ultimo.fecha)})</div>
+      </div>
+      ${delta != null ? `
+      <div class="stat">
+        <div class="n ${delta >= 0 ? 'pos' : 'neg'}">${delta >= 0 ? '▲' : '▼'} ${fmt(Math.abs(delta))} (${Math.abs(deltaPct).toFixed(1)}%)</div>
+        <div class="l">Frente al reporte anterior (${fechaFmt(anterior.fecha)})</div>
+      </div>` : ''}
+    </div>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">Fuente: Federación Nacional de Cafeteros. Es el precio de referencia para pergamino seco, no el precio de venta de Café Pandora — sirve de contexto para negociar cereza/pergamino comprado y entender hacia dónde va el mercado.</p>`;
+}
+
 function renderResumen() {
   const mes = document.getElementById('filtroMes').value || hoyMes();
   const ventasMes = state.ventas.filter(v => mesDe(v.ts) === mes);
@@ -4468,6 +4498,10 @@ function renderResumen() {
       <div class="stat"><div class="n pos">${fmt(facturadoMaquila)}</div><div class="l">Dinero de maquila este mes (${maquilaMes.length} orden${maquilaMes.length===1?'':'es'}, ya incluido arriba)</div></div>
       <div class="stat"><div class="n">${librasVendidas.toFixed(1)}</div><div class="l">Libras de café vendidas este mes (todas las presentaciones)</div></div>
     </div>
+
+    <h3 class="section-title">Precio de referencia del café (Federación)</h3>
+    ${bloquePrecioFnc()}
+
     <h3 class="section-title">Comportamiento en el tiempo</h3>
     <div class="rangos">
       ${[[1,'1 mes'],[3,'3 meses'],[6,'6 meses'],[12,'1 año']].map(([n,l]) =>
