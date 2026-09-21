@@ -692,6 +692,32 @@ existían en vez de agregar nada nuevo que llenar a mano:
   existía (`renderAlertaStock()`, fijo en <5 kg de Lavado) — ese sigue
   igual, esto es un complemento, no lo reemplaza.
 
+## Tendencia de rendimientos y comparación año contra año
+
+Dos vistas nuevas en Resumen (2026-09-21), pensadas para ver si el negocio
+mejora en el tiempo, no solo cuánto lleva acumulado:
+
+- **Gráfica "Rendimiento de cosecha, mes a mes"** (`tendenciaRendimientosPorMes()`,
+  4ª gráfica de "Comportamiento en el tiempo", mismos botones de rango
+  1/3/6/12 meses de las otras 3): a diferencia de `rendimientosReales()`
+  (un solo promedio de TODO el histórico, usado para proyectar), esta
+  parte el cálculo mes a mes para poder ver si el % de cereza→pergamino o
+  pergamino→verde viene subiendo o bajando. Se agrupa por el mes de la
+  FECHA DE COSECHA/COMPRA — no existe un campo separado de "cuándo se
+  pesó", así que un registro pesado semanas después de cosechado igual
+  cuenta en el mes de la cosecha, no en el del pesaje real. Meses sin
+  ningún pesaje quedan como `null` (`spanGaps: true` en Chart.js, la línea
+  salta el hueco en vez de caer a 0, que sería engañoso).
+- **"Comparación año contra año"** (`comparacionAnual()`, justo debajo de
+  las gráficas): agrupa por año calendario TODO el histórico — factura,
+  egresos operativos (`esGastoOperativo`), balance, kilos cosechados y
+  libras vendidas. Solo lista los años donde de verdad hay algo
+  registrado (ventas o cosechas), así que con un negocio que recién
+  empezó a usar la app puede salir un solo año — en ese caso se muestra
+  igual (no tiene sentido ocultarlo) pero con una nota aclarando que
+  todavía no hay con qué comparar; se va a volver más útil solo con el
+  paso del tiempo, sin tocar código de nuevo.
+
 ## Órdenes de maquila — orden de servicios y estado de entrega
 
 Los servicios de una orden de maquila (`mq-servicio`/`emq-servicio`, y el

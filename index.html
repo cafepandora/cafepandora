@@ -833,6 +833,65 @@ function proyectarDesdePergamino(kilosPergamino) {
   const tostado = verde * (1 - r.mermaTueste.valor);
   return { verde, tostado, libras: tostado / KG_POR_LIBRA_VENTA };
 }
+// Rendimiento real mes a mes (no un solo promedio de todo el histórico
+// como rendimientosReales()) — para ver si el proceso mejora o empeora en
+// el tiempo. Agrupa por el mes de la FECHA DE COSECHA/COMPRA (no hay un
+// campo separado de "cuándo se pesó"), así que es una aproximación: un
+// registro pesado varias semanas después de cosechado igual cuenta en el
+// mes de la cosecha, no en el del pesaje.
+function tendenciaRendimientosPorMes(meses) {
+  const porMes = {};
+  meses.forEach(mm => { porMes[mm] = { cereza: 0, pergamino: 0, pergEntra: 0, verdeSale: 0 }; });
+  [...state.cosechas, ...state.cerezaComprada].forEach(c => {
+    const mm = mesDe(c.fecha);
+    if (!porMes[mm]) return;
+    if (Number(c.kilosPergaminoReal) > 0 && Number(c.kilosCereza) > 0) {
+      porMes[mm].cereza += Number(c.kilosCereza);
+      porMes[mm].pergamino += Number(c.kilosPergaminoReal);
+    }
+    if (Number(c.kilosVerdeReal) > 0 && Number(c.kilosPergaminoReal) > 0) {
+      porMes[mm].pergEntra += Number(c.kilosPergaminoReal);
+      porMes[mm].verdeSale += Number(c.kilosVerdeReal);
+    }
+  });
+  state.pergamino.forEach(p => {
+    const mm = mesDe(p.fecha);
+    if (!porMes[mm]) return;
+    if (Number(p.kilosVerdeReal) > 0 && Number(p.kilosPergamino) > 0) {
+      porMes[mm].pergEntra += Number(p.kilosPergamino);
+      porMes[mm].verdeSale += Number(p.kilosVerdeReal);
+    }
+  });
+  return meses.map(mm => ({
+    mes: mm,
+    cerezaAPergaminoPct: porMes[mm].cereza > 0 ? (porMes[mm].pergamino / porMes[mm].cereza) * 100 : null,
+    pergaminoAVerdePct: porMes[mm].pergEntra > 0 ? (porMes[mm].verdeSale / porMes[mm].pergEntra) * 100 : null,
+  }));
+}
+
+// Un año contra otro: facturado, egresos, balance, kilos cosechados y
+// libras vendidas. Solo muestra los años donde de verdad hay algo
+// registrado (ventas o cosechas) — con un negocio que apenas empieza a
+// usar la app, puede salir un solo año, y está bien así.
+function comparacionAnual() {
+  const anios = new Set();
+  state.ventas.forEach(v => anios.add(new Date(Number(v.ts)).getFullYear()));
+  state.cosechas.forEach(c => anios.add(new Date(Number(c.fecha)).getFullYear()));
+  state.cerezaComprada.forEach(c => anios.add(new Date(Number(c.fecha)).getFullYear()));
+  return [...anios].sort().map(anio => {
+    const ventasAnio = state.ventas.filter(v => new Date(Number(v.ts)).getFullYear() === anio);
+    const maquilaAnio = state.ordenesMaquila.filter(o => new Date(Number(o.ts)).getFullYear() === anio);
+    const gastosAnio = state.gastos.filter(g => new Date(Number(g.ts)).getFullYear() === anio && esGastoOperativo(g));
+    const fincaAnio = state.finca.filter(f => new Date(Number(f.ts)).getFullYear() === anio);
+    const cosechasAnio = state.cosechas.filter(c => new Date(Number(c.fecha)).getFullYear() === anio);
+    const facturado = ventasAnio.reduce((s, v) => s + (Number(v.valor) || 0), 0) + maquilaAnio.reduce((s, o) => s + (Number(o.valor) || 0), 0);
+    const egresos = gastosAnio.reduce((s, g) => s + (Number(g.monto) || 0), 0) + fincaAnio.reduce((s, f) => s + (Number(f.monto) || 0), 0);
+    const kilosCosechados = cosechasAnio.reduce((s, c) => s + (Number(c.kilosCereza) || 0), 0);
+    const librasVendidas = ventasAnio.reduce((s, v) => s + kilosDeVenta(v), 0) / KG_POR_LIBRA_VENTA;
+    return { anio, facturado, egresos, balance: facturado - egresos, kilosCosechados, librasVendidas };
+  });
+}
+
 function fechaSecadoEstimada(fechaCosecha, proceso) {
   const dias = DIAS_SECADO[proceso] ?? 21;
   return new Date(Number(fechaCosecha) + dias * 86400000);
@@ -4426,6 +4485,23 @@ function renderResumen() {
       <h4>Ventas por lote de café</h4>
       <div class="chart-box"><canvas id="chartLotes"></canvas></div>
     </div>
+    <div class="chart-card">
+      <h4>Rendimiento de cosecha, mes a mes</h4>
+      <div class="chart-box"><canvas id="chartRendimiento"></canvas></div>
+    </div>
+
+    <h3 class="section-title">Comparación año contra año</h3>
+    <div class="tabla-clientes">
+      <div class="fila-cliente encabezado"><span>Año</span><span>Facturado</span><span>Egresos</span><span>Balance</span></div>
+      ${comparacionAnual().map(a => `
+        <div class="fila-cliente">
+          <span class="nombre">${a.anio}<br><span style="font-weight:400;color:var(--cafe-soft);font-size:11px">${a.kilosCosechados.toFixed(0)} kg cosechados · ${a.librasVendidas.toFixed(0)} lb vendidas</span></span>
+          <span>${fmt(a.facturado)}</span>
+          <span>${fmt(a.egresos)}</span>
+          <span class="dinero" style="color:${a.balance >= 0 ? 'var(--verde)' : 'var(--terracota)'}">${fmt(a.balance)}</span>
+        </div>`).join('') || '<div class="empty">Todavía no hay suficiente historia para comparar.</div>'}
+      ${comparacionAnual().length < 2 ? '<p style="font-size:12px;color:var(--cafe-soft);margin:8px 0 0">Con un solo año todavía no hay con qué comparar — esto se va a poner más útil a medida que pase el tiempo.</p>' : ''}
+    </div>
 
     <h3 class="section-title">Margen estimado por lote</h3>
     <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Todo el histórico, no solo este mes. Ingreso: lo vendido de cada lote. Costo: café comprado de ese proceso + una parte de los gastos de finca, repartida según cuántos kilos se cosecharon de cada uno — es un <b>estimado</b>, la finca no separa sus gastos por proceso.</p>
@@ -5050,6 +5126,31 @@ function dibujarGraficos(mesBase) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => dinero(c.parsed.x) } } },
       scales: { x: ejeDinero, y: { grid: { display: false }, border: { display: false } } },
+    },
+  });
+
+  // --- 4. Rendimiento de cosecha (cereza→pergamino, pergamino→verde), mes a mes ---
+  const rendMes = tendenciaRendimientosPorMes(meses);
+  graficos.rendimiento?.destroy();
+  graficos.rendimiento = new Chart(document.getElementById('chartRendimiento'), {
+    type: 'line',
+    data: {
+      labels: meses.map(etiquetaMes),
+      datasets: [
+        { label: 'Cereza → pergamino', data: rendMes.map(r => r.cerezaAPergaminoPct), borderColor: verde, backgroundColor: verde, spanGaps: true, tension: 0.3 },
+        { label: 'Pergamino → verde', data: rendMes.map(r => r.pergaminoAVerdePct), borderColor: cafe, backgroundColor: cafe, spanGaps: true, tension: 0.3 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, pointStyle: 'circle', padding: 16 } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y == null ? 'sin datos' : c.parsed.y.toFixed(1) + '%') } },
+      },
+      scales: {
+        x: { grid: { display: false }, border: { display: false } },
+        y: { grid: { color: linea }, border: { display: false }, ticks: { callback: v => v + '%' } },
+      },
     },
   });
 }
