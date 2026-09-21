@@ -1560,6 +1560,31 @@ function ordenarPedidosWeb(lista) {
   return lista.slice().sort((a, b) => prioridad(a.estado) - prioridad(b.estado) || b.ts - a.ts);
 }
 
+// Números guardados desde pedidos/index.html vienen sin indicativo (ej.
+// "300 000 0000", como dice el placeholder de ese campo) — wa.me sí lo
+// necesita, así que si quedan 10 dígitos les anteponemos 57 (Colombia).
+// Si el número ya viene con indicativo (más de 10 dígitos), se deja igual.
+function numeroWhatsapp(tel) {
+  let d = String(tel || '').replace(/\D/g, '');
+  if (d.length === 10) d = '57' + d;
+  return d;
+}
+function mensajePedidoListo(p) {
+  return `¡Hola ${p.nombreCliente}! 😊 Tu pedido en Café Pandora ya quedó listo. ¡Te esperamos!`;
+}
+// Un clic, sin escribir nada: abre WhatsApp con el número del pedido y el
+// mensaje de "ya quedó listo" ya escrito — solo falta darle Enviar.
+function avisarPedidoWebListo(id) {
+  const p = state.pedidosWeb.find(x => x.id === id); if (!p || !p.telefono) return;
+  window.open(`https://wa.me/${numeroWhatsapp(p.telefono)}?text=${encodeURIComponent(mensajePedidoListo(p))}`, '_blank');
+}
+// Igual pero con el cuadro de texto vacío, para cuando se quiere escribir
+// algo personalizado en vez del aviso genérico.
+function avisarPedidoWebPersonalizado(id) {
+  const p = state.pedidosWeb.find(x => x.id === id); if (!p || !p.telefono) return;
+  window.open(`https://wa.me/${numeroWhatsapp(p.telefono)}`, '_blank');
+}
+
 function pintarListaPedidosWeb(lista) {
   if (!lista.length) return '<div class="empty">Todavía no ha llegado ningún pedido.</div>';
   return lista.map(p => `
@@ -1571,6 +1596,8 @@ function pintarListaPedidosWeb(lista) {
       </div>
       <div class="amount pos">${fmt(p.valorTotal)}</div>
       <div class="acciones">
+        ${p.telefono ? `<button onclick="avisarPedidoWebListo(${p.id})" title="Avisar por WhatsApp que ya quedó listo (mensaje ya escrito)">✅💬</button>
+        <button onclick="avisarPedidoWebPersonalizado(${p.id})" title="Escribir un mensaje personalizado por WhatsApp">✏️💬</button>` : ''}
         ${p.estado !== 'convertido' ? `<button onclick="convertirPedidoWebAVenta(${p.id})" title="Convertir en venta">🛒</button>` : ''}
         <button onclick="eliminarPedidoWeb(${p.id})" title="Descartar">✕</button>
       </div>

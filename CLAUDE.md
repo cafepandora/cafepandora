@@ -311,6 +311,40 @@ WhatsApp y mandándole "I allow callmebot to send me messages" — el bot
 responde con la clave), y `CRON_SECRET` (una palabra larga inventada, para
 que nadie más pueda llamar esa URL pública y gastar mensajes).
 
+## WhatsApp — aviso de pedido nuevo y aviso al cliente
+
+Dos avisos por WhatsApp distintos, agregados el 2026-09-21, que usan
+mecanismos DIFERENTES a propósito — CallMeBot solo puede mandarle mensajes
+al número que se registró con él (el de Juan), no a números arbitrarios de
+clientes, así que no sirve para avisarle al cliente:
+
+- **Aviso a Juan cuando llega un pedido nuevo** (`functions/api/
+  pedidos-web/index.ts`, función `avisarPedidoNuevo()`): reutiliza el
+  MISMO CallMeBot de la fermentación (mismas `CALLMEBOT_PHONE`/
+  `CALLMEBOT_APIKEY`, no hace falta ninguna variable nueva), pero se
+  dispara DIRECTO al guardar el pedido (`context.waitUntil(...)` en el
+  `POST`, no bloquea la respuesta al cliente en `pedidos/index.html`) —
+  a diferencia de la fermentación, que la revisa un cron externo cada
+  15-30 min, esto no necesita cron porque ya hay un evento real (el
+  `POST`) en el que engancharse. Si CallMeBot falla o las variables no
+  están puestas, el `catch` se traga el error y el pedido se guarda
+  normal de todas formas — nunca debe tumbar un pedido real por un aviso
+  que no pudo salir.
+- **Aviso al cliente de "tu pedido ya quedó listo"** (`index.html`,
+  `pintarListaPedidosWeb()`): como CallMeBot no puede mandarle nada a
+  clientes, esto usa un link `wa.me/<telefono>?text=...` (`avisarPedidoWebListo()`)
+  que abre WhatsApp con el mensaje YA ESCRITO — solo falta darle Enviar,
+  cumple con "no quiere escribir" sin ser un mensaje 100% automático
+  (eso necesitaría la API oficial de WhatsApp Business, de pago y con
+  trámite de por medio, no CallMeBot). Al lado hay un segundo botón
+  (`avisarPedidoWebPersonalizado()`) con el mismo link pero sin texto
+  prellenado, para cuando se quiere escribir algo personal en vez del
+  aviso genérico. Ambos botones solo aparecen si el pedido tiene
+  `telefono` (siempre lo tiene, es obligatorio en `pedidos/index.html`).
+  `numeroWhatsapp()` le antepone `57` a números de 10 dígitos, porque el
+  campo de teléfono en `pedidos/index.html` se llena sin indicativo (el
+  placeholder es "300 000 0000") pero `wa.me` sí lo necesita.
+
 ## Balance de cuentas por persona
 
 Ventas y órdenes de maquila tienen `recibido_por`; gastos, finca y compras
