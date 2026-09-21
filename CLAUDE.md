@@ -394,6 +394,36 @@ funcionar, lo primero es abrir esa URL a mano y ver si cambió el marcado
   negociar cereza/pergamino comprado a terceros y para tener una
   referencia de hacia dónde va el mercado en general.
 
+## Clima de la finca (Cosecha & Tueste)
+
+Widget de 5 días (2026-09-21) en la pestaña "Cosecha & Tueste", arriba de
+"Rendimientos de tu café" — pensado como apoyo para decidir si conviene
+sacar/tapar cereza en secado según la probabilidad de lluvia de los
+próximos días. Usa [Open-Meteo](https://open-meteo.com), gratis y sin
+necesitar llave/API key, a diferencia del precio FNC esto SÍ es una API
+de verdad (JSON), no scraping.
+
+- **`UBICACION_FINCA`** (`index.html`, junto a `panelRendimientos()`):
+  coordenadas de Pereira/Marsella, Risaralda — sacadas de
+  `EMISOR_DIRECCION`/`EMISOR_CIUDAD` (la dirección real que ya usaba la
+  app en las cuentas de cobro: "Km 5 vía Marsella Finca Tinajas"), NO el
+  punto GPS exacto de la finca (no lo tenemos). Es una aproximación a
+  nivel de municipio — si Juan da coordenadas más precisas de la finca
+  algún día, se actualizan solo esas dos líneas.
+- `obtenerClima()` pide el pronóstico (lluvia máxima del día, temp
+  min/max, 5 días) y lo cachea en una variable de JS (`climaCache`) por
+  `CLIMA_TTL_MS` (3 horas) — no hay que pedirlo de nuevo cada vez que se
+  repinta Trazabilidad. Es un `fetch()` normal del navegador (no pasa por
+  `apiFetch`, no necesita login — es una API pública externa, no un
+  endpoint propio).
+- Se pide DESPUÉS de pintar el HTML (`cargarClimaFinca()`, llamado al
+  final de `renderTrazabilidad()`), no antes — así el resto de la
+  pestaña (cosechas, rendimientos) no espera a que responda una API
+  externa para aparecer. Si para cuando responde ya se cambió de pestaña,
+  `document.getElementById('clima-finca')` ya no existe y simplemente no
+  hace nada (mismo patrón de "verificar que el contenedor siga vivo" que
+  ya se usa en el buscador modal).
+
 ## Balance de cuentas por persona
 
 Ventas y órdenes de maquila tienen `recibido_por`; gastos, finca y compras

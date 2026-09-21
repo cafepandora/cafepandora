@@ -363,6 +363,17 @@
   .lote-card.bajo .stock { color: var(--terracota); }
   .lote-card button.sec-btn { margin-top: 10px; width: 100%; }
 
+  /* ---------- Clima de la finca (Trazabilidad) ---------- */
+  .clima-dias { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; }
+  .clima-dia {
+    flex: 1 0 76px; background: var(--blanco); border: 1px solid var(--linea); border-radius: 14px;
+    padding: 10px 6px; text-align: center; box-shadow: 0 3px 14px rgba(62,39,35,.05);
+  }
+  .clima-dia .clima-fecha { font-size: 12px; font-weight: 700; text-transform: capitalize; }
+  .clima-dia .clima-icono { font-size: 22px; margin: 4px 0; }
+  .clima-dia .clima-lluvia { font-size: 12px; color: var(--cafe-soft); }
+  .clima-dia .clima-temp { font-size: 13px; font-weight: 600; margin-top: 2px; }
+
   /* ---------- Resumen ---------- */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
   .stat { background: var(--blanco); border: 1px solid var(--linea); border-radius: 14px; padding: 16px 18px; box-shadow: 0 3px 14px rgba(62,39,35,.05); }
@@ -3567,6 +3578,9 @@ function renderTrazabilidad() {
     </div>
     ${pasillaTotal > 0 ? `<p style="font-size:13px;color:var(--cafe-soft);margin:10px 0 0">🫘 ${pasillaTotal.toFixed(1)} kg de pasilla acumulada en pergamino — se tuesta y se vende aparte (lote "Pasilla" en Tueste y Ventas).</p>` : ''}
 
+    <h4 style="margin:16px 0 6px">🌤️ Clima — ${UBICACION_FINCA.nombre}</h4>
+    <div id="clima-finca"><p class="empty">Cargando clima…</p></div>
+
     ${panelRendimientos()}
 
     <div class="subtabs">
@@ -3581,9 +3595,65 @@ function renderTrazabilidad() {
     ${trazaSubTab === 'comprado' ? vistaPergamino() : ''}
     ${trazaSubTab === 'tueste' ? vistaTueste() : ''}
   `;
+  cargarClimaFinca();
 }
 
 /* ---------- Panel de rendimientos ---------- */
+/* ---------- Clima de la finca (Open-Meteo, gratis, sin llave) ----------
+   Coordenadas aproximadas del municipio (Pereira/Marsella, Risaralda —
+   sacadas de EMISOR_DIRECCION/EMISOR_CIUDAD, la dirección real que ya usa
+   la app en las cuentas de cobro), NO el punto GPS exacto de la finca. Si
+   Juan da coordenadas más precisas, se actualizan aquí. Sirve como apoyo
+   para decidir si conviene sacar/tapar cereza en secado según la
+   probabilidad de lluvia de los próximos días. */
+const UBICACION_FINCA = { lat: 4.8133, lon: -75.6961, nombre: 'Pereira/Marsella, Risaralda (aprox.)' };
+const CLIMA_TTL_MS = 3 * 3600000;
+let climaCache = null;
+
+async function obtenerClima() {
+  if (climaCache && Date.now() - climaCache.ts < CLIMA_TTL_MS) return climaCache;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${UBICACION_FINCA.lat}&longitude=${UBICACION_FINCA.lon}&daily=precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=America%2FBogota&forecast_days=5`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const dias = data.daily.time.map((f, i) => ({
+      fecha: f,
+      lluvia: data.daily.precipitation_probability_max[i],
+      max: data.daily.temperature_2m_max[i],
+      min: data.daily.temperature_2m_min[i],
+    }));
+    climaCache = { dias, ts: Date.now() };
+    return climaCache;
+  } catch {
+    return null; // sin internet o la API no contestó — la sección se queda con su aviso, no rompe el resto de Trazabilidad
+  }
+}
+function pintarClima(c) {
+  if (!c) return '<p class="empty">No se pudo cargar el clima ahora mismo.</p>';
+  return `
+    <div class="clima-dias">
+      ${c.dias.map(d => `
+        <div class="clima-dia">
+          <div class="clima-fecha">${new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}</div>
+          <div class="clima-icono">${d.lluvia >= 60 ? '🌧️' : (d.lluvia >= 30 ? '⛅' : '☀️')}</div>
+          <div class="clima-lluvia">${d.lluvia}% lluvia</div>
+          <div class="clima-temp">${Math.round(d.min)}°–${Math.round(d.max)}°</div>
+        </div>`).join('')}
+    </div>`;
+}
+// Pide el clima async y pinta el resultado cuando llegue, sin bloquear el
+// resto de renderTrazabilidad() — si para cuando responde ya se cambió de
+// pestaña, el contenedor ya no existe y simplemente no hace nada.
+function cargarClimaFinca() {
+  const el = document.getElementById('clima-finca');
+  if (!el) return;
+  obtenerClima().then(c => {
+    const el2 = document.getElementById('clima-finca');
+    if (el2) el2.innerHTML = pintarClima(c);
+  });
+}
+
 function panelRendimientos() {
   const r = rendimientosReales();
   const fila = (titulo, d, formato) => {
