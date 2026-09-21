@@ -524,6 +524,43 @@ pero ahora esconde/muestra `.busqueda-wrap` completo (el `<input>` Y el
 sin buscador (como Resumen) quedaba el ícono 🔍 flotando solo, sin campo
 al lado.
 
+## Mejores clientes — Semanal/Mensual/Anual, cada uno con reglas distintas
+
+`renderMejoresClientes()` (Resumen) rediseñado — antes las 3 vistas
+(Semanal/Mensual/Anual) compartían UNA sola regla: promediar TODO el
+histórico del cliente (sin importar el filtro de mes de arriba) y exigir
+`mesesDistintos >= 2` (2 meses DISTINTOS con compras) para aparecer,
+sin importar cuál vista estuvieras viendo — así que "Semanal" nunca
+mostraba nada nuevo hasta que el cliente llevara 2 meses comprando, lo
+cual no tiene sentido para un ranking semanal. Ahora cada vista es
+distinta a propósito:
+
+- **Semanal**: el ranking de la semana ACTUAL, de lunes a lunes
+  (`inicioSemana()`, calcula el lunes 00:00 real en vez de la
+  aproximación de "semana ISO" que había antes) — sin exigir historial,
+  un cliente nuevo que compró esta semana ya sale.
+- **Mensual**: el ranking del mes que esté elegido en el selector de
+  arriba (`filtroMes`) — cambiar de mes ahí "viaja" el ranking a ese mes
+  (antes esta tabla ignoraba el selector de mes por completo). Tampoco
+  exige historial — apenas se cierra un mes, desde el día 1 del
+  siguiente ya se puede consultar.
+- **Anual**: la única que de verdad promedia varios períodos (plata
+  promedio por mes en lo que va del año calendario actual) — y la única
+  que SÍ exige `mesesDistintos >= MIN_MESES_ANUAL` (2, antes se llamaba
+  `MIN_MESES_CLIENTE` y aplicaba a las 3 vistas por igual) porque un
+  "promedio mensual" con un solo mes de datos todavía no dice nada. Ese
+  promedio se recalcula solo cada vez que se cierra un mes más
+  ("sucesivamente", como pidió Juan) — no hay que hacer nada especial,
+  simplemente cuenta los meses del año actual que ya tienen ventas.
+
+Los textos de la tabla/gráfica cambian según la vista: Semanal/Mensual
+dicen "Total" (es la plata de ESE período nada más, no un promedio,
+aunque por dentro se calcule igual dividiendo entre 1 período); Anual
+dice "Prom." porque ahí sí es un promedio real. `clavePeriodo()` (la
+función vieja que agrupaba por semana/mes/año para contar períodos) ya
+no se usa y se quitó — cada vista ahora filtra directo por su propio
+criterio en vez de agrupar genéricamente.
+
 ## Órdenes de maquila — orden de servicios y estado de entrega
 
 Los servicios de una orden de maquila (`mq-servicio`/`emq-servicio`, y el
