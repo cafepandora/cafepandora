@@ -169,18 +169,44 @@ pedidos/index.html todavía):
   `accent-color` de la marca.
 - El toast de confirmación dura más (3.2s → 4.2s) para dar tiempo a leerlo.
 
-⚠️ *Gotcha real que salió de este cambio*: subir el tamaño de la
-etiqueta de estado (`.tag`) y de los botones de acción hizo que, en
-pantallas angostas con nombres de cliente largos, esos elementos ya no
-cupieran junto a `.main` en una sola línea — el texto de `.main` se
-aplastaba hasta quedar ilegible (una palabra por línea) en vez de que la
-fila completa bajara de línea. Arreglado agregando `flex-wrap: wrap` a
-`.ledger-row` y `flex: 1 1 180px` (en vez de solo `flex: 1`) a `.main`,
-para que cuando no quepa todo en una línea, la fila completa (nombre/
-fecha/detalle arriba, etiqueta/monto/botones abajo) pase a dos líneas en
-vez de aplastar el contenido. Si se agranda algo más en `.ledger-row` en
-el futuro, probar primero con un nombre de cliente largo en celular
-angosto (375px) antes de dar por bueno el cambio.
+⚠️ *Gotcha real que salió de este cambio, en dos partes*: subir el
+tamaño de la etiqueta de estado (`.tag`) y de los botones de acción hizo
+que, en pantallas angostas, `.ledger-row` empezara a fallar con pedidos
+de varias líneas (ej. una venta con 3 ítems distintos, el detalle queda
+larguísimo). El primer intento de arreglo (`flex-wrap: wrap` en
+`.ledger-row` + `flex: 1 1 180px` en `.main`) **no bastó** — Juan lo
+reportó con una venta real (John Zuluaga, 3 ítems) que se veía altísima,
+una palabra por línea. La causa real, confirmada inspeccionando el DOM
+en vivo: flexbox decide los saltos de línea usando el tamaño
+"hipotético" (flex-basis) de cada ítem ANTES de crecer/encogerse — y
+`.main` (basis 180px) + la etiqueta de Pagado/Pendiente (~95px) SÍ
+alcanzaban a caber juntas en una fila angosta (180+95+gap < ancho de
+fila), así que quedaban en la MISMA línea de flex-wrap, y `.main` se
+encogía (por `min-width:0`) hasta ~230px en vez de usar el ancho
+completo — muy poco para un detalle largo. `flex-wrap: wrap` sí estaba
+wrapleando, solo que agrupaba mal las cosas (`.main` + etiqueta en la
+línea 1; monto + botones en la línea 2), no como se veía a simple vista
+(que parecía que todo se apilaba en una sola línea altísima, porque
+`align-items: center` centra cada ítem corto dentro de la altura de esa
+línea, dictada por el contenido alto de `.main`).
+
+Arreglo real: `@media (max-width: 600px) { .ledger-row .main { flex-basis: 100%; } }`
+(cerca del final del bloque `@media (max-width: 860px)`, después de
+cerrarlo). Con `flex-basis: 100%`, `.main` YA NO alcanza a caber junto a
+ningún otro ítem en pantallas angostas — así que siempre se queda solo
+en su propia línea, a todo el ancho, y la etiqueta+monto+botones bajan
+juntos a la línea de abajo. Solo aplica bajo 600px — en escritorio
+(fila más ancha) todo sigue cabiendo cómodo en una sola línea, sin
+necesidad de forzar el salto. No hizo falta tocar el markup de los 19
+lugares que usan `.ledger-row` — fue puramente CSS.
+
+Moraleja para la próxima vez que algo en `.ledger-row` se vea raro en
+celular: no confiar en la intuición de "ya tiene flex-wrap, debería
+funcionar" — medir con JS en vivo (`getBoundingClientRect()` de cada
+hijo directo del `.ledger-row`) cuáles ítems realmente comparten línea,
+antes de asumir la causa. Y probar siempre con una venta/orden de
+VARIOS ítems (detalle largo), no solo con una de un ítem — el bug no se
+nota con contenido corto.
 
 Pendiente si se quiere seguir: agregar texto visible junto a los botones
 de solo-ícono (ej. "✎ Editar" en vez de solo ✎) — ayuda mucho a este

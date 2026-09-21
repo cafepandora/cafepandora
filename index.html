@@ -158,6 +158,21 @@
     .bottom-nav-movil .campana-badge { top: -4px; right: -10px; }
   }
 
+  /* En pantallas angostas, .main (nombre/fecha/detalle de una fila) podía
+     terminar compartiendo su línea de flex-wrap con la etiqueta de
+     Pagado/Pendiente (porque las dos juntas SÍ alcanzaban a caber, según
+     el ancho "hipotético" que usa flexbox para decidir el salto de línea)
+     — eso lo aplastaba a ~230px de ancho aunque la fila completa tuviera
+     347px, y un detalle largo (varios ítems en un mismo pedido) quedaba
+     partido en una palabra por línea, larguísimo y difícil de leer.
+     flex-basis: 100% obliga a que .main SIEMPRE ocupe su propia línea
+     completa aquí — la etiqueta/monto/botones bajan juntos a la línea de
+     abajo. Solo en pantallas angostas: en escritorio (fila más ancha) todo
+     cabe cómodo en una sola línea y no hace falta forzar el salto. */
+  @media (max-width: 600px) {
+    .ledger-row .main { flex-basis: 100%; }
+  }
+
   /* ---------- Alertas ---------- */
 
   /* ---------- Pantalla de acceso ---------- */
@@ -280,10 +295,6 @@
     font-size: 16.5px;
   }
   .ledger-row.deuda-anterior { background: var(--terracota-bg); border-radius: 6px; padding: 11px 8px; margin-bottom: 4px; border-bottom: none; }
-  /* flex-basis (no solo flex:1) para que, si el nombre/detalle es largo y no
-     cabe junto a la etiqueta/monto/botones en una sola línea, el renglón
-     completo baje a una segunda línea en vez de aplastarse hasta quedar
-     ilegible — pasaba en pantallas angostas con nombres largos. */
   .ledger-row .main { flex: 1 1 180px; min-width: 0; }
   .ledger-row .main .title { font-weight: 700; }
   .ledger-row .main .meta { font-size: 14px; color: var(--cafe-soft); margin-top: 3px; }
