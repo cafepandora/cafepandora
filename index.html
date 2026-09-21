@@ -218,17 +218,36 @@
     font-weight: 600; margin-bottom: 14px; cursor: pointer;
   }
 
-  /* ---------- Controles globales ---------- */
-  .controles-globales { display: flex; gap: 8px; margin-bottom: 14px; }
+  /* ---------- Controles globales ----------
+     Fijos arriba al hacer scroll (sticky) — antes había que volver hasta
+     el principio de la página para buscar algo, incómodo con listas
+     largas; ahora el buscador viaja con vos. Fondo sólido para que el
+     contenido no se transparente por debajo cuando queda pegado. */
+  .controles-globales {
+    display: flex; gap: 8px; margin-bottom: 14px;
+    position: sticky; top: 0; z-index: 30; background: var(--crema);
+    padding: 10px 0 8px; margin-top: -10px;
+  }
   .controles-globales input[type="month"] {
     flex: 0 0 160px; padding: 12px 12px; border: 1px solid var(--linea); border-radius: 10px;
     font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco); color: var(--cafe);
   }
+  .busqueda-wrap { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+  .busqueda-wrap .icono-lupa {
+    position: absolute; left: 12px; font-size: 15px; opacity: .55; pointer-events: none;
+  }
   .controles-globales input[type="search"] {
-    flex: 1; min-width: 0; padding: 12px 12px; border: 1px solid var(--linea); border-radius: 10px;
+    width: 100%; padding: 12px 12px 12px 36px; border: 1px solid var(--linea); border-radius: 10px;
     font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco);
   }
-
+  /* Debajo del ☰ (celular) que también es sticky y se queda fijo todo el
+     scroll — si no, se encimarían. Va DESPUÉS de la regla base (misma
+     especificidad, gana la última en el archivo) para no repetir el
+     gotcha de intentar sobreescribir top:0 desde un @media que queda
+     antes en el archivo. */
+  @media (max-width: 860px) {
+    .controles-globales { top: calc(126px + env(safe-area-inset-top)); }
+  }
 
   .subtabs { display: flex; gap: 6px; margin-bottom: 10px; }
   .subtabs button {
@@ -582,7 +601,10 @@
 
     <div class="controles-globales">
       <input type="month" id="filtroMes">
-      <input type="search" id="filtroBusqueda" placeholder="Buscar cliente, lote, concepto…">
+      <div class="busqueda-wrap">
+        <span class="icono-lupa">🔍</span>
+        <input type="search" id="filtroBusqueda" placeholder="Buscar cliente, lote, concepto…">
+      </div>
     </div>
 
     <section class="view active" id="view-ventas"></section>
@@ -1323,7 +1345,7 @@ function irATab(tab) {
   state.tabActiva = tab;
   document.querySelectorAll('button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('section.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + tab));
-  document.getElementById('filtroBusqueda').style.display = TABS_CON_BUSQUEDA.has(tab) ? '' : 'none';
+  document.querySelector('.busqueda-wrap').style.display = TABS_CON_BUSQUEDA.has(tab) ? '' : 'none';
   cerrarModal();
   cerrarMenuMovil();
   renderActiva();

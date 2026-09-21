@@ -487,6 +487,43 @@ que declararse en `paginas` de entrada, con `1`, no asumir que se crea
 sola). Solo se hizo en Ventas (fue lo que se reportó) — Maquila no tiene
 pestañas de pago/envío que dividan la lista, así que no aplica ahí.
 
+**Buscador (`.controles-globales`) fijo arriba al hacer scroll, con
+lupa**: antes vivía solo al principio de cada pestaña — con una lista
+larga (Pagadas (41), por ejemplo) había que volver a scrollear hasta
+arriba del todo cada vez que querías buscar algo, incómodo. Ahora
+`.controles-globales` es `position: sticky; top: 0` (con fondo sólido
+`var(--crema)` para que el contenido no se transparente por debajo) y
+viaja fijo mientras scrolleas, sin importar en qué parte de la lista
+estés. El campo de búsqueda además tiene un ícono 🔍 (`.busqueda-wrap`,
+envuelve el `<input>` con el ícono posicionado absoluto encima) para que
+se note a simple vista que es un buscador, no solo un campo de texto.
+
+⚠️ *Dos gotchas de este cambio*:
+1. En celular, el `☰` (`.mobile-menu-btn`) YA es `position: sticky; top:
+   calc(66px + safe-area)` — si `.controles-globales` usa ese MISMO
+   `top`, los dos se pegan uno encima del otro en vez de uno debajo del
+   otro (sticky no los apila secuencialmente, cada uno se pega a SU
+   propio `top` sin importar el otro). Se le puso a
+   `.controles-globales` un `top` más grande en celular
+   (`calc(126px + safe-area)`, la altura del ☰ + margen) para que quede
+   debajo, no encima.
+2. Esa regla del `top` en celular hay que declararla DESPUÉS de la regla
+   base de `.controles-globales` en el archivo — put earlier (dentro del
+   `@media` de 860px que está cerca del principio del `<style>`) el
+   `top:0` de la regla base (que vive más abajo, en la sección "Controles
+   globales") GANABA por ser la última en el archivo con la misma
+   especificidad, sin importar que el `@media` "debería" aplicar. Mismo
+   tipo de gotcha de cascada CSS que ya había pasado antes con otras
+   cosas — cuando algo con `@media` no parece estar aplicando, revisar el
+   ORDEN en el archivo, no solo si la condición del media query hace
+   match.
+
+`TABS_CON_BUSQUEDA` (qué pestañas muestran el buscador) sigue igual,
+pero ahora esconde/muestra `.busqueda-wrap` completo (el `<input>` Y el
+ícono juntos) — antes solo escondía el `<input>`, así que en pestañas
+sin buscador (como Resumen) quedaba el ícono 🔍 flotando solo, sin campo
+al lado.
+
 ## Órdenes de maquila — orden de servicios y estado de entrega
 
 Los servicios de una orden de maquila (`mq-servicio`/`emq-servicio`, y el
