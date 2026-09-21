@@ -1108,7 +1108,7 @@ function autocompletarDesdeCliente() {
 let resumenSubTab = 'pagadas';
 let ventasSubTab = 'porEnviar';
 const POR_PAGINA = 8;
-const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1, ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1 };
+const paginas = { ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1, ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, ventasBusqueda: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1 };
 
 // Corta una lista ya ordenada a la página actual y devuelve el HTML de las
 // filas visibles más los controles de "Anterior / Siguiente".
@@ -2037,16 +2037,19 @@ function renderVentas() {
       <div>${anteriores.map(v => filaVenta(v, true)).join('')}</div>
     ` : ''}
 
-    <h3 class="section-title">Ventas de ${mes}</h3>
+    <h3 class="section-title">${q.trim() ? 'Resultados de la búsqueda' : `Ventas de ${mes}`}</h3>
+    ${q.trim() ? '' : `
     <div class="subtabs">
       <button class="${ventasSubTab==='porEnviar'?'active':''}" onclick="cambiarVentasSubTab('porEnviar')">📦 Por enviar (${porEnviar.length})</button>
       <button class="${ventasSubTab==='pagadas'?'active':''}" onclick="cambiarVentasSubTab('pagadas')">Pagadas (${pagadasDelMes.length})</button>
       <button class="${ventasSubTab==='porPagar'?'active':''}" onclick="cambiarVentasSubTab('porPagar')">Por pagar (${porPagarDelMes.length})</button>
-    </div>
+    </div>`}
     <div class="ledger">
-      ${ventasSubTab === 'porEnviar' ? paginar(porEnviar, 'ventasPorEnviar', v => filaVenta(v, false), 'Nada pendiente de envío este mes.') : ''}
+      ${q.trim()
+        ? paginar(delMesOrdenadas, 'ventasBusqueda', v => filaVenta(v, false), 'Nada coincide con esa búsqueda este mes.')
+        : `${ventasSubTab === 'porEnviar' ? paginar(porEnviar, 'ventasPorEnviar', v => filaVenta(v, false), 'Nada pendiente de envío este mes.') : ''}
       ${ventasSubTab === 'pagadas' ? paginar(pagadasDelMes, 'ventasPagadas', v => filaVenta(v, false), 'Sin ventas pagadas este mes.') : ''}
-      ${ventasSubTab === 'porPagar' ? paginar(porPagarDelMes, 'ventasPorPagar', v => filaVenta(v, false), 'Sin ventas por pagar este mes.') : ''}
+      ${ventasSubTab === 'porPagar' ? paginar(porPagarDelMes, 'ventasPorPagar', v => filaVenta(v, false), 'Sin ventas por pagar este mes.') : ''}`}
     </div>
   `;
   onLnLoteChange();

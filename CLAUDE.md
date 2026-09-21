@@ -466,6 +466,27 @@ quedó resuelto (pagado Y entregado/enviado) desaparece de la vista al
 cambiar de mes — no hay que revisarlo de nuevo — pero nada pendiente se
 pierde nunca, sin importar de qué mes sea.
 
+**Buscar en Ventas junta las 3 pestañas en una sola lista**: antes, si
+buscabas un cliente mientras estabas parado en "Pagadas" y esa venta en
+particular estaba "Por pagar" o "Por enviar", no aparecía — había que
+adivinar y probar pestaña por pestaña. Ahora, en `renderVentas()`, si
+`filtroBusqueda` no está vacío, las pestañas Por enviar/Pagadas/Por
+pagar se ocultan y en su lugar se muestra "Resultados de la búsqueda":
+una sola lista con `delMesOrdenadas` (que ya viene filtrada por la
+búsqueda) sin importar el estado de pago/envío de cada una — apenas se
+borra la búsqueda, vuelven las 3 pestañas de siempre. Nueva clave de
+paginación `ventasBusqueda` en el objeto `paginas` (⚠️ *gotcha*: si le
+pasas a `paginar()` una `clave` que no está pre-declarada en `paginas`,
+`paginas[clave]` da `undefined`, y `(undefined-1)*POR_PAGINA` /
+`undefined*POR_PAGINA` se vuelven `NaN` — `array.slice(NaN, NaN)` en JS
+se trata como `slice(0, 0)`, así que la lista sale VACÍA sin ningún
+error en consola ni mensaje de "vacío", porque `lista.length` sí era
+mayor a 0 y se saltó el early-return — costó un rato encontrar esto la
+primera vez. Cualquier `clave` nueva que le pases a `paginar()` tiene
+que declararse en `paginas` de entrada, con `1`, no asumir que se crea
+sola). Solo se hizo en Ventas (fue lo que se reportó) — Maquila no tiene
+pestañas de pago/envío que dividan la lista, así que no aplica ahí.
+
 ## Órdenes de maquila — orden de servicios y estado de entrega
 
 Los servicios de una orden de maquila (`mq-servicio`/`emq-servicio`, y el
