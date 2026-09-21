@@ -147,6 +147,48 @@ tener que adivinar revisando curl o los logs de Cloudflare.
   compra de café real de un cliente (aunque su venta más reciente haya
   sido pura maquila) para sugerir molienda/tueste solos.
 
+## Accesibilidad para usuarios de 65+ años
+
+Juan e Inés (dos de los tres del equipo que usan la app interna a diario)
+tienen 65 años — la app se diseña pensando en esa barra, no en un usuario
+técnico joven. Primer pase (index.html, la app interna — no se tocó
+pedidos/index.html todavía):
+
+- `--cafe-soft` (texto secundario/meta en TODA la app) se oscureció de
+  `#8A7A70` a `#6E5D52` — el original medía ~4:1 de contraste contra
+  `--crema`, por debajo del mínimo 4.5:1 de WCAG AA para texto normal.
+  Una sola variable, efecto en toda la app.
+- Tamaños de letra base subidos (body 16→17px, `.ledger-row` 15.5→16.5px,
+  `.meta`/`.details` 13→14px, `.field label` 13→14px, nav del sidebar
+  14.5→15.5px, nav de abajo en celular —el más chico de toda la app—
+  10→11.5px).
+- Botones de acción de una fila (✎✕⚖️🌾⏱️📋, `.ledger-row .acciones
+  button`) a mínimo 44px (el tamaño de tap recomendado para dedos menos
+  precisos), antes 38px; más separación entre ellos.
+- Checkboxes (antes sin estilo del navegador, ~13px) a 20px con
+  `accent-color` de la marca.
+- El toast de confirmación dura más (3.2s → 4.2s) para dar tiempo a leerlo.
+
+⚠️ *Gotcha real que salió de este cambio*: subir el tamaño de la
+etiqueta de estado (`.tag`) y de los botones de acción hizo que, en
+pantallas angostas con nombres de cliente largos, esos elementos ya no
+cupieran junto a `.main` en una sola línea — el texto de `.main` se
+aplastaba hasta quedar ilegible (una palabra por línea) en vez de que la
+fila completa bajara de línea. Arreglado agregando `flex-wrap: wrap` a
+`.ledger-row` y `flex: 1 1 180px` (en vez de solo `flex: 1`) a `.main`,
+para que cuando no quepa todo en una línea, la fila completa (nombre/
+fecha/detalle arriba, etiqueta/monto/botones abajo) pase a dos líneas en
+vez de aplastar el contenido. Si se agranda algo más en `.ledger-row` en
+el futuro, probar primero con un nombre de cliente largo en celular
+angosto (375px) antes de dar por bueno el cambio.
+
+Pendiente si se quiere seguir: agregar texto visible junto a los botones
+de solo-ícono (ej. "✎ Editar" en vez de solo ✎) — ayuda mucho a este
+grupo de edad, pero hay filas con 3-4 botones (Cosecha: ⏱️⚖️🌾✕) que se
+desbordarían en celular con etiquetas completas; necesitaría revisar
+fila por fila, no es un cambio de CSS global seguro. Tampoco se tocó
+`pedidos/index.html` (la página pública) en este pase.
+
 ## Estructura del repo
 
 ```

@@ -18,7 +18,11 @@
     --crema: #FCFBF9;
     --crema-alt: #F1EAE0;
     --cafe: #3E2723;
-    --cafe-soft: #8A7A70;
+    /* Oscurecido de #8A7A70 — el original daba ~4:1 de contraste contra
+       --crema (falla el 4.5:1 mínimo de WCAG AA para texto normal), muy
+       poco para texto secundario/meta que se lee todo el día — Juan e
+       Inés (65 años) lo usan a diario. */
+    --cafe-soft: #6E5D52;
     --verde: #4A6B48;
     --verde-bg: #E7EDE3;
     --terracota: #AD4B31;
@@ -35,7 +39,7 @@
     color: var(--cafe);
     font-family: 'Outfit', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
-    font-size: 16px; line-height: 1.5;
+    font-size: 17px; line-height: 1.55;
   }
   .app-shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
 
@@ -65,13 +69,13 @@
   .sidebar-links button {
     display: flex; align-items: center; gap: 11px; text-align: left; width: 100%;
     background: none; border: none; font-family: 'Outfit', sans-serif;
-    font-size: 14.5px; font-weight: 600; color: var(--cafe-soft);
+    font-size: 15.5px; font-weight: 600; color: var(--cafe-soft);
     padding: 11px 12px; border-radius: 10px; cursor: pointer; white-space: nowrap;
     transition: background .15s, color .15s;
   }
   .sidebar-links button:hover { background: var(--crema-alt); }
   .sidebar-links button.active { color: #fff; background: var(--cafe); }
-  .sidebar-links button .ico { font-size: 16.5px; width: 20px; text-align: center; flex-shrink: 0; }
+  .sidebar-links button .ico { font-size: 18px; width: 20px; text-align: center; flex-shrink: 0; }
 
   .sidebar-footer { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--linea); }
   .sync-indicator {
@@ -122,8 +126,8 @@
     .mobile-menu-btn {
       display: flex; align-items: center; justify-content: center; position: sticky;
       top: calc(66px + env(safe-area-inset-top)); left: 12px;
-      width: 40px; height: 40px; border-radius: 10px; background: var(--blanco); border: 1px solid var(--linea);
-      font-size: 18px; cursor: pointer; z-index: 40; margin: 12px 0 0 12px;
+      width: 44px; height: 44px; border-radius: 10px; background: var(--blanco); border: 1px solid var(--linea);
+      font-size: 19px; cursor: pointer; z-index: 40; margin: 12px 0 0 12px;
     }
     .sidebar-overlay.show {
       display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 55;
@@ -143,14 +147,14 @@
     .bottom-nav-movil button {
       flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
       background: none; border: none; font-family: 'Outfit', sans-serif;
-      font-size: 10px; font-weight: 600; color: var(--cafe-soft); padding: 6px 1px; border-radius: 10px;
+      font-size: 11.5px; font-weight: 600; color: var(--cafe-soft); padding: 7px 1px; border-radius: 10px;
       position: relative; overflow: hidden;
     }
     .bottom-nav-movil button span:last-child {
       display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .bottom-nav-movil button.active { color: var(--cafe); background: var(--crema-alt); }
-    .bottom-nav-movil button .ico { font-size: 19px; position: relative; }
+    .bottom-nav-movil button .ico { font-size: 20px; position: relative; }
     .bottom-nav-movil .campana-badge { top: -4px; right: -10px; }
   }
 
@@ -230,12 +234,15 @@
   .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .row:last-child { margin-bottom: 0; }
   .field { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
-  .field label { font-size: 13px; color: var(--cafe-soft); font-weight: 600; letter-spacing: .01em; }
+  .field label { font-size: 14px; color: var(--cafe-soft); font-weight: 600; letter-spacing: .01em; }
   .field input, .field select {
     font-family: 'Outfit', sans-serif; font-size: 16px; padding: 11px 12px; border: 1px solid var(--linea);
     border-radius: 6px; background: var(--blanco); color: var(--cafe); width: 100%;
   }
   .field input:focus, .field select:focus { outline: 2px solid var(--cafe); outline-offset: -1px; }
+  /* Los checkboxes sin estilo del navegador salen ~13px — muy chicos para
+     tocar con precisión; se agrandan y se les pone el color de la marca. */
+  input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--cafe); cursor: pointer; }
 
   .quick-add { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .quick-add button {
@@ -269,26 +276,33 @@
   /* ---------- Listas tipo libro ---------- */
   .ledger { border-top: 1px solid var(--linea); }
   .ledger-row {
-    display: flex; align-items: center; gap: 12px; padding: 15px 4px; border-bottom: 1px solid var(--linea);
-    font-size: 15.5px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 15px 4px; border-bottom: 1px solid var(--linea);
+    font-size: 16.5px;
   }
   .ledger-row.deuda-anterior { background: var(--terracota-bg); border-radius: 6px; padding: 11px 8px; margin-bottom: 4px; border-bottom: none; }
-  .ledger-row .main { flex: 1; min-width: 0; }
+  /* flex-basis (no solo flex:1) para que, si el nombre/detalle es largo y no
+     cabe junto a la etiqueta/monto/botones en una sola línea, el renglón
+     completo baje a una segunda línea en vez de aplastarse hasta quedar
+     ilegible — pasaba en pantallas angostas con nombres largos. */
+  .ledger-row .main { flex: 1 1 180px; min-width: 0; }
   .ledger-row .main .title { font-weight: 700; }
-  .ledger-row .main .meta { font-size: 13px; color: var(--cafe-soft); margin-top: 3px; }
-  .ledger-row .main .details { font-size: 13px; color: var(--cafe); margin-top: 2px; font-style: italic; opacity: .8; }
-  .ledger-row .amount { font-weight: 700; font-size: 16.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ledger-row .main .meta { font-size: 14px; color: var(--cafe-soft); margin-top: 3px; }
+  .ledger-row .main .details { font-size: 14px; color: var(--cafe); margin-top: 2px; font-style: italic; opacity: .8; }
+  .ledger-row .amount { font-weight: 700; font-size: 17.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ledger-row .amount.pos { color: var(--verde); }
   .ledger-row .amount.neg { color: var(--terracota); }
-  .ledger-row .acciones { display: flex; gap: 6px; align-items: center; }
+  /* Botones de acción (✎✕⚖️🌾⏱️📋) — mínimo 44px, el tamaño de tap
+     recomendado para dedos menos precisos; más separación entre ellos
+     para no tocar el de al lado por error. */
+  .ledger-row .acciones { display: flex; gap: 8px; align-items: center; }
   .ledger-row .acciones button {
     background: var(--crema-alt); border: 1px solid var(--linea); color: var(--cafe);
-    font-size: 16px; cursor: pointer; padding: 7px 10px; border-radius: 8px;
-    min-width: 38px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 19px; cursor: pointer; padding: 8px 10px; border-radius: 8px;
+    min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
   }
   .ledger-row .acciones button:hover, .ledger-row .acciones button:active { background: var(--terracota); color: #fff; border-color: var(--terracota); }
 
-  .tag { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 5px 12px; border-radius: 20px; cursor: pointer; border: none; }
+  .tag { display: inline-block; font-size: 14px; font-weight: 700; padding: 7px 14px; border-radius: 20px; cursor: pointer; border: none; }
   .tag.pendiente { background: #F2E2C4; color: #8A6A1F; }
   .tag.pagado { background: var(--verde-bg); color: var(--verde); }
   .tag.envio-pendiente { background: var(--azul-bg); color: var(--azul); }
@@ -4896,7 +4910,7 @@ function toast(mensaje, tipo) {
   el.className = 'toast' + (tipo === 'error' ? ' error' : '');
   el.textContent = mensaje;
   wrap.appendChild(el);
-  setTimeout(() => el.remove(), 3200);
+  setTimeout(() => el.remove(), 4200);
 }
 
 /* ================================================================
