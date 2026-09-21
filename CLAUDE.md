@@ -1233,6 +1233,27 @@ carrito sin pisarse.
 
 ## Gotchas ya vividos (para no repetirlos)
 
+- **`requireAuth()` sin `try/catch` alrededor de `supabase.auth.getUser(token)`
+  tumbaba TODA la app por un solo endpoint** (2026-09-21): Juan reportó
+  "Error en /api/pergamino (500): JWT issued at future" y toda la
+  sincronización se rompió (no solo pergamino — `sincronizar()` corta en
+  el PRIMER endpoint que falla, así que un solo endpoint atascado bloquea
+  los otros 15). Causa: en un caso raro de desfase de reloj entre Supabase
+  Auth y el Worker, `supabase.auth.getUser(token)` puede TIRAR una
+  excepción en vez de devolver `{ error }` limpio — como `requireAuth()`
+  no tenía `try/catch`, eso tumbaba la función entera con un 500 crudo
+  (el mensaje de la excepción tal cual), en vez del 401 "No autorizado"
+  de siempre que `sincronizar()` ya sabe manejar con "Tu sesión expiró".
+  Arreglado envolviendo esa llamada en `try/catch`, tratando cualquier
+  excepción igual que un token inválido (401). Esto NO tenía nada que ver
+  con el precio del café ni con ninguna migración — pasó en un endpoint
+  que no se había tocado — pero como bloqueaba toda la sincronización,
+  se sentía como "la página entera tiene un error". Moraleja: en
+  `functions/_lib/`, cualquier llamada a una librería externa (Supabase,
+  CallMeBot, lo que sea) que pueda fallar de forma inesperada necesita su
+  propio `try/catch` — un solo endpoint roto sin protección puede tumbar
+  áreas de la app que no tienen nada que ver.
+
 - La tabla `.tabla-clientes` se reutiliza en varios lados (Mejores
   clientes, Balance por persona, Por modalidad/cuenta) con un único
   `.fila-cliente { grid-template-columns: 1.6fr .7fr 1.1fr .9fr }` de 4
