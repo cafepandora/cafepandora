@@ -242,9 +242,15 @@
      visibles a la vez no era obvio que había que deslizar para ver el
      resto. Para alguien mayor eso puede leerse como "solo hay 2 pasos"
      y quedarse confundido — en columna se ve todo de una, sin adivinar. */
-  .guia-pasos { display: flex; flex-direction: column; gap: 8px; padding: 2px 0 14px; }
-  .guia-paso { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600; color: var(--cafe); background: var(--blanco); border: 1px solid var(--linea); border-radius: 12px; padding: 11px 14px; }
-  .guia-paso b { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--dorado); color: #fff; font-size: 12.5px; flex-shrink: 0; }
+  /* Sin fondo/borde de tarjeta a propósito (2026-09-22) — con ese
+     tratamiento varios clientes reales pensaron que los 4 pasos eran
+     botones y tocaban esperando que pasara algo. El título chico
+     ("Así se pide") + un guion en vez de tarjeta los deja leyéndose
+     como lo que son: una guía de texto, no controles. */
+  .guia-titulo { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--teal); margin: 0 0 10px; }
+  .guia-pasos { display: flex; flex-direction: column; gap: 10px; padding: 2px 0 14px; }
+  .guia-paso { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600; color: var(--cafe); cursor: default; }
+  .guia-paso b { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--dorado); color: #fff; font-size: 12.5px; flex-shrink: 0; font-weight: 600; }
 
   .nav-rapida { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 18px; scrollbar-width: none; position: sticky; top: 0; z-index: 40; background: var(--crema); }
   .nav-rapida::-webkit-scrollbar { display: none; }
@@ -392,6 +398,7 @@
     <h2>Arma tu pedido</h2>
   </header>
 
+  <p class="guia-titulo">Así se pide</p>
   <div class="guia-pasos">
     <span class="guia-paso"><b>1</b>Elige tu café</span>
     <span class="guia-paso"><b>2</b>Cantidad y molienda</span>
