@@ -1483,6 +1483,44 @@ señaló que este es justo el momento con menos tiempo para pensar
 (pesando en la finca), así que vale más confirmar el número real que un
 mensaje genérico de "listo".
 
+## Profesionalizar la app interna — primer pase en Ventas (2026-09-23)
+
+El usuario pidió, en general, hacer la app interna "más cómoda de usar y
+de entender" — se empezó por Ventas (la pestaña que más se usa a
+diario) en vez de un cambio global, para no tocar 8 pantallas a la vez
+sin validar el patrón primero.
+
+**El problema real**: el formulario de Ventas mezclaba, en una sola
+lista continua de `.row`/`.field` sin ninguna separación visual, dos
+cosas conceptualmente distintas — agregar UNA línea de café al pedido
+(Lote/Presentación/Cantidad/Molienda/Tostión/Valor de esta línea) y
+cerrar TODA la venta (Valor total/Método de pago/Estado/Quién
+recibió). Los campos "Valor de esta línea" y "Valor total" se veían
+exactamente igual (mismo tipo de input, misma fila, a pocas líneas de
+distancia) sin nada que avisara que son cosas distintas — uno es el
+precio de lo que se está agregando, el otro es la suma de todo el
+pedido. Ninguno de los dos avisaba tampoco que se autocompletan solos
+(`recalcularLinea()`/`pintarCarrito()` los recalculan en vivo) pero se
+pueden corregir a mano.
+
+**La solución**: clase nueva `.subcard` (fondo `--crema-alt`, el mismo
+tono que ya se usaba en otros lados de la app para resaltar bloques —
+nada de color nuevo) que agrupa cada paso bajo un título chico en
+mayúscula tipo kicker (mismo lenguaje visual que ya se usa en
+`pedidos/index.html` desde la auditoría CRO: "① Agregar café al
+pedido" y "② Cerrar la venta", numerados a propósito para reforzar el
+orden). Debajo de los dos campos que se autocompletan, una línea de
+ayuda (`.campo-ayuda`, texto chico gris) aclara que el valor es
+sugerido/calculado y se puede corregir. `.subcard`/`.subcard-titulo`/
+`.campo-ayuda` son clases genéricas — sirven para repetir el mismo
+patrón en Maquila, Gastos, Finca y Cuentas de cobro más adelante, sin
+inventar nada nuevo cuando se haga ese pase.
+
+Probado en el preview local en desktop y en mobile (375px) — el
+`.subcard` no desborda en ningún ancho, y el flujo de agregar una línea
++ ver el carrito + cerrar la venta sigue funcionando igual que antes
+(no se tocó ninguna función de JS, solo el HTML/CSS alrededor).
+
 ## Pendiente / a medias
 
 - **Entrega de maquila, saldo inicial y precio FNC — falta correr 3

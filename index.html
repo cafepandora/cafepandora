@@ -283,6 +283,14 @@
     border-radius: 6px; background: var(--blanco); color: var(--cafe); width: 100%;
   }
   .field input:focus, .field select:focus { outline: 2px solid var(--cafe); outline-offset: -1px; }
+  /* Subtarjeta dentro de una .card — agrupa visualmente un paso del
+     formulario (ej. "agregar café" vs. "cerrar la venta") para que no se
+     vea como una sola lista larga de campos sin separación. Mismo fondo
+     que ya se usa en el resto de la app para resaltar bloques (--crema-alt),
+     nada nuevo. 2026-09-23, primer pase en Ventas. */
+  .subcard { background: var(--crema-alt); border: 1px solid var(--linea); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  .subcard-titulo { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--teal); margin: 0 0 12px; }
+  .campo-ayuda { font-size: 12px; color: var(--cafe-soft); margin: -4px 0 10px; line-height: 1.4; }
   /* Los checkboxes sin estilo del navegador salen ~13px — muy chicos para
      tocar con precisión; se agrandan y se les pone el color de la marca. */
   input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--dorado); cursor: pointer; }
@@ -2225,53 +2233,61 @@ function renderVentas() {
         </div>
       </div>
 
-      <div class="row">
-        <div class="field"><label>Lote</label>
-          <select id="ln-lote" onchange="onLnLoteChange()">${LOTES_VENTA.map(l => `<option>${l}</option>`).join('')}</select>
+      <div class="subcard">
+        <p class="subcard-titulo">① Agregar café al pedido</p>
+        <div class="row">
+          <div class="field"><label>Lote</label>
+            <select id="ln-lote" onchange="onLnLoteChange()">${LOTES_VENTA.map(l => `<option>${l}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Presentación</label>
+            <select id="ln-presentacion" onchange="recalcularLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Cantidad</label>
+            <input id="ln-cantidad-cafe" type="number" value="1" min="1" onchange="recalcularLinea()">
+          </div>
         </div>
-        <div class="field"><label>Presentación</label>
-          <select id="ln-presentacion" onchange="recalcularLinea()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select>
+        <div class="row">
+          <div class="field"><label>Molienda</label>
+            <select id="ln-molienda">${MOLIENDAS.map(m => `<option>${m}</option>`).join('')}</select>
+          </div>
+          <div class="field" id="ln-campo-tueste"><label>Tostión</label>
+            <select id="ln-tueste">${TUESTES_LAVADO.map(t => `<option>${t}</option>`).join('')}</select>
+          </div>
         </div>
-        <div class="field"><label>Cantidad</label>
-          <input id="ln-cantidad-cafe" type="number" value="1" min="1" onchange="recalcularLinea()">
+        <div class="row">
+          <div class="field"><label>Valor de esta línea</label>
+            <input id="ln-valor" type="number" placeholder="0" min="0">
+          </div>
         </div>
+        <p class="campo-ayuda">Precio sugerido según el lote y el tipo de cliente — puedes ajustarlo a mano si hace falta.</p>
+        <button class="sec-btn" style="width:100%" onclick="agregarLineaAlCarrito()">+ Agregar al pedido</button>
       </div>
-      <div class="row">
-        <div class="field"><label>Molienda</label>
-          <select id="ln-molienda">${MOLIENDAS.map(m => `<option>${m}</option>`).join('')}</select>
-        </div>
-        <div class="field" id="ln-campo-tueste"><label>Tostión</label>
-          <select id="ln-tueste">${TUESTES_LAVADO.map(t => `<option>${t}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="row">
-        <div class="field"><label>Valor de esta línea</label>
-          <input id="ln-valor" type="number" placeholder="0" min="0">
-        </div>
-      </div>
-      <button class="sec-btn" style="width:100%" onclick="agregarLineaAlCarrito()">+ Agregar al pedido</button>
 
       <h3 class="section-title">Pedido actual</h3>
       <div id="carrito-lista"></div>
       <div style="text-align:right;font-weight:700;margin:6px 0 4px">Total: <span id="carrito-total">$0</span></div>
 
-      <div class="row" style="margin-top:10px">
-        <div class="field"><label>Valor total</label>
-          <input id="v-valor" type="number" placeholder="0" min="0">
+      <div class="subcard">
+        <p class="subcard-titulo">② Cerrar la venta</p>
+        <div class="row">
+          <div class="field"><label>Valor total</label>
+            <input id="v-valor" type="number" placeholder="0" min="0">
+          </div>
+          <div class="field"><label>Método de pago</label>
+            <select id="v-metodo" onchange="actualizarRecibioVisible('v')">${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Estado</label>
+            <select id="v-estado"><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option></select>
+          </div>
         </div>
-        <div class="field"><label>Método de pago</label>
-          <select id="v-metodo" onchange="actualizarRecibioVisible('v')">${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
+        <p class="campo-ayuda">Se suma solo con lo que agregaste arriba — puedes corregirlo si el cliente pagó distinto.</p>
+        <div class="row" id="v-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}">
+          <div class="field"><label>Quién recibió</label>
+            <select id="v-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
+          </div>
         </div>
-        <div class="field"><label>Estado</label>
-          <select id="v-estado"><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option></select>
-        </div>
+        <button class="add-btn" onclick="registrarVenta(this)">Registrar venta</button>
       </div>
-      <div class="row" id="v-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}">
-        <div class="field"><label>Quién recibió</label>
-          <select id="v-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
-        </div>
-      </div>
-      <button class="add-btn" onclick="registrarVenta(this)">Registrar venta</button>
       </div>
 
     ${anteriores.length ? `
