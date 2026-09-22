@@ -945,6 +945,7 @@ const state = {
   cuentasCobro: [],
   saldosIniciales: [],
   precioFnc: [],
+  costosMargen: { costoTostionKg: 0, costoBolsaMediaLb: 0, costoBolsaLibra: 0, costoBolsaKilo: 0, costoBolsaCuarteron: 0 },
   tabActiva: 'ventas',
 };
 // Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
@@ -1360,7 +1361,7 @@ supabaseClient.auth.onAuthStateChange((_evento, session) => { if (session) sesio
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc', costosMargen: 'cp_c_costosMargen' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -1377,7 +1378,7 @@ function guardarCacheLocal(k) {
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
-  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc'];
+  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen'];
 
   let respuestas;
   try {
@@ -1407,11 +1408,11 @@ async function sincronizar() {
   }
 
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf] = await Promise.all(respuestas.map(r => r.json()));
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm] = await Promise.all(respuestas.map(r => r.json()));
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
-    state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si; state.precioFnc = pf;
+    state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si; state.precioFnc = pf; state.costosMargen = cm;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -4807,7 +4808,7 @@ function renderResumen() {
     </div>
 
     <h3 class="section-title">Margen estimado por lote</h3>
-    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Todo el histórico, no solo este mes. Ingreso: lo vendido de cada lote. Costo: café comprado de ese proceso + una parte de los gastos de finca, repartida según cuántos kilos se cosecharon de cada uno — es un <b>estimado</b>, la finca no separa sus gastos por proceso.</p>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Todo el histórico, no solo este mes. Ingreso: lo vendido de cada lote. Costo: café comprado a terceros + tu propia cosecha valorada como si la hubieras comprado (precio promedio de la Federación) + una parte de los gastos de finca (según kilos cosechados) + tostión + bolsa — es un <b>estimado</b>. Ajusta el costo de tostión/bolsa en Configuración → Precios.</p>
     <div class="tabla-clientes">
       <div class="fila-cliente encabezado"><span>Lote</span><span>Ingreso</span><span>Costo est.</span><span>Margen</span></div>
       ${calcularMargenPorLote().map(m => `
@@ -4933,10 +4934,29 @@ function velocidadVentaLote(lote) {
 // kilos de cereza propia se cosecharon de cada proceso — es una
 // aproximación (la finca no separa sus gastos por proceso), no contabilidad
 // exacta, así que la UI lo deja claro como "estimado".
+// Precio promedio de TODO el histórico guardado de precioFnc (no por mes
+// — simplificación a propósito: el margen por lote ya es "todo el
+// histórico", y precioFnc rara vez cubre exactamente los mismos meses
+// que cada cosecha, así que un promedio general es más honesto que
+// aparentar precisión mes a mes que no se tiene) — valorado al mismo
+// factor 88 que se usa para comprarle a terceros (Completar pago), por
+// consistencia: es "cuánto habría costado esta cosecha si la hubiéramos
+// comprado en vez de cultivarla".
+function precioPromedioPergaminoPropio() {
+  const hist = state.precioFnc || [];
+  if (!hist.length) return 0;
+  const promedioCarga = hist.reduce((s, p) => s + (Number(p.precioCarga) || 0), 0) / hist.length;
+  return promedioCarga * (FACTOR_BASE_REFERENCIA / FACTOR_COMPRA_CEREZA) / 125;
+}
+const CLAVE_COSTO_BOLSA = { 'Media lb': 'costoBolsaMediaLb', 'Libra': 'costoBolsaLibra', 'Kilo': 'costoBolsaKilo', 'Cuarterón': 'costoBolsaCuarteron' };
 function calcularMargenPorLote() {
+  const cm = state.costosMargen || {};
   const ingresoPorLote = {};
-  state.ventas.forEach(v => lotesDeVenta(v).forEach(([lote, val]) => {
-    ingresoPorLote[lote] = (ingresoPorLote[lote] || 0) + (Number(val) || 0);
+  const bolsaPorLote = {};
+  state.ventas.forEach(v => itemsNormalizados(v).filter(it => it.tipo === 'cafe' && it.lote).forEach(it => {
+    ingresoPorLote[it.lote] = (ingresoPorLote[it.lote] || 0) + (Number(it.valor) || 0);
+    const clave = CLAVE_COSTO_BOLSA[it.presentacion];
+    if (clave) bolsaPorLote[it.lote] = (bolsaPorLote[it.lote] || 0) + (Number(cm[clave]) || 0) * (Number(it.cantidad) || 0);
   }));
   const kilosCosechaPorLote = {};
   let kilosCosechaTotal = 0;
@@ -4949,11 +4969,27 @@ function calcularMargenPorLote() {
   state.cerezaComprada.forEach(c => {
     costoCerezaPorLote[c.proceso] = (costoCerezaPorLote[c.proceso] || 0) + (Number(c.costo) || 0);
   });
+  // Cosecha propia valorada "como si se hubiera comprado" — usa el
+  // pergamino REAL si ya se pesó, si no la proyección genérica.
+  const precioKiloPropio = precioPromedioPergaminoPropio();
+  const costoCosechaPropiaPorLote = {};
+  state.cosechas.forEach(c => {
+    const kgPergamino = c.kilosPergaminoReal != null ? Number(c.kilosPergaminoReal) : proyectarDesdeCereza(c.kilosCereza).pergamino;
+    costoCosechaPropiaPorLote[c.proceso] = (costoCosechaPropiaPorLote[c.proceso] || 0) + kgPergamino * precioKiloPropio;
+  });
+  const tostadoPorLote = {};
+  state.tuestes.forEach(t => {
+    tostadoPorLote[t.lote] = (tostadoPorLote[t.lote] || 0) + (Number(t.kilosTostado) || 0);
+  });
   const totalFinca = state.finca.reduce((s, f) => s + (Number(f.monto) || 0), 0);
   return LOTES.map(lote => {
     const ingreso = ingresoPorLote[lote] || 0;
     const propKilos = kilosCosechaTotal > 0 ? (kilosCosechaPorLote[lote] || 0) / kilosCosechaTotal : 0;
-    const costo = (costoCerezaPorLote[lote] || 0) + totalFinca * propKilos;
+    const costo = (costoCerezaPorLote[lote] || 0)
+      + (costoCosechaPropiaPorLote[lote] || 0)
+      + totalFinca * propKilos
+      + (tostadoPorLote[lote] || 0) * (Number(cm.costoTostionKg) || 0)
+      + (bolsaPorLote[lote] || 0);
     const margen = ingreso - costo;
     return { lote, ingreso, costo, margen, margenPct: ingreso > 0 ? (margen / ingreso) * 100 : null };
   }).filter(x => x.ingreso > 0 || x.costo > 0);
@@ -5698,10 +5734,26 @@ function renderConfig() {
     </div>`;
   }).join('');
 
+  const cm = state.costosMargen || {};
   const bloquePrecios = `
     <h3 class="section-title" style="margin-top:0">Saldo inicial de cada cuenta</h3>
     ${filasSaldoInicial}
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:10px">Con cuánto tenía cada uno antes de empezar a usar la app (puede ser negativo si alguien ya debía plata). Se pone una sola vez — de ahí en adelante "Balance de cuentas" en Resumen sigue contando solo, sumando y restando lo que se vaya registrando.</p>
+
+    <h3 class="section-title">Costos para "Margen estimado por lote"</h3>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Costo INTERNO tuyo — no tiene que ser igual a lo que cobras por maquila (Configuración → Tarifas de maquila más abajo, para clientes). Se usa solo para calcular el margen en Resumen.</p>
+    <div class="row">
+      <div class="field"><label>Tostión (por kg tostado)</label><input type="number" id="cmg-tostion" value="${cm.costoTostionKg || 0}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Bolsa Media lb</label><input type="number" id="cmg-bolsa-media" value="${cm.costoBolsaMediaLb || 0}"></div>
+      <div class="field"><label>Bolsa Libra</label><input type="number" id="cmg-bolsa-libra" value="${cm.costoBolsaLibra || 0}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Bolsa Kilo</label><input type="number" id="cmg-bolsa-kilo" value="${cm.costoBolsaKilo || 0}"></div>
+      <div class="field"><label>Bolsa Cuarterón</label><input type="number" id="cmg-bolsa-cuarteron" value="${cm.costoBolsaCuarteron || 0}"></div>
+    </div>
+    <button class="sec-btn" onclick="guardarCostosMargen(this)">Guardar</button>
 
     <h3 class="section-title">Precios de café</h3>
     ${filasCafe || '<div class="empty">Sin precios configurados.</div>'}
@@ -5830,6 +5882,26 @@ async function guardarSaldoInicial(persona) {
   renderTodo();
   await apiFetch('/api/saldos-iniciales', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona, monto }) });
   toast('Saldo inicial guardado');
+}
+
+async function guardarCostosMargen(btn) {
+  btn.disabled = true;
+  const payload = {
+    costoTostionKg: Number(document.getElementById('cmg-tostion').value) || 0,
+    costoBolsaMediaLb: Number(document.getElementById('cmg-bolsa-media').value) || 0,
+    costoBolsaLibra: Number(document.getElementById('cmg-bolsa-libra').value) || 0,
+    costoBolsaKilo: Number(document.getElementById('cmg-bolsa-kilo').value) || 0,
+    costoBolsaCuarteron: Number(document.getElementById('cmg-bolsa-cuarteron').value) || 0,
+  };
+  try {
+    const res = await apiFetch('/api/costos-margen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
+    state.costosMargen = await res.json();
+    guardarCacheLocal('costosMargen');
+    toast('Costos de margen guardados');
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
 }
 
 /* ================================================================

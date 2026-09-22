@@ -760,16 +760,44 @@ existían en vez de agregar nada nuevo que llenar a mano:
   el balance de cuentas, es TODO el histórico, no el mes filtrado —
   comparar mes a mes no tendría sentido porque lo que se vende un mes casi
   nunca es lo que se cosechó ese mismo mes (entre secado, trilla y tueste
-  pasan semanas). Ingreso: suma real de `lotesDeVenta()` por lote. Costo:
-  cereza comprada de ese proceso (costo real y directo, de
-  `compras_cereza`) MÁS una porción de los gastos de finca (`state.finca`,
-  TODOS, la finca no separa gasto por proceso) repartida proporcional a
-  cuántos kilos de cereza PROPIA se cosecharon de cada proceso — es una
-  aproximación tipo costeo por actividad, no contabilidad exacta, por eso
-  la tarjeta dice "estimado" en el texto de ayuda. Un lote con cosecha
-  pero sin ventas todavía (ej. Natural recién cosechado) sale con margen
-  negativo a propósito — sí tiene costo de finca asignado, pero $0 de
-  ingreso porque no se ha vendido nada; no es un error, es literal.
+  pasan semanas). Ingreso: suma real de `itemsNormalizados()` por lote.
+  Costo, 5 componentes (ampliado 2026-09-21, a pedido de Juan — antes solo
+  tenía los primeros 2):
+  1. Cereza comprada a terceros de ese proceso (costo real y directo).
+  2. **Cosecha PROPIA valorada como si se hubiera comprado** — a falta de
+     un costo de "comprar" la cosecha propia, se valora el pergamino
+     (real si ya se pesó, si no la proyección genérica) al precio
+     promedio de TODO el histórico guardado de `precioFnc`, al mismo
+     factor 88 que se usa para pagarle a terceros
+     (`precioPromedioPergaminoPropio()`) — simplificación a propósito: un
+     promedio general en vez de por mes, porque `precioFnc` rara vez
+     cubre exactamente los mismos meses que cada cosecha.
+  3. Una porción de los gastos de finca (`state.finca`, TODOS) repartida
+     proporcional a cuántos kilos de cereza PROPIA se cosecharon de cada
+     proceso.
+  4. **Tostón**: kilos tostados de ese lote (`state.tuestes`) ×
+     `costosMargen.costoTostionKg`.
+  5. **Bolsa**: por cada línea de venta de ese lote, cantidad × el costo
+     de bolsa de esa presentación (`CLAVE_COSTO_BOLSA`, un valor por
+     presentación — una Cuarterón gasta más bolsa que una Media lb).
+  Los 5 componentes juntos siguen siendo una aproximación tipo costeo por
+  actividad, no contabilidad exacta, por eso la tarjeta dice "estimado".
+  Un lote con cosecha pero sin ventas todavía (ej. Natural recién
+  cosechado) sale con margen negativo a propósito — sí tiene costo
+  asignado, pero $0 de ingreso; no es un error, es literal.
+- **Costos internos para el margen, editables** (Configuración → Precios,
+  bloque "Costos para 'Margen estimado por lote'", justo después de
+  Saldo inicial): tabla nueva `costos_margen`
+  (`migracion_costos_margen.sql`, UNA sola fila con `id` fijo 1, se
+  sobreescribe con upsert) — `costoTostionKg` + un costo de bolsa POR
+  PRESENTACIÓN (`costoBolsaMediaLb`/`Libra`/`Kilo`/`Cuarteron`).
+  **A propósito es un costo APARTE de las tarifas de Maquila** (que ya
+  tenían Tostión/Bolsas configuradas, en `state.maquila`) — Juan
+  confirmó que quiere poder tener un costo interno distinto de lo que le
+  cobra a un cliente de maquila por el mismo servicio, así que NO se
+  reusaron esas tarifas. `GET /api/costos-margen` devuelve todo en 0 si
+  todavía no se ha guardado nada (el margen simplemente no resta por
+  tostón/bolsa hasta que se configuren).
 - **Clientes que podrían estar dejando de comprar** (Resumen, justo debajo
   de Mejores Clientes, `clientesEnRiesgo()`): clientes de café con 3+
   compras (ya no están "probando") que llevan `DIAS_RIESGO_FUGA` (60) días
