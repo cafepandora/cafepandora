@@ -97,8 +97,39 @@
   .revela.visible { opacity: 1; transform: translateY(0); }
   @media (prefers-reduced-motion: reduce) {
     .revela { opacity: 1; transform: none; transition: none; }
-    .scroll-cue { animation: none; }
   }
+
+  /* ---------- Feedback de toque/clic (Sistema de movimiento, 2026-09-21) ----------
+     100-150ms SIEMPRE — son respuestas a un toque, tienen que sentirse
+     inmediatas (al revés del revelado por scroll de arriba: ahí los 600ms
+     son parte del efecto, acá la lentitud se sentiría como que la app no
+     respondió). Botones grandes: :active los achica un poco (scale .97),
+     :hover (solo escritorio, la minoría) oscurece un poco el fondo. */
+  .hero-cta-primaria, .add-btn, .carrito-barra button.enviar {
+    transition: transform .12s ease, filter .15s ease;
+  }
+  .hero-cta-primaria:active, .add-btn:active, .carrito-barra button.enviar:active { transform: scale(.97); }
+  @media (hover: hover) {
+    .hero-cta-primaria:hover, .add-btn:hover, .carrito-barra button.enviar:hover { filter: brightness(.94); }
+  }
+  .peso-pill, .molienda-btn, .proceso-pill {
+    transition: transform .12s ease, background .15s ease, border-color .15s ease;
+  }
+  .peso-pill:active, .molienda-btn:active, .proceso-pill:active { transform: scale(.97); }
+  /* El stepper +/- es lo que más se toca seguido de todo el sitio — feedback
+     un poco más marcado (scale .92) porque son botones chicos y repetidos. */
+  .stepper button { transition: transform .12s ease, background .15s ease; }
+  .stepper button:active { transform: scale(.92); }
+  @media (hover: hover) {
+    .stepper button:hover { background: var(--linea); }
+  }
+  /* Links de texto — sin escala (se ve raro en texto), solo opacidad/subrayado. */
+  .hero-cta-secundaria, .metodo-diferente { transition: opacity .15s ease; }
+  .hero-cta-secundaria:active, .metodo-diferente:active { opacity: .7; }
+  @media (hover: hover) {
+    .hero-cta-secundaria:hover { text-decoration: underline; }
+  }
+
 
   /* ---------- Proceso — cereza a taza, en 4 capítulos cortos ----------
      Sin fotos por paso a propósito: solo tenemos 2 fotos reales de la
@@ -424,6 +455,14 @@ async function cargarCatalogo() {
   pintarBannerExoticos();
   pintarNavRapida();
   actualizarBarra();
+  // pintarCatalogo() recién acaba de agregar sus propias tarjetas .revela
+  // al DOM — la llamada de iniciarRevelado() de más abajo ya corrió antes
+  // de que existieran (esta función es async, esa llamada es síncrona al
+  // cargar el script), así que sin este segundo llamado se quedarían
+  // invisibles para siempre (nadie las observaría). Volver a llamarla es
+  // inofensivo para el Hero/Dato duro/Proceso — ya están en .visible, un
+  // segundo observer sobre un elemento que no cambia no anima nada.
+  iniciarRevelado();
 }
 pintarHeroArte();
 iniciarRevelado();
@@ -520,7 +559,7 @@ function pintarCatalogo() {
 // un lote no tenga bolsa real (BOLSAS_LOTE), como Honey/Natural por ahora.
 function tarjetaListaHTML(lote, filas) {
   return `
-    <div class="card card-lote" id="lote-${lote.toLowerCase()}">
+    <div class="card card-lote revela" id="lote-${lote.toLowerCase()}">
       <div class="lote-cabecera ${lote.toLowerCase()}">
         <h3>${lote}</h3>
       </div>
@@ -562,7 +601,7 @@ function tarjetaListaHTML(lote, filas) {
 // tratamiento limpio para los 3 lotes, no uno distinto por lote.
 function tarjetaBolsaHTML(lote, filas, bolsa) {
   return `
-    <div class="card tarjeta-bolsa-clara" id="lote-${lote.toLowerCase()}">
+    <div class="card tarjeta-bolsa-clara revela" id="lote-${lote.toLowerCase()}">
       <div class="bolsa-cuerpo">
         <img class="bolsa-foto" src="data:image/png;base64,${bolsa}" alt="Bolsa de ${lote}">
       </div>
@@ -627,7 +666,7 @@ let procesoActivo = 'Honey';
 function tarjetaBolsaGrupoHTML(procesos) {
   if (!procesos.includes(procesoActivo)) procesoActivo = procesos[0];
   return `
-    <div class="card tarjeta-bolsa-clara" id="lote-honeynatural">
+    <div class="card tarjeta-bolsa-clara revela" id="lote-honeynatural">
       <img class="bolsa-rama" src="data:image/png;base64,${HONEY_RAMA_B64}" alt="">
       <div class="bolsa-badge-wrap">
         <img class="bolsa-badge" src="data:image/png;base64,${HONEY_BADGE_B64}" alt="Bolsa de Honey y Natural">
@@ -953,12 +992,19 @@ function mostrarConfirmacion(nombre, items, total, notas) {
   const linkWa = `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(mensaje)}`;
 
   document.getElementById('pantallaFinal').innerHTML = `
-    <div class="confirmacion">
+    <div class="confirmacion revela">
       <div class="check">✅</div>
       <h2>¡Pedido recibido!</h2>
       <p>Dale al botón para confirmarlo por WhatsApp y coordinar contigo la entrega y el pago.</p>
       <a class="wa" href="${linkWa}" target="_blank" rel="noopener">📲 Confirmar por WhatsApp</a>
     </div>`;
+  // Es el momento de más peso emocional de todo el flujo — el cierre de
+  // la compra — y antes era el único que aparecía de golpe, sin ninguna
+  // ceremonia. Mismo fade + translateY que el Hero (Sistema de
+  // movimiento, 2026-09-21). iniciarRevelado() de nuevo por la misma
+  // razón que en cargarCatalogo(): este bloque .revela nació después de
+  // que corrió la llamada original, nadie lo estaría observando si no.
+  iniciarRevelado();
 }
 
 function mostrarToast(msg) {
