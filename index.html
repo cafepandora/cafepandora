@@ -287,13 +287,6 @@
      tocar con precisión; se agrandan y se les pone el color de la marca. */
   input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--dorado); cursor: pointer; }
 
-  .quick-add { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-  .quick-add button {
-    font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600; background: var(--verde-bg);
-    color: var(--verde); border: 1px solid var(--verde); border-radius: 20px; padding: 10px 16px; cursor: pointer;
-  }
-  .quick-add button:hover { background: var(--verde); color: #fff; }
-
   .servicios-maquila { display: flex; flex-direction: column; gap: 0; margin: 8px 0; }
   .servicios-maquila .srow {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -719,7 +712,10 @@ const TITULARES_CUENTA_COBRO = {
 };
 const datosTitularCC = titular => TITULARES_CUENTA_COBRO[titular] || TITULARES_CUENTA_COBRO.juan;
 const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
-const PRESENTACIONES = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
+// Libra primero (2026-09-21, a pedido de Juan) — es la que más se vende,
+// así que al abrir el desplegable de Presentación ya queda seleccionada
+// por defecto, sin tener que cambiarla cada vez.
+const PRESENTACIONES = ['Libra', 'Media lb', 'Kilo', 'Cuarterón'];
 // Pasilla no se cosecha aparte (sale como sobrante al pesar el pergamino
 // de una cosecha existente, ver ⚖️ en Cosecha & Tueste) así que NO se
 // agrega a LOTES (el desplegable de "Proceso" al registrar cosecha/cereza
@@ -940,11 +936,6 @@ function fechaSecadoEstimada(fechaCosecha, proceso) {
 const fechaCorta = ts => new Date(Number(ts)).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 const hoyISO = () => new Date().toISOString().split('T')[0];
 
-const QUICK_ADD = [
-  { lote: 'Lavado', presentacion: 'Libra', tipoCliente: null },
-  { lote: 'Lavado', presentacion: 'Media lb', tipoCliente: null },
-  { lote: 'Lavado', presentacion: 'Cuarterón', tipoCliente: 'Distribuidor' },
-];
 
 const state = {
   ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [], preciosCafe: [],
@@ -2218,10 +2209,6 @@ function renderVentas() {
         </div>
       </div>
 
-      <div class="quick-add">
-        ${QUICK_ADD.map((qa, idx) => `<button onclick="aplicarQuickAdd(${idx})">⚡ ${qa.lote} · ${qa.presentacion}${qa.tipoCliente ? ' (' + qa.tipoCliente + ')' : ''}</button>`).join('')}
-      </div>
-
       <div class="row">
         <div class="field"><label>Lote</label>
           <select id="ln-lote" onchange="onLnLoteChange()">${LOTES_VENTA.map(l => `<option>${l}</option>`).join('')}</select>
@@ -2351,16 +2338,6 @@ function pintarCarrito() {
   document.getElementById('carrito-total').textContent = fmt(total);
   const valorInput = document.getElementById('v-valor');
   if (valorInput) valorInput.value = total;
-}
-
-function aplicarQuickAdd(idx) {
-  const qa = QUICK_ADD[idx];
-  const tipoClienteSelect = document.getElementById('v-tipoCliente');
-  if (qa.tipoCliente) tipoClienteSelect.value = qa.tipoCliente; // este botón siempre agrega con la tarifa de distribuidor, ajusta el pedido completo
-  const tipoCliente = tipoClienteSelect.value;
-  carritoActual.push({ tipo: 'cafe', lote: qa.lote, presentacion: qa.presentacion, cantidad: 1, valor: precioSugerido(qa.lote, qa.presentacion, tipoCliente) });
-  pintarCarrito();
-  document.getElementById('v-cliente').focus();
 }
 
 function lotesDeVenta(v) {
