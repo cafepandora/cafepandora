@@ -92,6 +92,23 @@
     .scroll-cue { animation: none; }
   }
 
+  /* ---------- Proceso — cereza a taza, en 4 capítulos cortos ----------
+     Sin fotos por paso a propósito: solo tenemos 2 fotos reales de la
+     finca (Hero y Dato duro) — reusarlas de nuevo aquí se sentiría
+     repetido/relleno. Un número grande en serif + texto corto es más
+     honesto con lo que de verdad tenemos, y sigue el mismo lenguaje
+     tipográfico del Hero. */
+  .proceso-seccion { background: var(--crema-alt); padding: 64px 20px; }
+  .proceso-kicker {
+    text-align: center; font-size: 12.5px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--teal); margin: 0 0 36px;
+  }
+  .proceso-pasos { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; }
+  .proceso-paso { display: flex; gap: 16px; align-items: flex-start; }
+  .proceso-num { font-family: var(--serif); font-weight: 600; font-size: 34px; color: var(--dorado); line-height: 1; flex-shrink: 0; width: 52px; }
+  .proceso-paso h3 { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 0 0 4px; color: var(--cafe); }
+  .proceso-paso p { font-size: 14px; color: var(--cafe-soft); margin: 0; line-height: 1.55; }
+
   .card { background: var(--blanco); border: 1px solid var(--linea); border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 14px rgba(62,39,35,.05); }
   .card-lote { padding: 0; overflow: hidden; scroll-margin-top: 66px; }
   #resumenPedido { scroll-margin-top: 66px; }
@@ -111,7 +128,7 @@
   .bolsa-foto { display: block; width: 100%; max-width: 300px; margin: 0 auto; }
   .bolsa-panel { position: relative; padding: 4px 22px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .bolsa-peso-bar { width: 100%; max-width: 280px; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #2A2621; color: var(--crema); border: none; border-radius: 10px; padding: 11px 16px; font-family: 'Outfit', sans-serif; cursor: pointer; }
-  .bolsa-peso-bar .etiqueta { font-size: 10.5px; font-weight: 700; letter-spacing: .4px; opacity: .65; text-transform: uppercase; }
+  .bolsa-peso-bar .etiqueta { font-size: 10.5px; font-weight: 700; letter-spacing: 1px; color: var(--dorado); text-transform: uppercase; }
   .bolsa-peso-bar .valor { font-size: 14px; font-weight: 800; }
   .bolsa-peso-bar .flecha { font-size: 10px; opacity: .7; transition: transform .2s ease; }
   .bolsa-peso-bar.abierto .flecha { transform: rotate(180deg); }
@@ -138,7 +155,7 @@
   .bolsa-badge-wrap { display: flex; justify-content: center; padding: 0 24px; margin-top: -22px; }
   .bolsa-badge { width: 76%; max-width: 280px; }
   .proceso-fila { display: flex; flex-direction: column; align-items: center; gap: 7px; margin-bottom: 2px; }
-  .proceso-titulo { font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--cafe-soft); }
+  .proceso-titulo { font-size: 10.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--teal); }
   .proceso-pills { display: flex; gap: 8px; }
   .proceso-pill { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 13px; color: var(--teal); background: var(--teal-bg); border: 1.5px solid var(--teal); border-radius: 20px; padding: 7px 16px; cursor: pointer; }
   .proceso-pill.activo { background: var(--teal); color: #fff; }
@@ -161,7 +178,7 @@
 
   .pres-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--linea); }
   .pres-fila:first-of-type { border-top: none; }
-  .pres-nombre { font-size: 13px; font-weight: 700; color: var(--dorado); text-transform: uppercase; letter-spacing: .2px; }
+  .pres-nombre { font-size: 13px; font-weight: 700; color: var(--dorado); text-transform: uppercase; letter-spacing: 1px; }
   .pres-precio { font-size: 16.5px; font-weight: 800; color: var(--cafe); margin-top: 1px; }
   .molienda-toggle { display: flex; gap: 6px; margin-top: 6px; }
   .molienda-btn {
@@ -244,6 +261,28 @@
 <section class="dato-duro" id="datoDuro">
   <p class="dato-duro-numero revela">Finca Pitalito.</p>
   <p class="dato-duro-texto revela">Km 1 vía Los Mangos, Pital de Combia — Pereira, Risaralda. Cultivamos, procesamos y tostamos cada grano nosotros mismos, sin pasar por nadie más.</p>
+</section>
+
+<section class="proceso-seccion" id="procesoSeccion">
+  <p class="proceso-kicker revela">Del cafeto a tu taza</p>
+  <div class="proceso-pasos">
+    <div class="proceso-paso revela">
+      <span class="proceso-num">01</span>
+      <div><h3>Cereza</h3><p>Recolectamos a mano solo la cereza madura, en nuestra propia finca.</p></div>
+    </div>
+    <div class="proceso-paso revela">
+      <span class="proceso-num">02</span>
+      <div><h3>Secado</h3><p>De 7 a 35 días, según el proceso — Lavado es el más rápido; Honey y Natural fermentan mucho más tiempo en caneca.</p></div>
+    </div>
+    <div class="proceso-paso revela">
+      <span class="proceso-num">03</span>
+      <div><h3>Trilla</h3><p>Retiramos el pergamino para dejar el café verde, listo para tostar.</p></div>
+    </div>
+    <div class="proceso-paso revela">
+      <span class="proceso-num">04</span>
+      <div><h3>Tueste</h3><p>Tostamos en lotes pequeños, cerca de la fecha en que se despacha tu pedido.</p></div>
+    </div>
+  </div>
 </section>
 
 <div class="wrap">

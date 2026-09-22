@@ -1159,6 +1159,90 @@ en el mismo pedido cambiando el selector — probado armando líneas de
 Honey Y Natural a la vez y confirmando que ambas sobreviven en el
 carrito sin pisarse.
 
+## Rediseño de lujo de `pedidos/index.html` (2026-09-21, en curso)
+
+Segunda vuelta de identidad visual — la anterior (sección de arriba)
+sacó la paleta/tipografía real de la carta; esta suma una capa de
+storytelling editorial ENCIMA de esa base, sin tocar la lógica de
+carrito/checkout de WhatsApp. Hay un plano maestro completo (Artifact
+"Café Pandora — Plano Maestro de Lujo", pedido por el usuario como
+brief de diseño) con el análisis de marca/público/competencia completo
+— esta sección documenta lo que ya se construyó de ese plano.
+
+- **Fuente serif nueva**: `--serif: 'Fraunces', Georgia, serif;` (Google
+  Fonts, sumada al `<link>` que ya traía Outfit/Baloo 2) — **solo** para
+  momentos grandes (títulos de sección, números, el h3 de cada lote),
+  nunca para párrafos ni controles de UI densos (eso sigue en Outfit).
+- **Hero** (`<section class="hero">`, antes de `.wrap`): título grande en
+  serif + foto real de la finca (`pedidos/img/finca-flor.jpg`) en vez del
+  arte de bolsa que estaba antes ahí. `.hero` tiene su PROPIO
+  `background: var(--crema)` opaco — sin eso, la marca de agua fija
+  (`.marca-agua`, 5% de opacidad en TODO el sitio) se veía cruzar justo
+  detrás del título grande, mucho más notoria que su opacidad real
+  porque no hay texto denso tapándola ahí (en el resto del sitio el
+  contenido ya es denso encima, por eso nunca se notaba antes).
+- **Dato duro** (`<section class="dato-duro">`, fondo oscuro `var(--cafe)`
+  + foto real de la ladera sembrada `pedidos/img/finca-ladera.jpg` con
+  degradado oscuro encima para que el texto se lea): nombre y dirección
+  REALES de la finca — **Finca Pitalito, Km 1 vía Los Mangos, Pital de
+  Combia** (Pereira, Risaralda) — confirmados por el usuario el
+  2026-09-21. ⚠️ *Ojo, esto costó un error real*: al principio se usó
+  "Finca Tinajas" / "vía Marsella" (la dirección de `EMISOR_DIRECCION` en
+  `index.html`, usada en las cuentas de cobro) asumiendo que era la
+  misma finca — el usuario corrigió que es una dirección DISTINTA a la
+  finca real. `EMISOR_DIRECCION` se dejó tal cual a propósito (el usuario
+  confirmó no tocarla, puede ser una dirección de correspondencia
+  distinta a la finca) — la corrección solo aplicó aquí y en
+  `UBICACION_FINCA` (clima, en `index.html`).
+- **Proceso** (`<section class="proceso-seccion">`, fondo `--crema-alt`,
+  entre Dato duro y el catálogo): 4 pasos cortos (Cereza → Secado →
+  Trilla → Tueste) con número grande en serif + dorado, SIN foto por
+  paso — solo hay 2 fotos reales de la finca (Hero y Dato duro),
+  reusarlas de nuevo aquí se sentiría relleno/repetido. El dato "de 7 a
+  35 días de secado según el proceso" es real (mismos días que
+  `DIAS_SECADO` en `index.html`: Lavado 7, Honey/Natural 35) — seguro de
+  compartir públicamente, es contexto de calidad, no dato sensible del
+  negocio.
+- **Header chico simplificado**: el `<header>` original (logo circular +
+  "Café Pandora" + tagline) se sentía como "empezar de nuevo" justo
+  después del Hero y el Dato duro, que ya cubren esa presentación en
+  grande. Se reemplazó por un `<header class="header-slim">` con solo
+  "Arma tu pedido" en serif — el logo circular que tenía (mismo base64
+  que ya usa el favicon en `<head>`, estaba duplicado) se eliminó del
+  todo, no solo se ocultó.
+- **Revelado por scroll**: clase `.revela` (opacidad + `translateY`,
+  vía `IntersectionObserver`, función `iniciarRevelado()`) en los
+  bloques del Hero/Dato duro/Proceso — respeta
+  `prefers-reduced-motion: reduce` (sin la clase, todo se ve estático).
+- **Fotos reales = archivo aparte, NO base64 inline**: a diferencia de
+  TODO el resto de imágenes de este archivo (logos/arte de bolsa,
+  vectoriales, embebidos en base64 porque son chicos y el proyecto no
+  tiene build), las 2 fotos reales de la finca viven en `pedidos/img/`
+  como archivos JPG normales, referenciadas con `<img src="img/...">` o
+  `url('img/...')` en CSS. Inlinear una foto de ~400 KB en base64 la
+  infla ~33% más y hace el archivo mucho más pesado de editar — para
+  fotos reales, archivo aparte; para arte/logos vectoriales pequeños,
+  base64 sigue siendo la norma acá.
+- **"Colores y letras" extendido a la zona de selección** (pedido
+  explícito del usuario): las etiquetas pequeñas en mayúscula
+  (`.bolsa-peso-bar .etiqueta` "PESO NETO", `.proceso-titulo`,
+  `.pres-nombre`) pasaron de `letter-spacing: .2-.4px` a `1px` y de
+  colores apagados (opacity/cafe-soft) a los acentos reales de marca
+  (dorado sobre fondo oscuro, teal sobre fondo claro) — mismo lenguaje
+  del `.hero-kicker`. Los colores del kraft de la tarjeta-bolsa
+  (`#2A2621`, el degradado tostado) se dejaron TAL CUAL — ya estaban
+  afinados a propósito para ese fondo cálido (hay hasta un gotcha
+  documentado sobre su especificidad CSS más abajo), forzarlos a
+  `var(--cafe)` los habría desentonado contra el kraft, no mejorado.
+- **Pendiente de este rediseño**: sección "Los lotes" (Lavado/Honey/
+  Natural como capítulos editoriales, con su arte real) del plano
+  maestro todavía no se construyó — por ahora las tarjetas del catálogo
+  ya cumplen parte de ese rol (cada una ya muestra su arte real), así
+  que no es urgente. Fase 6 (pulido de animaciones + prueba en celular
+  real) y Fase 7 (QA con pedido real) del plano maestro tampoco se han
+  hecho todavía — lo construido se probó en el preview local
+  (`mock_pedidos_server.py`, puerto 8787), no en el sitio real.
+
 ## Pendiente / a medias
 
 - **Entrega de maquila, saldo inicial y precio FNC — falta correr 3
