@@ -1372,6 +1372,117 @@ brief de diseño) con el análisis de marca/público/competencia completo
   hecho todavía — lo construido se probó en el preview local
   (`mock_pedidos_server.py`, puerto 8787), no en el sitio real.
 
+## Auditoría CRO 2026-09-21 — fricciones resueltas en pedidos y app interna
+
+Se le pidió a Claude actuar como especialista en CRO auditando el sitio
+terminado — recorrido completo, fricciones, dudas sin resolver, y una
+lista priorizada de mejoras (queda documentada como un Doc de Claude, no
+en este repo). El usuario aprobó implementar todo ("vamos con todo"). No
+requiere ninguna migración nueva — todo lo de acá es texto/CSS/JS o lee
+el schema que ya existe.
+
+**Transparencia de envío y pago, antes de pedir los datos**
+(`pedidos/index.html`, `.confianza-pedido`, justo antes de la tarjeta
+"Tus datos"): la auditoría encontró que NINGÚN paso del recorrido decía
+cómo es el envío, qué medios de pago se aceptan, ni que el botón final
+es para coordinar y no un pago inmediato — el cliente se enteraba de
+todo eso solo después de escribir por WhatsApp y esperar respuesta. El
+bloque nuevo no inventa cobertura ni costo exacto de envío (eso lo
+sigue confirmando cada conversación real) — solo dice CÓMO funciona
+("coordinamos contigo la entrega o el envío por transportadora, según
+tu ciudad"), qué medios de pago existen (efectivo/transferencia/Nequi,
+los mismos que ya usa el negocio — ver `METODOS_PAGO` en `index.html`),
+y que el WhatsApp es para coordinar, no pagar ahí mismo.
+
+**Señal de confianza adelantada al Hero**: "💬 Respondemos por WhatsApp
+en menos de una hora" antes solo aparecía en la pantalla de confirmación
+(el último paso, ya con el cliente comprometido) — ahora también está en
+el Hero, justo debajo de los 2 botones, para resolver la duda de "¿esto
+es serio?" antes de elegir nada.
+
+**Prueba social real en el Hero** ("☕ +1.000 pedidos de café entregados
+este año"): dato real que dio Juan (no el conteo de `pedidos_web`
+convertidos, que solo cuenta lo que entra por la página web — la
+mayoría de los 1000+ pedidos son por otros canales). Texto fijo en
+`pedidos/index.html`, no calculado — si el número cambia con el tiempo,
+hay que actualizarlo a mano ahí. (Se había construido primero una versión
+que SÍ calculaba en vivo contando `pedidos_web.estado = 'convertido'` vía
+un endpoint público nuevo — se descartó apenas Juan dio el número real,
+porque ese conteo web-only iba a mostrar un número mucho más chico y
+menos representativo que la cifra real del negocio; el endpoint
+`functions/api/pedidos-web/stats.ts` que se alcanzó a crear para eso ya
+se borró, no quedó código sin usar.)
+
+**Tour de café en la finca** (`.tour-finca`, sección nueva entre Proceso
+y "Arma tu pedido"): dato real que Juan compartió y no estaba en ningún
+lado del sitio — $90.000, incluye merienda, café en barra libre y
+catación de café, dura aprox. 4 horas, se puede coordinar con almuerzo.
+Tiene su propio botón de WhatsApp (mismo patrón que el banner de
+Exóticos) en vez de sumarse al carrito — es una experiencia que se
+coordina, no un producto con precio fijo por presentación/cantidad.
+
+**CTA principal más explícito** ("Ver el catálogo →" → "Comprar café
+→"): cambio pedido directamente por una clienta real que Juan
+compartió ("podrías colocar un botón bien claro que dijera: ver café o
+comprar ahora") — el destino sigue siendo el mismo (`#catalogo`), solo
+cambió el texto para sonar más a "esto es para comprar" y menos a "esto
+es para mirar".
+
+**Feedback real de una clienta, 2 puntos que quedan pendientes por
+falta de fotos reales** (no se inventó nada para no repetir el problema
+que esta misma auditoría de identidad visual ya había resuelto — ver
+"Identidad visual de pedidos/index.html" más arriba, la queja original
+era justo que el sitio se sentía "hecho con IA" por usar imágenes
+genéricas):
+- Pidió un carrusel de fotos pequeñas por paso del Proceso (Cereza /
+  Lavado y secado / Trilla / Tueste) — hoy esa sección es a propósito
+  solo número + texto, sin fotos (ver el comentario en el CSS de
+  `.proceso-seccion`), porque solo hay 2 fotos reales de la finca
+  (`finca-flor.jpg`, `finca-ladera.jpg`) y ninguna de trilla/tueste en
+  particular. Falta que Juan mande una foto real por paso.
+- Pidió más fotos reales de la finca y del producto ya empacado — mismo
+  caso, ya documentado en "Pendiente / a medias" de abajo ("Fotos reales
+  de bolsa"). Sigue pendiente de que Juan mande fotos en buena
+  resolución (no capturas de pantalla comprimidas).
+
+**Migraciones pendientes, ahora visibles en la app** (`functions/api/
+salud-esquema/index.ts`, endpoint nuevo, con login, agregado a la lista
+de `sincronizar()`): en vez de esperar a que alguien se tope con el
+error real de Postgres (el patrón ya documentado varias veces en este
+archivo), este endpoint intenta un SELECT liviano contra cada
+tabla/columna de features recientes (`costos_margen`,
+`compras_cereza.pesajes`, `saldos_iniciales`, `precio_cafe_fnc`,
+`ordenes_maquila.estado_entrega`, `cosechas.kilos_pasilla`) y devuelve
+`ok:true/false` por cada una — SIEMPRE responde 200 (nunca rompe
+`sincronizar()` para el resto de la app, a propósito, para no repetir el
+problema de "un endpoint roto tumba los otros 16"). Configuración →
+Precios muestra un aviso ⚠️ arriba de todo, solo cuando falta algo, con
+el nombre exacto del archivo `migracion_*.sql` que hay que correr. Si se
+agrega una tabla/columna nueva en el futuro, hay que sumarla a mano al
+array `CHEQUEOS` de ese archivo — no se detecta sola.
+
+**Texto visible junto a los íconos, en Cosecha** (`.accion-texto`,
+CSS nuevo en `.ledger-row .acciones`): el Pendiente de la auditoría de
+accesibilidad (más arriba en este archivo) decía que agregar texto a los
+botones de solo-ícono ayudaría mucho a Juan/Inés (65+) pero que filas de
+3-4 botones (como Cosecha: ⏱️⚖️🌾✕) se desbordarían en celular con
+etiquetas completas. Se resolvió con un breakpoint: el texto (`<span
+class="accion-texto">`) solo se muestra desde 700px de ancho — bajo eso
+(celular, donde estaba el riesgo real) sigue exactamente igual que
+antes, solo ícono. Por ahora solo se aplicó a la fila de Cosecha (la más
+cargada, la que motivó el Pendiente) — el mismo `.accion-texto` ya sirve
+para sumarlo a las otras 18 filas que usan `.ledger-row .acciones`
+después, sin ningún riesgo nuevo de layout (el breakpoint ya lo cubre).
+
+**Resumen post-guardado en "⚖️ Pesar en conjunto"**
+(`guardarPesarConjunto()`): antes el toast solo decía "Pergamino
+repartido entre N entradas" (un conteo, no el reparto real). Ahora dice
+el kilo a kilo real por entrada (ej. "Pergamino repartido — propia 14
+de sept: 20.0kg · Finca La Esperanza 6 de sept: 10.0kg") — la auditoría
+señaló que este es justo el momento con menos tiempo para pensar
+(pesando en la finca), así que vale más confirmar el número real que un
+mensaje genérico de "listo".
+
 ## Pendiente / a medias
 
 - **Entrega de maquila, saldo inicial y precio FNC — falta correr 3
@@ -1418,6 +1529,11 @@ brief de diseño) con el análisis de marca/público/competencia completo
   fotos nuevas. Si más adelante Juan consigue fotos de bolsa en buena
   resolución (no capturas de pantalla comprimidas), se pueden agregar
   como imagen dentro de `.lote-cabecera` sin tocar el resto del rediseño.
+  **Ampliado 2026-09-21** (una clienta real dio el mismo feedback, ver
+  "Auditoría CRO 2026-09-21" más arriba): también falta una foto real
+  por paso del Proceso (Cereza/Lavado y secado/Trilla/Tueste, para el
+  carrusel que pidió) y más fotos de la finca/producto empacado en
+  general — mismo bloqueo, falta que Juan mande el material real.
   La tarifa `web` en `precios_cafe` con los precios reales del 2026 ya
   está corrida en producción (ver `migracion_precios_carta_2026.sql` y
   `migracion_exoticos_web_inicial.sql`) — ojo que los valores que quedaron

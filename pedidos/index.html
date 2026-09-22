@@ -80,6 +80,12 @@
     background: var(--teal); border-radius: 30px; padding: 13px 30px; text-decoration: none;
   }
   .hero-cta-secundaria { font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 13px; color: var(--cafe-soft); text-decoration: none; }
+  /* Adelanta al Hero la única señal de confianza que antes solo aparecía
+     al final del flujo (pantalla de confirmación) — resuelve la duda de
+     "¿esto es serio, contestan de verdad?" antes de elegir nada, no
+     después de comprometerse. Auditoría CRO 2026-09-21. */
+  .hero-confianza { font-size: 13px; font-weight: 600; color: var(--cafe-soft); margin: 2px 0 0; }
+  .hero-prueba-social { font-size: 13px; font-weight: 700; color: var(--teal); margin: 0; }
 
   .dato-duro {
     background:
@@ -148,7 +154,28 @@
   .proceso-paso h3 { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 0 0 4px; color: var(--cafe); }
   .proceso-paso p { font-size: 14px; color: var(--cafe-soft); margin: 0; line-height: 1.55; }
 
+  /* Tour de café en la finca — dato real que Juan compartió 2026-09-21,
+     no estaba en ningún lado del sitio. Va justo después de Proceso
+     (ya contamos cómo se hace el café) y antes de "Arma tu pedido" — un
+     cierre natural a la historia de la finca, con su propio WhatsApp
+     (mismo patrón que el banner de Exóticos) en vez de sumarlo al carrito,
+     porque es una experiencia que se coordina, no un producto con precio
+     fijo por presentación. */
+  .tour-finca { background: var(--crema); text-align: center; padding: 48px 24px; }
+  .tour-kicker { font-size: 12.5px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--teal); margin: 0 0 8px; }
+  .tour-titulo { font-family: var(--serif); font-weight: 600; font-size: 24px; color: var(--cafe); margin: 0 0 8px; }
+  .tour-desc { font-size: 14px; color: var(--cafe-soft); max-width: 380px; margin: 0 auto 18px; line-height: 1.55; }
+  .tour-cta { display: inline-block; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; color: var(--teal); border: 1.5px solid var(--teal); border-radius: 30px; padding: 11px 24px; text-decoration: none; }
+
   .card { background: var(--blanco); border: 1px solid var(--linea); border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 14px rgba(62,39,35,.05); }
+  /* Resuelve, ANTES de pedir los datos, las 2 dudas que la auditoría CRO
+     encontró sin respuesta en ningún paso del recorrido (envío y pago) y
+     aclara que el botón de WhatsApp es para coordinar, no un pago
+     inmediato — no inventa cobertura/costo exactos, eso lo confirma cada
+     conversación real por WhatsApp. Auditoría CRO 2026-09-21. */
+  .confianza-pedido { background: var(--crema-alt); border-color: var(--crema-alt); }
+  .confianza-item { font-size: 13.5px; color: var(--cafe); margin: 0 0 8px; line-height: 1.45; }
+  .confianza-item:last-child { margin-bottom: 0; }
   .card-lote { padding: 0; overflow: hidden; scroll-margin-top: 66px; }
   #resumenPedido { scroll-margin-top: 66px; }
   .lote-cabecera { padding: 20px 18px 18px; background: var(--crema-alt); }
@@ -299,9 +326,11 @@
   <p class="hero-linea revela">Tentación en cada taza.</p>
   <div class="hero-arte revela" id="heroArte"></div>
   <div class="hero-ctas revela">
-    <a href="#catalogo" class="hero-cta-primaria">Ver el catálogo →</a>
+    <a href="#catalogo" class="hero-cta-primaria">Comprar café →</a>
     <a href="#datoDuro" class="hero-cta-secundaria">Conoce la finca ↓</a>
   </div>
+  <p class="hero-confianza revela">💬 Respondemos por WhatsApp en menos de una hora</p>
+  <p class="hero-prueba-social revela">☕ +1.000 pedidos de café entregados este año</p>
 </section>
 
 <section class="dato-duro" id="datoDuro">
@@ -331,6 +360,13 @@
   </div>
 </section>
 
+<section class="tour-finca">
+  <p class="tour-kicker revela">Vívelo en la finca</p>
+  <h3 class="tour-titulo revela">Tour de café — $90.000</h3>
+  <p class="tour-desc revela">Incluye merienda, café en barra libre y catación de café · dura aprox. 4 horas. También se puede coordinar con almuerzo.</p>
+  <a class="tour-cta revela" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20preguntar%20por%20el%20tour%20de%20caf%C3%A9%20en%20la%20finca." target="_blank" rel="noopener">📲 Preguntar por el tour</a>
+</section>
+
 <div class="wrap">
   <header class="header-slim">
     <h2>Arma tu pedido</h2>
@@ -354,6 +390,12 @@
   </div>
 
   <div id="resumenPedido" style="display:none"></div>
+
+  <div class="card confianza-pedido" id="confianzaPedido">
+    <p class="confianza-item">📦 <b>Envío:</b> coordinamos contigo la entrega o el envío por transportadora, según tu ciudad.</p>
+    <p class="confianza-item">💳 <b>Pago:</b> efectivo, transferencia o Nequi.</p>
+    <p class="confianza-item">💬 Este botón abre WhatsApp para <b>confirmar y coordinar</b> tu pedido — no es un pago. Normalmente respondemos en menos de una hora.</p>
+  </div>
 
   <div class="card" id="datosCliente" style="scroll-margin-top:66px">
     <h3 style="margin-top:0">Tus datos</h3>

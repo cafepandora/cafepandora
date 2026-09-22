@@ -347,10 +347,23 @@
   .ledger-row .acciones { display: flex; gap: 8px; align-items: center; }
   .ledger-row .acciones button {
     background: var(--crema-alt); border: 1px solid var(--linea); color: var(--cafe);
-    font-size: 19px; cursor: pointer; padding: 8px 10px; border-radius: 8px;
+    font-size: 19px; cursor: pointer; padding: 8px 10px; border-radius: 8px; gap: 5px;
     min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
   }
   .ledger-row .acciones button:hover, .ledger-row .acciones button:active { background: var(--terracota); color: #fff; border-color: var(--terracota); }
+  /* Texto visible junto al ícono, SOLO desde 700px — bajo eso queda el
+     mismo ícono-solo de siempre. En celular (donde ya se documentó que
+     4 botones con etiqueta completa se desbordan) nada cambia; en
+     escritorio/tablet, donde sí hay espacio, ayuda a no tener que
+     recordar qué hace cada ícono (pedido de la auditoría CRO, pensado
+     sobre todo para Juan/Inés, 65+ años). Empieza solo en la fila de
+     Cosecha (⏱️⚖️🌾✕, la más cargada) — el mismo `.accion-texto` sirve
+     para sumar las demás filas después, sin riesgo nuevo de layout. */
+  .ledger-row .acciones .accion-texto { display: none; }
+  @media (min-width: 700px) {
+    .ledger-row .acciones .accion-texto { display: inline; font-size: 13px; font-weight: 600; }
+    .ledger-row .acciones button { padding: 8px 14px; }
+  }
 
   .tag { display: inline-block; font-size: 14px; font-weight: 700; padding: 7px 14px; border-radius: 20px; cursor: pointer; border: none; transition: transform .12s ease; }
   .tag:active { transform: scale(.95); }
@@ -946,6 +959,7 @@ const state = {
   saldosIniciales: [],
   precioFnc: [],
   costosMargen: { costoTostionKg: 0, costoBolsaMediaLb: 0, costoBolsaLibra: 0, costoBolsaKilo: 0, costoBolsaCuarteron: 0 },
+  saludEsquema: [],
   tabActiva: 'ventas',
 };
 // Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
@@ -1378,7 +1392,7 @@ function guardarCacheLocal(k) {
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
-  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen'];
+  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen', '/api/salud-esquema'];
 
   let respuestas;
   try {
@@ -1408,11 +1422,12 @@ async function sincronizar() {
   }
 
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm] = await Promise.all(respuestas.map(r => r.json()));
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm, se] = await Promise.all(respuestas.map(r => r.json()));
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
     state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si; state.precioFnc = pf; state.costosMargen = cm;
+    state.saludEsquema = se;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -3753,10 +3768,10 @@ function vistaCosechas(pendientes) {
               : `≈ ${p.pergamino.toFixed(1)} kg pergamino → ${p.verde.toFixed(1)} kg verde → ${Math.round(p.libras)} libras`}</div>
           </div>
           <div class="acciones">
-            ${(esFermentable && !real) ? `<button onclick="abrirFermentacion(${c.id})" title="Fermentación en caneca">⏱️</button>` : ''}
-            <button onclick="abrirPesarConjunto('cosecha', ${c.id})" title="Anotar pergamino real">⚖️</button>
-            ${real ? `<button onclick="abrirTrilla('cosecha', ${c.id})" title="Anotar verde tras trillar">🌾</button>` : ''}
-            <button onclick="eliminarCosecha(${c.id})" title="Eliminar">✕</button>
+            ${(esFermentable && !real) ? `<button onclick="abrirFermentacion(${c.id})" title="Fermentación en caneca">⏱️<span class="accion-texto">Fermentación</span></button>` : ''}
+            <button onclick="abrirPesarConjunto('cosecha', ${c.id})" title="Anotar pergamino real">⚖️<span class="accion-texto">Pesar</span></button>
+            ${real ? `<button onclick="abrirTrilla('cosecha', ${c.id})" title="Anotar verde tras trillar">🌾<span class="accion-texto">Trilla</span></button>` : ''}
+            <button onclick="eliminarCosecha(${c.id})" title="Eliminar">✕<span class="accion-texto">Eliminar</span></button>
           </div>
         </div>`;
       }, 'Todavía no hay cosechas registradas.')}
@@ -4004,6 +4019,7 @@ async function guardarPesarConjunto(tipoOrigen, idOrigen, btn) {
   const kilosPasilla = pasillaInput && pasillaInput.value !== '' ? Math.max(0, Number(pasillaInput.value) || 0) : null;
   const combinadas = combinadasPesarConjunto(tipoOrigen, idOrigen);
   const kilosCerezaTotal = combinadas.reduce((s, c) => s + c.kilosCereza, 0);
+  const partes = [];
   try {
     for (const c of combinadas) {
       const share = kilosCerezaTotal > 0 ? kilosPergaminoReal * (c.kilosCereza / kilosCerezaTotal) : 0;
@@ -4016,11 +4032,16 @@ async function guardarPesarConjunto(tipoOrigen, idOrigen, btn) {
       if (!res.ok) throw new Error(await res.text());
       registro.kilosPergaminoReal = share;
       if (body.kilosPasilla !== undefined) registro.kilosPasilla = body.kilosPasilla;
+      partes.push(`${c.tipo === 'cerezaComprada' ? (registro.proveedor || 'comprada') : 'propia'} ${fechaCorta(registro.fecha)}: ${share.toFixed(1)}kg`);
     }
     guardarCacheLocal('cosechas'); guardarCacheLocal('cerezaComprada');
     cerrarModal();
     renderTrazabilidad();
-    toast(combinadas.length > 1 ? `Pergamino repartido entre ${combinadas.length} entradas` : 'Pergamino real anotado');
+    // Resumen post-guardado con el reparto real, no solo un conteo — la
+    // auditoría CRO encontró que esta pantalla es exactamente donde
+    // menos tiempo hay para pensar (pesando en la finca), así que vale
+    // más confirmar el número que un "listo" genérico.
+    toast(combinadas.length > 1 ? `Pergamino repartido — ${partes.join(' · ')}` : 'Pergamino real anotado: ' + partes[0]);
   } catch (err) {
     toast('No se pudo guardar: ' + err.message, 'error');
   } finally { btn.disabled = false; }
@@ -5735,7 +5756,14 @@ function renderConfig() {
   }).join('');
 
   const cm = state.costosMargen || {};
+  const migracionesFaltantes = (state.saludEsquema || []).filter(x => !x.ok);
   const bloquePrecios = `
+    ${migracionesFaltantes.length ? `
+    <div style="background:#fdf1ea;border:1px solid var(--terracota);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cafe)">
+      <div style="font-weight:700;margin-bottom:4px">⚠️ ${migracionesFaltantes.length===1?'Falta 1 migración':'Faltan '+migracionesFaltantes.length+' migraciones'} por correr en Supabase</div>
+      ${migracionesFaltantes.map(x => `<div>• <code>${escapeHtml(x.migracion)}</code> — ${escapeHtml(x.descripcion)}</div>`).join('')}
+      <div style="margin-top:6px;color:var(--cafe-soft)">Copia${migracionesFaltantes.length===1?'la':'las'} del repo y corre${migracionesFaltantes.length===1?'la':'las'} en el SQL Editor de Supabase — mientras falte${migracionesFaltantes.length===1?'':'n'}, esa parte de la app va a mostrar el error real de Postgres en vez de cargar.</div>
+    </div>` : ''}
     <h3 class="section-title" style="margin-top:0">Saldo inicial de cada cuenta</h3>
     ${filasSaldoInicial}
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:10px">Con cuánto tenía cada uno antes de empezar a usar la app (puede ser negativo si alguien ya debía plata). Se pone una sola vez — de ahí en adelante "Balance de cuentas" en Resumen sigue contando solo, sumando y restando lo que se vaya registrando.</p>
