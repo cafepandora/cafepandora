@@ -160,10 +160,14 @@
   .proceso-pill.activo { background: var(--teal); color: #fff; }
   .lote-presentaciones { padding: 4px 18px 16px; }
 
-  .guia-pasos { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 14px; scrollbar-width: none; }
-  .guia-pasos::-webkit-scrollbar { display: none; }
-  .guia-paso { flex-shrink: 0; display: flex; align-items: center; gap: 7px; font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; color: var(--cafe-soft); background: var(--blanco); border: 1px solid var(--linea); border-radius: 20px; padding: 7px 13px 7px 7px; }
-  .guia-paso b { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; border-radius: 50%; background: var(--dorado); color: #fff; font-size: 10.5px; flex-shrink: 0; }
+  /* Los 4 pasos en columna, TODOS visibles de una — antes era una fila
+     con scroll horizontal (scrollbar oculta), y con solo 3-4 pasos
+     visibles a la vez no era obvio que había que deslizar para ver el
+     resto. Para alguien mayor eso puede leerse como "solo hay 2 pasos"
+     y quedarse confundido — en columna se ve todo de una, sin adivinar. */
+  .guia-pasos { display: flex; flex-direction: column; gap: 8px; padding: 2px 0 14px; }
+  .guia-paso { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600; color: var(--cafe); background: var(--blanco); border: 1px solid var(--linea); border-radius: 12px; padding: 11px 14px; }
+  .guia-paso b { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--dorado); color: #fff; font-size: 12.5px; flex-shrink: 0; }
 
   .nav-rapida { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 18px; scrollbar-width: none; position: sticky; top: 0; z-index: 40; background: var(--crema); }
   .nav-rapida::-webkit-scrollbar { display: none; }
