@@ -67,11 +67,17 @@
   .hero-linea { font-size: 16px; color: var(--cafe-soft); max-width: 340px; margin: 0; line-height: 1.5; }
   .hero-arte { width: min(420px, 84vw); border-radius: 22px; overflow: hidden; box-shadow: 0 24px 46px rgba(32,27,20,.24); }
   .hero-arte img { width: 100%; display: block; aspect-ratio: 3/4; object-fit: cover; }
-  .scroll-cue {
-    position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
-    color: var(--cafe-soft); opacity: .7; animation: scrollCue 1.8s ease-in-out infinite;
+  /* Dos velocidades: primaria salta directo al catálogo (para quien ya
+     confía y solo quiere pedir — la mayoría, casi todo el tráfico llega
+     referido, no frío), secundaria sigue el scroll normal hacia el Dato
+     duro/Proceso (para quien sí quiere la historia primero). Reemplaza
+     la flechita muda de antes (.scroll-cue) — ahora dice qué hay abajo. */
+  .hero-ctas { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 2px; }
+  .hero-cta-primaria {
+    font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 15px; color: #fff;
+    background: var(--teal); border-radius: 30px; padding: 13px 30px; text-decoration: none;
   }
-  @keyframes scrollCue { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
+  .hero-cta-secundaria { font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 13px; color: var(--cafe-soft); text-decoration: none; }
 
   .dato-duro {
     background:
@@ -254,11 +260,12 @@
 <section class="hero" id="heroSection">
   <p class="hero-kicker revela">Café de origen colombiano</p>
   <h1 class="hero-titulo revela">Pandora.</h1>
-  <p class="hero-linea revela">Tentación en cada taza, origen colombiano.</p>
+  <p class="hero-linea revela">Tentación en cada taza.</p>
   <div class="hero-arte revela" id="heroArte"></div>
-  <a href="#datoDuro" class="scroll-cue" aria-label="Baja para ver más">
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-  </a>
+  <div class="hero-ctas revela">
+    <a href="#catalogo" class="hero-cta-primaria">Ver el catálogo →</a>
+    <a href="#datoDuro" class="hero-cta-secundaria">Conoce la finca ↓</a>
+  </div>
 </section>
 
 <section class="dato-duro" id="datoDuro">
