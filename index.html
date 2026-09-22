@@ -12,12 +12,19 @@
 <meta name="apple-mobile-web-app-title" content="Café Pandora">
 <meta name="theme-color" content="#FCFBF9">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --crema: #FCFBF9;
+    /* crema/cafe ajustados (2026-09-21) para quedar en el mismo sistema
+       de marca que pedidos/index.html (paleta real de la carta 2026) —
+       cafe pasa de un café rojizo genérico a la tinta casi negra real;
+       crema es prácticamente el mismo tono, ajuste mínimo. NO se tocó
+       verde/terracota/azul: son colores de ESTADO (pagado/pendiente/
+       envío) en decenas de lugares, cambiarlos rompería ese significado
+       sin ganar nada — el usuario pidió explícitamente no tocarlos. */
+    --crema: #FCFAF3;
     --crema-alt: #F1EAE0;
-    --cafe: #3E2723;
+    --cafe: #201B14;
     /* Oscurecido de #8A7A70 — el original daba ~4:1 de contraste contra
        --crema (falla el 4.5:1 mínimo de WCAG AA para texto normal), muy
        poco para texto secundario/meta que se lee todo el día — Juan e
@@ -31,6 +38,17 @@
     --azul-bg: #E2ECF2;
     --linea: #E3D9CC;
     --blanco: #FFFFFF;
+    /* Acentos de marca nuevos (de pedidos/index.html) — solo para
+       momentos de marca (títulos de sección, login, checkboxes), nunca
+       para nada que ya signifique un estado (eso sigue en verde/
+       terracota/azul de arriba). */
+    --teal: #274652;
+    --teal-bg: #E7EDEE;
+    --dorado: #D6A23A;
+    --dorado-bg: #FBF0DA;
+    /* Serif de exhibición — SOLO para el login (una vez por sesión, no
+       texto denso) — igual disciplina que en pedidos/index.html. */
+    --serif: 'Fraunces', Georgia, serif;
   }
   * { box-sizing: border-box; }
   body {
@@ -186,7 +204,9 @@
     max-width: 320px; width: 100%; text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,.35);
   }
-  #lockScreen h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  /* Serif solo acá — se ve UNA vez por sesión (login), no es texto denso
+     que alguien lea rápido 200 veces al día como .section-title. */
+  #lockScreen h1 { font-family: var(--serif); font-weight: 600; font-size: 28px; margin: 10px 0 4px; color: var(--cafe); }
   #lockScreen p { font-size: 13px; color: var(--cafe-soft); margin: 0 0 18px; }
   #lockScreen input {
     width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--linea);
@@ -265,7 +285,7 @@
   .field input:focus, .field select:focus { outline: 2px solid var(--cafe); outline-offset: -1px; }
   /* Los checkboxes sin estilo del navegador salen ~13px — muy chicos para
      tocar con precisión; se agrandan y se les pone el color de la marca. */
-  input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--cafe); cursor: pointer; }
+  input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--dorado); cursor: pointer; }
 
   .quick-add { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .quick-add button {
@@ -287,14 +307,22 @@
     font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 16px; background: var(--terracota);
     color: #fff; border: none; border-radius: 30px; padding: 16px 18px; cursor: pointer; width: 100%;
     box-shadow: 0 4px 14px rgba(173,75,49,.28);
+    transition: transform .12s ease, background .15s ease;
   }
   button.add-btn:hover { background: #93402a; }
+  /* Feedback de toque (2026-09-21, mismo patrón que pedidos/index.html) —
+     confirma que el toque registró, sobre todo útil para Juan/Inés (65
+     años) en celular. 100-150ms: es respuesta a un toque, tiene que
+     sentirse inmediata, no una animación decorativa lenta. */
+  button.add-btn:active { transform: scale(.97); }
   button.add-btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
   button.sec-btn {
     font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 14px; background: var(--blanco);
     border: 1px solid var(--cafe); color: var(--cafe); padding: 10px 16px; border-radius: 30px; cursor: pointer;
+    transition: transform .12s ease, background .15s ease, color .15s ease;
   }
   button.sec-btn:hover { background: var(--cafe); color: #fff; }
+  button.sec-btn:active { transform: scale(.97); }
 
   /* ---------- Listas tipo libro ---------- */
   .ledger { border-top: 1px solid var(--linea); }
@@ -331,7 +359,8 @@
   }
   .ledger-row .acciones button:hover, .ledger-row .acciones button:active { background: var(--terracota); color: #fff; border-color: var(--terracota); }
 
-  .tag { display: inline-block; font-size: 14px; font-weight: 700; padding: 7px 14px; border-radius: 20px; cursor: pointer; border: none; }
+  .tag { display: inline-block; font-size: 14px; font-weight: 700; padding: 7px 14px; border-radius: 20px; cursor: pointer; border: none; transition: transform .12s ease; }
+  .tag:active { transform: scale(.95); }
   .tag.pendiente { background: #F2E2C4; color: #8A6A1F; }
   .tag.pagado { background: var(--verde-bg); color: var(--verde); }
   .tag.envio-pendiente { background: var(--azul-bg); color: var(--azul); }
@@ -344,7 +373,7 @@
 
   .empty { text-align: center; color: var(--cafe-soft); font-size: 15px; padding: 32px 12px; }
 
-  h3.section-title { font-size: 18px; font-weight: 700; margin: 22px 0 10px; }
+  h3.section-title { font-size: 18px; font-weight: 700; margin: 22px 0 10px; color: var(--teal); }
 
   /* ---------- Inventario ---------- */
   .lote-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
@@ -558,6 +587,7 @@
 <div id="lockScreen">
   <div class="box">
     <img id="logoLock" src="">
+    <h1>Café Pandora</h1>
     <p>Gestión integral — acceso del equipo</p>
     <input type="email" id="loginEmail" placeholder="Correo" autocomplete="username" autofocus>
     <input type="password" id="loginPassword" placeholder="Contraseña" autocomplete="current-password" style="margin-top:8px">
