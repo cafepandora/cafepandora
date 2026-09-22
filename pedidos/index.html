@@ -120,12 +120,11 @@
      superficie continua, con el cierre/selector de peso/molienda/
      cantidad "impresos" encima. */
   .tarjeta-bolsa { padding: 0; overflow: hidden; border-radius: 18px; background: linear-gradient(180deg, #DABB93 0%, #C6A276 38%, #B3915E 68%, #9E7E4E 100%); box-shadow: 0 10px 26px rgba(60,42,20,.22); }
-  .bolsa-zip { height: 13px; margin: 18px 26px 0; border-radius: 7px; background: #2A2621; }
-  .bolsa-cuerpo { position: relative; padding: 6px 22px 0; }
-  .bolsa-cuerpo::before, .bolsa-cuerpo::after { content: ''; position: absolute; top: 10px; bottom: 10px; width: 1px; background: rgba(42,33,20,.22); }
-  .bolsa-cuerpo::before { left: 15%; }
-  .bolsa-cuerpo::after { right: 15%; }
-  .bolsa-foto { display: block; width: 100%; max-width: 300px; margin: 0 auto; }
+  /* .bolsa-zip / los pliegues de .bolsa-cuerpo::before/::after que había
+     acá se quitaron (2026-09-21) — la ilustración sola, sin la "bolsa
+     física" alrededor, se veía más pro (probado primero en el Hero). */
+  .bolsa-cuerpo { padding: 18px 22px 0; }
+  .bolsa-foto { display: block; width: 100%; max-width: 320px; margin: 0 auto; }
   .bolsa-panel { position: relative; padding: 4px 22px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .bolsa-peso-bar { width: 100%; max-width: 280px; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #2A2621; color: var(--crema); border: none; border-radius: 10px; padding: 11px 16px; font-family: 'Outfit', sans-serif; cursor: pointer; }
   .bolsa-peso-bar .etiqueta { font-size: 10.5px; font-weight: 700; letter-spacing: 1px; color: var(--dorado); text-transform: uppercase; }
@@ -272,15 +271,15 @@
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">02</span>
-      <div><h3>Secado</h3><p>De 7 a 35 días, según el proceso — Lavado es el más rápido; Honey y Natural fermentan mucho más tiempo en caneca.</p></div>
+      <div><h3>Lavado y secado</h3><p>Seleccionamos el café ya en el lavado, y secamos de 7 a 35 días según el proceso — Lavado es el más rápido; Honey y Natural fermentan mucho más tiempo en caneca.</p></div>
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">03</span>
-      <div><h3>Trilla</h3><p>Retiramos el pergamino para dejar el café verde, listo para tostar.</p></div>
+      <div><h3>Trilla</h3><p>Retiramos el pergamino para dejar el café verde, y volvemos a seleccionar grano por grano antes de tostar.</p></div>
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">04</span>
-      <div><h3>Tueste</h3><p>Tostamos en lotes pequeños, cerca de la fecha en que se despacha tu pedido.</p></div>
+      <div><h3>Tueste</h3><p>Tostamos en lotes pequeños y seleccionamos una última vez ya tostado, antes de empacar tu pedido.</p></div>
     </div>
   </div>
 </section>
@@ -534,10 +533,15 @@ function tarjetaListaHTML(lote, filas) {
 // Tarjeta-bolsa: la bolsa real es toda la interfaz — el "PESO NETO" abre
 // las presentaciones disponibles (como si fuera una etiqueta desplegable),
 // y la molienda/cantidad se eligen justo debajo, sobre el mismo kraft.
+// Sin kraft/zip/pliegues a propósito (2026-09-21) — se probó así en el
+// Hero (solo el dibujo, sin la "bolsa física" alrededor) y se veía más
+// pro que la versión con textura kraft, así que se llevó también acá.
+// Usa el MISMO tarjeta-bolsa-clara de Honey/Natural (fondo crema, sin
+// override de color propio) en vez de su antiguo fondo kraft — un solo
+// tratamiento limpio para los 3 lotes, no uno distinto por lote.
 function tarjetaBolsaHTML(lote, filas, bolsa) {
   return `
-    <div class="card tarjeta-bolsa" id="lote-${lote.toLowerCase()}">
-      <div class="bolsa-zip"></div>
+    <div class="card tarjeta-bolsa-clara" id="lote-${lote.toLowerCase()}">
       <div class="bolsa-cuerpo">
         <img class="bolsa-foto" src="data:image/png;base64,${bolsa}" alt="Bolsa de ${lote}">
       </div>
