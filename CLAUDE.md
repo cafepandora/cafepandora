@@ -128,9 +128,11 @@ tener que adivinar revisando curl o los logs de Cloudflare.
   absoluto (para que corregir un dato no descuadre el stock). Mismo patrón
   para cosechas (⚖️ pesar pergamino real) y pergamino comprado (🌾 pesar
   verde real).
-- **Multi-orden en Ventas**: se pueden tener varias órdenes abiertas en
-  paralelo (pestañas dentro de la tarjeta), para atender varios clientes
-  sin perder el progreso. Ver `ordenes[]`, `ordenActiva`, `nuevaOrden()`.
+- **Ventas es UNA orden a la vez** (`orden`, un objeto — no un array): antes
+  se podían tener varias abiertas en paralelo con pestañas, se quitó el
+  2026-09-23 porque en la práctica no se usaba, ver "Profesionalizar la
+  app interna" más abajo. `elegirCliente()` y `convertirPedidoWebAVenta()`
+  piden confirmación antes de reemplazar la orden si ya llevaba algo.
 - **Pedidos web → venta**: un pedido que llega por la página pública
   (`pedidos_web`) se convierte en una venta real con
   `convertirPedidoWebAVenta(id)`, que abre una orden nueva pre-cargada; al
@@ -1520,6 +1522,64 @@ Probado en el preview local en desktop y en mobile (375px) — el
 `.subcard` no desborda en ningún ancho, y el flujo de agregar una línea
 + ver el carrito + cerrar la venta sigue funcionando igual que antes
 (no se tocó ninguna función de JS, solo el HTML/CSS alrededor).
+
+**Se quitó el multi-orden de Ventas** (mismo día, a pedido de Juan — "lo
+veo poco útil, es mejor ir registrando"): antes `ordenes[]` guardaba
+varias órdenes en paralelo con pestañas ("Orden 1", "Orden 2"...) y un
+botón "+"; ahora `orden` es un solo objeto, sin pestañas ni botón de
+abrir otra. Cambios reales, no solo visuales:
+
+- `ordenVacia()`, `finalizarOrdenActiva()` siguen igual de nombre pero
+  ahora trabajan sobre `orden` directo, no sobre `ordenes[ordenActiva]`.
+- `guardarOrdenEnMemoria()`, `cambiarOrden()`, `nuevaOrden()`,
+  `cerrarOrden()` se ELIMINARON por completo — existían solo para
+  sincronizar el formulario al saltar entre órdenes; sin múltiples
+  órdenes no hace falta nada de eso.
+- `elegirCliente()` (autocompletar cliente) y `convertirPedidoWebAVenta()`
+  antes evitaban mezclar dos clientes abriendo una orden nueva en
+  paralelo — ahora, si la orden actual ya tiene algo (items o un nombre
+  distinto tecleado en el campo Cliente), piden confirmación antes de
+  reemplazarla. ⚠️ *Ojo con esto si se toca de nuevo*: el chequeo de "ya
+  hay algo escrito" lee el campo `#v-cliente` del DOM directo
+  (`document.getElementById('v-cliente').value`), NO `orden.cliente` —
+  `orden.cliente` solo se actualiza en los puntos de reinicio (no en
+  cada tecla), así que compararlo contra eso daba falsos negativos (no
+  detectaba que sí había algo escrito) hasta que se corrigió a leer el
+  DOM en vivo, igual que ya hacía `registrarVenta()`.
+
+## Los números de "Así se pide" ya no son dorados, y las bolsas ocupan menos (2026-09-23)
+
+Dos ajustes chicos en `pedidos/index.html`, pedidos por el usuario
+después de ver el sitio con gente real:
+
+- **Círculos de la guía en verde, no dorado**: Juan pidió que los
+  números ①②③④ de "Así se pide" fueran verdes en vez de dorados —
+  "integraría más y parecería menos un botón" (el dorado ya se asocia en
+  todo el sitio con acentos/cosas elegibles — peso-pill activo,
+  MEDIA LIBRA, etc., así que un círculo dorado seguía leyéndose como
+  algo tocable). Se agregó `--verde: #4A6B48` al `:root` — MISMO tono
+  que usa `--verde` en `index.html` (app interna) para "Pagado"/balance
+  positivo, coincidencia útil, no una referencia cruzada real entre los
+  dos archivos (siguen siendo independientes). Antes de esto,
+  `pedidos/index.html` no tenía ningún verde en su paleta — se había
+  quitado a propósito en la auditoría de identidad visual (ver más
+  abajo); esta es la primera vez que vuelve, y solo para este uso chico.
+- **Las tarjetas de Lavado y Honey/Natural ocupaban más que una pantalla
+  de celular completa antes de llegar a los controles de pedir** —
+  medido en vivo con `getBoundingClientRect()`: Lavado 810px (viewport
+  típico ~781px), Honey/Natural 1210px, de los cuales **953px eran
+  puramente decorativos** (dos imágenes de rama de café, 321px cada una,
+  más el badge del armadillo, 311px) contra apenas 277px de controles
+  reales. La rama de ABAJO en Honey/Natural (`<img class="bolsa-rama
+  abajo">`, repetía la de arriba solo volteada) se quitó por completo —
+  no agregaba nada y quedaba DESPUÉS de donde ya se termina de elegir,
+  puro scroll de más. `.bolsa-foto` (Lavado, antes max-width 320px → 220px),
+  `.bolsa-rama` (antes width 100% → 46%) y `.bolsa-badge` (antes 76%/280px
+  → 54%/200px) se achicaron. Resultado medido: Lavado 810px→624px,
+  Honey/Natural 1210px→639px — ambas caben ahora en un celular típico sin
+  scroll de sobra. `HONEY_RAMA_B64` sigue usándose una sola vez (antes
+  dos) — no hizo falta tocar la constante, solo dejó de referenciarse la
+  segunda vez en `tarjetaBolsaGrupoHTML()`.
 
 ## Pendiente / a medias
 

@@ -970,87 +970,46 @@ const state = {
   saludEsquema: [],
   tabActiva: 'ventas',
 };
-// Varias órdenes abiertas a la vez: puedes atender a 2 o 3 clientes en
-// paralelo y saltar entre ellas sin perder lo que llevas armado.
-const ordenVacia = () => ({ items: [], cliente: '', tipoCliente: 'Cliente normal', metodo: '', recibidoPor: localStorage.getItem('cp_recibio') || '', estado: 'Pagado', valorManual: '', origenWeb: false, pedidoWebId: null });
-let ordenes = [ordenVacia()];
-let ordenActiva = 0;
-// carritoActual siempre apunta a los items de la orden que estás viendo.
-let carritoActual = ordenes[0].items;
+// Una sola orden a la vez en Ventas — antes se podían tener varias
+// abiertas en paralelo (pestañas), pero en la práctica se prefiere ir
+// registrando una por una; se quitó el 2026-09-23 a pedido de Juan para
+// aligerar la pantalla (ver CLAUDE.md).
+const ordenVacia = () => ({ items: [], cliente: '', tipoCliente: 'Cliente normal', metodo: '', recibidoPor: localStorage.getItem('cp_recibio') || '', estado: 'Pagado', origenWeb: false, pedidoWebId: null });
+let orden = ordenVacia();
+// carritoActual siempre apunta a los items de la orden actual.
+let carritoActual = orden.items;
 
-// Lee los campos del formulario y los guarda en la orden activa (para no
-// perderlos al cambiar de orden).
-function guardarOrdenEnMemoria() {
-  const o = ordenes[ordenActiva];
-  if (!o) return;
-  const g = id => document.getElementById(id);
-  if (g('v-cliente')) o.cliente = g('v-cliente').value;
-  if (g('v-tipoCliente')) o.tipoCliente = g('v-tipoCliente').value;
-  if (g('v-metodo')) o.metodo = g('v-metodo').value;
-  if (g('v-recibio')) o.recibidoPor = g('v-recibio').value;
-  if (g('v-estado')) o.estado = g('v-estado').value;
-  if (g('v-valor')) o.valorManual = g('v-valor').value;
-}
-
-function cambiarOrden(i) {
-  guardarOrdenEnMemoria();
-  ordenActiva = i;
-  carritoActual = ordenes[i].items;
-  renderVentas();
-}
-
-function nuevaOrden(clientePrefill) {
-  guardarOrdenEnMemoria();
-  const o = ordenVacia();
-  if (clientePrefill) o.cliente = clientePrefill;
-  ordenes.push(o);
-  ordenActiva = ordenes.length - 1;
-  carritoActual = ordenes[ordenActiva].items;
-  renderVentas();
-  toast(clientePrefill ? 'Nueva orden para ' + clientePrefill : 'Orden ' + ordenes.length + ' abierta');
-}
-
-// Toma un pedido de la página pública y lo deja listo como una orden nueva
-// en Ventas — solo falta revisarlo y darle "Registrar venta". Queda marcado
-// como "Pedido web" y, al registrarse, el pedido original pasa a "convertido"
-// (ya no se queda suelto en la campanita, independiente de la venta real).
+// Toma un pedido de la página pública y lo deja listo como la orden
+// actual en Ventas — solo falta revisarlo y darle "Registrar venta". Queda
+// marcado como "Pedido web" y, al registrarse, el pedido original pasa a
+// "convertido" (ya no se queda suelto en la campanita, independiente de
+// la venta real). Si ya hay algo armado, confirma antes de reemplazarlo.
 function convertirPedidoWebAVenta(id) {
   const p = state.pedidosWeb.find(x => x.id === id); if (!p) return;
-  guardarOrdenEnMemoria();
-  const o = ordenVacia();
-  o.cliente = p.nombreCliente || '';
-  o.origenWeb = true;
-  o.pedidoWebId = p.id;
-  o.items = (p.items || []).map(it => ({
+  // orden.cliente solo refleja el último reinicio, no lo que se haya
+  // tecleado después — hay que mirar el campo real para no pisar en
+  // silencio algo que sí se estaba armando.
+  const clienteTecleado = (document.getElementById('v-cliente')?.value || '').trim();
+  const tieneAlgo = orden.items.length || clienteTecleado;
+  if (tieneAlgo && !confirm('Vas a reemplazar lo que llevas armado en Ventas con este pedido. ¿Continuar?')) return;
+  orden = ordenVacia();
+  orden.cliente = p.nombreCliente || '';
+  orden.origenWeb = true;
+  orden.pedidoWebId = p.id;
+  orden.items = (p.items || []).map(it => ({
     tipo: 'cafe', lote: it.lote, presentacion: it.presentacion,
     cantidad: it.cantidad, valor: it.valor, molienda: it.molienda || null, tueste: null,
   }));
-  ordenes.push(o);
-  ordenActiva = ordenes.length - 1;
-  carritoActual = ordenes[ordenActiva].items;
+  carritoActual = orden.items;
   cerrarModal();
   document.querySelector('.sidebar-links button[data-tab="ventas"]').click();
   toast('Pedido de ' + (p.nombreCliente || 'cliente') + ' listo para revisar y registrar');
 }
 
-function cerrarOrden(i) {
-  const o = ordenes[i];
-  const tieneAlgo = o.items.length || (o.cliente || '').trim();
-  if (tieneAlgo && !confirm('¿Descartar esta orden con lo que lleva dentro?')) return;
-  guardarOrdenEnMemoria();
-  ordenes.splice(i, 1);
-  if (!ordenes.length) ordenes.push(ordenVacia());
-  ordenActiva = Math.min(ordenActiva, ordenes.length - 1);
-  carritoActual = ordenes[ordenActiva].items;
-  renderVentas();
-}
-
-// Al terminar una venta, cierra esa orden y deja lista la siguiente.
+// Al terminar una venta, deja el formulario limpio para la siguiente.
 function finalizarOrdenActiva() {
-  ordenes.splice(ordenActiva, 1);
-  if (!ordenes.length) ordenes.push(ordenVacia());
-  ordenActiva = Math.min(ordenActiva, ordenes.length - 1);
-  carritoActual = ordenes[ordenActiva].items;
+  orden = ordenVacia();
+  carritoActual = orden.items;
 }
 
 /* ---------- Directorio de clientes ----------
@@ -1150,17 +1109,21 @@ function cerrarSugerenciasCliente() {
   }, 150);
 }
 
-// Si la orden que tienes abierta ya lleva algo de OTRO cliente, elegir uno
-// nuevo de las sugerencias abre una orden aparte en vez de mezclarlos —
-// así "llamar a un cliente antiguo" siempre arranca su propia orden.
+// Si la orden que tienes abierta ya lleva algo de OTRO cliente, confirma
+// antes de reemplazarlo — para no mezclar dos clientes en el mismo pedido
+// sin querer.
 function elegirCliente(nombre) {
-  const actual = ordenes[ordenActiva];
-  const esOtroCliente = actual.cliente && normalizar(actual.cliente) !== normalizar(nombre);
-  if (actual.items.length && esOtroCliente) {
-    nuevaOrden(nombre);
+  const input = document.getElementById('v-cliente');
+  const clienteActual = input ? input.value.trim() : '';
+  const esOtroCliente = clienteActual && normalizar(clienteActual) !== normalizar(nombre);
+  if (orden.items.length && esOtroCliente) {
+    if (!confirm(`Ya llevas productos para ${clienteActual}. ¿Descartarlos y empezar de nuevo para ${nombre}?`)) return;
+    orden = ordenVacia();
+    orden.cliente = nombre;
+    carritoActual = orden.items;
+    renderVentas();
     return;
   }
-  const input = document.getElementById('v-cliente');
   if (!input) return;
   input.value = nombre;
   const caja = document.getElementById('clienteSugerencias');
@@ -2201,20 +2164,10 @@ function renderVentas() {
   const pagadasDelMes = delMesOrdenadas.filter(v => v.estado === 'Pagado');
   const porPagarDelMes = delMesOrdenadas.filter(v => v.estado !== 'Pagado');
 
-  const orden = ordenes[ordenActiva];
-
   document.getElementById('view-ventas').innerHTML = `
       <div class="card orden-card">
-        <div class="orden-tabs">
-          ${ordenes.map((o, i) => `
-            <button class="${i === ordenActiva ? 'active' : ''}" onclick="cambiarOrden(${i})" title="${escapeAttr(o.cliente || 'Sin cliente')}">
-              Orden ${i + 1}${o.items.length ? `<span class="badge">${o.items.length}</span>` : ''}
-            </button>`).join('')}
-          <button class="add-orden" onclick="nuevaOrden()" title="Abrir otra orden">+</button>
-        </div>
         <div class="orden-head">
           <h3 class="section-title" style="margin:0">${orden.cliente ? escapeHtml(orden.cliente) : 'Nuevo pedido'}</h3>
-          ${ordenes.length > 1 ? `<button class="cerrar-orden" onclick="cerrarOrden(${ordenActiva})">Descartar</button>` : ''}
         </div>
 
       <div class="row">
@@ -2458,7 +2411,7 @@ async function registrarVenta(btn) {
   try {
     const usuario = recibidoPor || 'Equipo';
     localStorage.setItem('cp_usuario', usuario);
-    const ordenEnCurso = ordenes[ordenActiva];
+    const ordenEnCurso = orden;
 
     const payload = {
       usuario,
