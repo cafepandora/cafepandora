@@ -1581,6 +1581,32 @@ después de ver el sitio con gente real:
   dos) — no hizo falta tocar la constante, solo dejó de referenciarse la
   segunda vez en `tarjetaBolsaGrupoHTML()`.
 
+## Sin movimiento lateral en celular (app interna, 2026-09-23)
+
+Juan reportó que la app "se movía hacia los lados" en su teléfono.
+Revisado a fondo primero (medido `scrollWidth` vs. `clientWidth` en
+cada pestaña con `getBoundingClientRect()`, en 375px de ancho): NINGUNA
+pestaña tenía de verdad una barra de scroll horizontal a nivel de
+documento — lo que él sentía era el "rebote" (overscroll) que hacen
+iOS/Android por defecto al llegar al borde de la pantalla, que sin
+nada que lo frene se siente como que toda la app se corre al lado.
+
+Arreglo en `index.html`: `html, body { overflow-x: hidden;
+overscroll-behavior-x: none; }`, agregado justo después de `* {
+box-sizing: border-box; }`. `overflow-x: hidden` es la red de
+seguridad (nunca va a aparecer una barra de scroll horizontal del
+documento, así algo se desborde por error en el futuro);
+`overscroll-behavior-x: none` apaga puntualmente el rebote lateral que
+causaba la sensación real.
+
+**No rompe las tiras que SÍ se deslizan de lado a lado a propósito**
+(el clima de 5 días en Cosecha & Tueste, `.clima-dias`; las pestañas de
+Maquila, `.orden-tabs`) — esas tienen su propio `overflow-x: auto` en
+un contenedor chico, y `overflow-x: hidden` en `html`/`body` solo
+afecta el scroll del DOCUMENTO completo, no el de sus hijos. Confirmado
+en el preview: `.clima-dias` seguía reportando `overflowX: "auto"` y
+scrolleando sus 5 tarjetas normalmente después del cambio.
+
 ## Pendiente / a medias
 
 - **Entrega de maquila, saldo inicial y precio FNC — falta correr 3

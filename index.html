@@ -51,6 +51,17 @@
     --serif: 'Fraunces', Georgia, serif;
   }
   * { box-sizing: border-box; }
+  /* Nada de movimiento lateral en celular (2026-09-23, Juan lo reportó
+     probando en su teléfono) — sin esto, el "rebote" que hacen iOS/Android
+     al llegar al borde de la pantalla (overscroll) se sentía como que la
+     app entera se corría hacia el lado. overflow-x:hidden es la red de
+     seguridad (nunca aparece una barra de scroll horizontal aunque algo se
+     desborde por error); overscroll-behavior-x:none apaga puntual el
+     rebote lateral. Las tiras que SÍ se deslizan a propósito de lado a
+     lado (el clima de 5 días, las pestañas de Maquila) siguen funcionando
+     igual — tienen su propio overflow-x:auto, esto solo aplica al documento.
+     */
+  html, body { overflow-x: hidden; overscroll-behavior-x: none; }
   body {
     margin: 0;
     background: var(--crema);
