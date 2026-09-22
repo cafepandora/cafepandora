@@ -3753,7 +3753,7 @@ function vistaCosechas(pendientes) {
           </div>
           <div class="acciones">
             ${(esFermentable && !real) ? `<button onclick="abrirFermentacion(${c.id})" title="Fermentación en caneca">⏱️</button>` : ''}
-            <button onclick="abrirPesarPergamino(${c.id})" title="Anotar pergamino real">⚖️</button>
+            <button onclick="abrirPesarConjunto('cosecha', ${c.id})" title="Anotar pergamino real">⚖️</button>
             ${real ? `<button onclick="abrirTrilla('cosecha', ${c.id})" title="Anotar verde tras trillar">🌾</button>` : ''}
             <button onclick="eliminarCosecha(${c.id})" title="Eliminar">✕</button>
           </div>
@@ -3925,36 +3925,104 @@ async function registrarCosecha(btn) {
   } finally { btn.disabled = false; }
 }
 
-function abrirPesarPergamino(id) {
-  const c = state.cosechas.find(x => x.id === id); if (!c) return;
-  const p = proyectarDesdeCereza(c.kilosCereza);
+// A veces lo que se despulpa un día es una MEZCLA de cosecha propia y
+// cereza comprada a terceros (ej. Don Leo) del mismo día — o cosecha
+// propia de varios días que se despulpó junta. El pergamino que se pesa
+// es UNO SOLO para todo eso, no se puede separar físicamente. Este único
+// modal sirve para pesar cualquier entrada (cosecha O cereza comprada) —
+// si no hay nada más sin pesar del mismo proceso, se ve igual de simple
+// que antes; si sí hay, deja marcar cuáles se despulparon juntas y
+// reparte el peso real proporcional a los kilos de cereza que aportó
+// cada una. Cada registro se queda SEPARADO (no se fusionan ni se
+// borran, a diferencia de unirCosechas()) — así no se pierde a quién
+// hay que pagarle (cereza comprada) ni se descuadra cuánto cosechó la
+// finca realmente (cosechas propias); solo se reparte el peso medido.
+function entradasSinPesar() {
+  return [
+    ...state.cosechas.filter(c => c.kilosPergaminoReal == null).map(c => ({ tipo: 'cosecha', ...c })),
+    ...state.cerezaComprada.filter(c => c.kilosPergaminoReal == null).map(c => ({ tipo: 'cerezaComprada', ...c })),
+  ];
+}
+function abrirPesarConjunto(tipoOrigen, idOrigen) {
+  const listaOrigen = tipoOrigen === 'cosecha' ? state.cosechas : state.cerezaComprada;
+  const origen = listaOrigen.find(x => x.id === idOrigen); if (!origen) return;
+  const otras = entradasSinPesar().filter(e => !(e.tipo === tipoOrigen && e.id === idOrigen) && e.proceso === origen.proceso);
+  const p = proyectarDesdeCereza(origen.kilosCereza);
+  const etiqueta = e => `${fechaCorta(e.fecha)} · ${e.tipo === 'cerezaComprada' ? escapeHtml(e.proveedor || 'comprada') : 'cosecha propia'} · ${Number(e.kilosCereza).toFixed(1)} kg`;
   abrirModal(`
-    <h3>Pergamino real de la cosecha</h3>
-    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">
-      ${Number(c.kilosCereza).toFixed(1)} kg de cereza del ${fechaCorta(c.fecha)} · estimado ${p.pergamino.toFixed(1)} kg</p>
-    <div class="row"><div class="field"><label>Kilos de pergamino seco (pesados)</label>
-      <input id="pp-kilos" type="number" min="0" step="0.1" value="${c.kilosPergaminoReal ?? p.pergamino.toFixed(1)}"></div></div>
-    <div class="row"><div class="field"><label>Kilos de pasilla (opcional)</label>
-      <input id="pp-pasilla" type="number" min="0" step="0.1" placeholder="0" value="${c.kilosPasilla ?? ''}"></div></div>
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">La pasilla que salga de esta cosecha — se tuesta y se vende aparte, como lote "Pasilla".</p>
+    <h3>Pergamino real</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">${etiqueta({ ...origen, tipo: tipoOrigen })} · estimado ${p.pergamino.toFixed(1)} kg</p>
+    ${otras.length ? `
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin:10px 0 4px"><b>¿Se despulpó junto con alguna de estas?</b> Marca las que sí — el pergamino que peses se reparte proporcional a los kilos de cereza de cada una.</p>
+    <div id="pc-otras" style="max-height:200px;overflow-y:auto">
+      ${otras.map(e => `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--linea);font-size:13px">
+        <input type="checkbox" value="${e.tipo}|${e.id}" onchange="actualizarPesarConjuntoPreview('${tipoOrigen}',${idOrigen})">
+        ${etiqueta(e)}
+      </label>`).join('')}
+    </div>` : ''}
+    <div class="row" style="margin-top:10px"><div class="field"><label>Kilos de pergamino seco (pesados — TOTAL de lo despulpado junto)</label>
+      <input id="pp-kilos" type="number" min="0" step="0.1" value="${origen.kilosPergaminoReal ?? p.pergamino.toFixed(1)}" oninput="actualizarPesarConjuntoPreview('${tipoOrigen}',${idOrigen})"></div></div>
+    ${tipoOrigen === 'cosecha' ? `<div class="row"><div class="field"><label>Kilos de pasilla (opcional, de esta cosecha)</label>
+      <input id="pp-pasilla" type="number" min="0" step="0.1" placeholder="0" value="${origen.kilosPasilla ?? ''}"></div></div>
+      <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">La pasilla que salga — se tuesta y se vende aparte, como lote "Pasilla".</p>` : ''}
+    <div id="pc-preview" style="font-size:12.5px;color:var(--cafe-soft);margin-top:8px"></div>
     <div class="modal-actions">
-      <button class="add-btn" onclick="guardarPergaminoReal(${id}, this)">Guardar</button>
+      <button class="add-btn" onclick="guardarPesarConjunto('${tipoOrigen}',${idOrigen}, this)">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
     </div>`);
+  actualizarPesarConjuntoPreview(tipoOrigen, idOrigen);
 }
-
-async function guardarPergaminoReal(id, btn) {
+function marcadasPesarConjunto() {
+  return Array.from(document.querySelectorAll('#pc-otras input:checked')).map(el => {
+    const [tipo, id] = el.value.split('|');
+    return { tipo, id: Number(id) };
+  });
+}
+function combinadasPesarConjunto(tipoOrigen, idOrigen) {
+  const marcadas = [{ tipo: tipoOrigen, id: idOrigen }, ...marcadasPesarConjunto()];
+  return marcadas.map(c => {
+    const e = (c.tipo === 'cosecha' ? state.cosechas : state.cerezaComprada).find(x => x.id === c.id);
+    return { ...c, kilosCereza: Number(e.kilosCereza) || 0 };
+  });
+}
+function actualizarPesarConjuntoPreview(tipoOrigen, idOrigen) {
+  const cont = document.getElementById('pc-preview');
+  if (!cont) return;
+  const combinadas = combinadasPesarConjunto(tipoOrigen, idOrigen);
+  const kilosPergaminoReal = Math.max(0, Number(document.getElementById('pp-kilos').value) || 0);
+  const kilosCerezaTotal = combinadas.reduce((s, c) => s + c.kilosCereza, 0);
+  if (combinadas.length === 1 || !kilosPergaminoReal || !kilosCerezaTotal) { cont.innerHTML = ''; return; }
+  cont.innerHTML = 'Se reparte proporcional: ' + combinadas.map(c =>
+    `${c.kilosCereza.toFixed(1)} kg → ${(kilosPergaminoReal * (c.kilosCereza / kilosCerezaTotal)).toFixed(1)} kg pergamino`
+  ).join(' · ');
+}
+async function guardarPesarConjunto(tipoOrigen, idOrigen, btn) {
   btn.disabled = true;
   const kilosPergaminoReal = Math.max(0, Number(document.getElementById('pp-kilos').value) || 0);
-  const pasillaInput = document.getElementById('pp-pasilla').value;
-  const kilosPasilla = pasillaInput === '' ? null : Math.max(0, Number(pasillaInput) || 0);
-  const c = state.cosechas.find(x => x.id === id);
-  if (c) { c.kilosPergaminoReal = kilosPergaminoReal; c.kilosPasilla = kilosPasilla; }
-  guardarCacheLocal('cosechas');
-  cerrarModal();
-  renderTrazabilidad();
-  await apiFetch('/api/cosechas/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kilosPergaminoReal, kilosPasilla }) });
-  toast('Pergamino real anotado');
+  const pasillaInput = document.getElementById('pp-pasilla');
+  const kilosPasilla = pasillaInput && pasillaInput.value !== '' ? Math.max(0, Number(pasillaInput.value) || 0) : null;
+  const combinadas = combinadasPesarConjunto(tipoOrigen, idOrigen);
+  const kilosCerezaTotal = combinadas.reduce((s, c) => s + c.kilosCereza, 0);
+  try {
+    for (const c of combinadas) {
+      const share = kilosCerezaTotal > 0 ? kilosPergaminoReal * (c.kilosCereza / kilosCerezaTotal) : 0;
+      const lista = c.tipo === 'cosecha' ? state.cosechas : state.cerezaComprada;
+      const registro = lista.find(x => x.id === c.id);
+      const body = { kilosPergaminoReal: share };
+      if (c.tipo === 'cosecha' && c.id === idOrigen && kilosPasilla != null) body.kilosPasilla = kilosPasilla;
+      const endpoint = (c.tipo === 'cosecha' ? '/api/cosechas/' : '/api/cereza-comprada/') + c.id;
+      const res = await apiFetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(await res.text());
+      registro.kilosPergaminoReal = share;
+      if (body.kilosPasilla !== undefined) registro.kilosPasilla = body.kilosPasilla;
+    }
+    guardarCacheLocal('cosechas'); guardarCacheLocal('cerezaComprada');
+    cerrarModal();
+    renderTrazabilidad();
+    toast(combinadas.length > 1 ? `Pergamino repartido entre ${combinadas.length} entradas` : 'Pergamino real anotado');
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
 }
 
 async function eliminarCosecha(id) {
@@ -4059,6 +4127,8 @@ function vistaCerezaComprada() {
       ${paginar(state.cerezaComprada.slice().sort((a,b)=>b.fecha-a.fecha), 'cerezaComprada', c => {
         const p = proyectarDesdeCereza(c.kilosCereza);
         const real = c.kilosPergaminoReal != null;
+        const pagado = !!c.pagadoPor;
+        const nPesajes = (c.pesajes || []).length;
         return `
         <div class="ledger-row">
           <div class="main">
@@ -4069,15 +4139,18 @@ function vistaCerezaComprada() {
                 <span class="paso ${c.kilosVerdeReal > 0 ? 'activo' : ''}"></span>
               </span>
             </div>
-            <div class="meta">${fechaCorta(c.fecha)}${c.costo ? ' · ' + fmt(c.costo) : ''}${c.pagadoPor ? ' · pagó ' + escapeHtml(c.pagadoPor) : ''}</div>
+            <div class="meta">${fechaCorta(c.fecha)}${nPesajes > 1 ? ' · ' + nPesajes + ' pesajes' : ''}${c.costo ? ' · ' + fmt(c.costo) : ''}${c.pagadoPor ? ' · pagó ' + escapeHtml(c.pagadoPor) : ''}</div>
             <div class="details">${c.kilosVerdeReal > 0
               ? `Verde real tras trillar: <b>${Number(c.kilosVerdeReal).toFixed(1)} kg</b>`
               : (real
                 ? `Pergamino real: <b>${Number(c.kilosPergaminoReal).toFixed(1)} kg</b> → ≈ ${proyectarDesdePergamino(c.kilosPergaminoReal).verde.toFixed(1)} kg verde`
                 : `≈ ${p.pergamino.toFixed(1)} kg pergamino → ${p.verde.toFixed(1)} kg verde → ${Math.round(p.libras)} libras`)}</div>
+            ${nPesajes > 1 ? `<div class="details" style="opacity:.75">Pesajes: ${c.pesajes.map(pj => fechaCorta(pj.fecha) + ' (' + Number(pj.kilos).toFixed(1) + ' kg)').join(' · ')}</div>` : ''}
           </div>
           <div class="acciones">
-            <button onclick="abrirPesarPergaminoCompra(${c.id})" title="Anotar pergamino real">⚖️</button>
+            ${!pagado ? `<button onclick="abrirAgregarPesaje(${c.id})" title="Agregar otro pesaje (mismo proveedor, otro día)">📏</button>` : ''}
+            ${!pagado ? `<button onclick="abrirCompletarPagoCereza(${c.id})" title="Calcular y completar el pago">💰</button>` : ''}
+            <button onclick="abrirPesarConjunto('cerezaComprada', ${c.id})" title="Anotar pergamino real">⚖️</button>
             ${real ? `<button onclick="abrirTrilla('cerezaComprada', ${c.id})" title="Anotar verde tras trillar">🌾</button>` : ''}
             <button onclick="eliminarCerezaComprada(${c.id})" title="Eliminar">✕</button>
           </div>
@@ -4112,8 +4185,9 @@ async function registrarCerezaComprada(btn) {
   if (costo > 0 && !pagadoPor) return toast('Elige quién pagó.', 'error');
   btn.disabled = true;
   try {
+    const fecha = new Date(document.getElementById('cz-fecha').value + 'T12:00:00').getTime();
     const payload = {
-      fecha: new Date(document.getElementById('cz-fecha').value + 'T12:00:00').getTime(),
+      fecha,
       proveedor: document.getElementById('cz-proveedor').value.trim() || null,
       kilosCereza,
       proceso: document.getElementById('cz-proceso').value,
@@ -4121,6 +4195,11 @@ async function registrarCerezaComprada(btn) {
       pagadoPor,
       notas: document.getElementById('cz-notas').value.trim() || null,
       usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+      // Primer pesaje = este mismo registro — de acá en adelante, si el
+      // mismo proveedor sigue trayendo cereza otros días (ej. Don Leo),
+      // se le suman más con "📏 Agregar pesaje" en vez de crear una
+      // compra nueva cada vez.
+      pesajes: [{ fecha, kilos: kilosCereza }],
     };
     if (pagadoPor) { localStorage.setItem('cp_pago', pagadoPor); localStorage.setItem('cp_usuario', pagadoPor); }
     const res = await apiFetch('/api/cereza-comprada', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -4134,31 +4213,99 @@ async function registrarCerezaComprada(btn) {
   } finally { btn.disabled = false; }
 }
 
-function abrirPesarPergaminoCompra(id) {
+// Cuando el mismo proveedor trae cereza varios días seguidos (ej. Don
+// Leo) — en vez de crear una compra nueva cada día, se le suma un pesaje
+// más a la MISMA compra. kilosCereza sigue siendo el TOTAL acumulado (la
+// suma de pesajes), así que el resto de la app (rendimientos, margen por
+// lote, Excel) sigue funcionando igual sin tocar nada más.
+function abrirAgregarPesaje(id) {
   const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
-  const p = proyectarDesdeCereza(c.kilosCereza);
+  const n = (c.pesajes || []).length;
   abrirModal(`
-    <h3>Pergamino real de la compra</h3>
-    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">
-      ${Number(c.kilosCereza).toFixed(1)} kg de cereza del ${fechaCorta(c.fecha)} · estimado ${p.pergamino.toFixed(1)} kg</p>
-    <div class="row"><div class="field"><label>Kilos de pergamino seco (pesados)</label>
-      <input id="pp-kilos" type="number" min="0" step="0.1" value="${c.kilosPergaminoReal ?? p.pergamino.toFixed(1)}"></div></div>
+    <h3>Agregar pesaje — ${escapeHtml(c.proveedor || 'sin proveedor')}</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">Lleva ${Number(c.kilosCereza).toFixed(1)} kg acumulados en ${n} pesaje${n === 1 ? '' : 's'}.</p>
+    <div class="row">
+      <div class="field"><label>Fecha</label><input id="pj-fecha" type="date" value="${hoyISO()}"></div>
+      <div class="field"><label>Kilos de este pesaje</label><input id="pj-kilos" type="number" min="0" step="0.1" placeholder="0"></div>
+    </div>
     <div class="modal-actions">
-      <button class="add-btn" onclick="guardarPergaminoRealCompra(${id}, this)">Guardar</button>
+      <button class="add-btn" onclick="guardarPesaje(${id}, this)">Agregar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
     </div>`);
 }
-
-async function guardarPergaminoRealCompra(id, btn) {
+async function guardarPesaje(id, btn) {
+  const kilos = Math.max(0, Number(document.getElementById('pj-kilos').value) || 0);
+  if (!kilos) return toast('Escribe cuántos kilos se pesaron.', 'error');
   btn.disabled = true;
-  const kilosPergaminoReal = Math.max(0, Number(document.getElementById('pp-kilos').value) || 0);
-  const c = state.cerezaComprada.find(x => x.id === id);
-  if (c) c.kilosPergaminoReal = kilosPergaminoReal;
+  const fecha = new Date(document.getElementById('pj-fecha').value + 'T12:00:00').getTime();
+  const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
+  const pesajes = [...(c.pesajes || []), { fecha, kilos }];
+  const kilosCereza = pesajes.reduce((s, p) => s + (Number(p.kilos) || 0), 0);
+  c.pesajes = pesajes; c.kilosCereza = kilosCereza;
   guardarCacheLocal('cerezaComprada');
   cerrarModal();
   renderTrazabilidad();
-  await apiFetch('/api/cereza-comprada/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kilosPergaminoReal }) });
-  toast('Pergamino real anotado');
+  await apiFetch('/api/cereza-comprada/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pesajes, kilosCereza }) });
+  toast('Pesaje agregado — ' + kilosCereza.toFixed(1) + ' kg en total');
+}
+
+// Cierre de una compra: cuánto pagar por TODO lo acumulado, usando el
+// precio de referencia de HOY (el día que se completa el pago — no el de
+// cada pesaje individual, así lo pidió Juan) al factor que siempre
+// pagan (88 por defecto, editable por si algún día negocian otro).
+// Reusa proyectarDesdeCereza() (mismo rendimiento aprendido de siempre)
+// y precioPergaminoPorFactor() (misma fórmula de la calculadora de
+// Resumen — un solo lugar con la cuenta, no duplicada).
+const FACTOR_COMPRA_CEREZA = 88;
+function abrirCompletarPagoCereza(id) {
+  const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
+  abrirModal(`
+    <h3>Completar pago — ${escapeHtml(c.proveedor || 'sin proveedor')}</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">${Number(c.kilosCereza).toFixed(1)} kg de cereza acumulados${(c.pesajes || []).length > 1 ? ' en ' + c.pesajes.length + ' pesajes' : ''}.</p>
+    <div class="row"><div class="field"><label>Factor de rendimiento</label><input id="cp-factor" type="number" min="1" step="0.1" value="${FACTOR_COMPRA_CEREZA}" oninput="recalcularCompletarPago(${id})"></div></div>
+    <div id="cp-resultado"></div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>Costo total a pagar</label><input id="cp-costo" type="number" min="0"></div>
+      <div class="field"><label>Quién pagó</label><select id="cp-pago"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === localStorage.getItem('cp_pago') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    </div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarCompletarPagoCereza(${id}, this)">Completar pago</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>`);
+  recalcularCompletarPago(id);
+}
+function recalcularCompletarPago(id) {
+  const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
+  const cont = document.getElementById('cp-resultado');
+  const factor = Number(document.getElementById('cp-factor').value);
+  const r = precioPergaminoPorFactor(factor);
+  if (!r) { cont.innerHTML = '<p class="empty">Todavía no hay ningún precio de referencia guardado — anota el costo a mano.</p>'; return; }
+  // Si ya se pesó pergamino real (aunque sea repartido proporcional desde
+  // un despulpado conjunto con cosecha propia u otra compra, ver ⚖️ →
+  // abrirPesarConjunto()), se usa ESE peso real — es más preciso que la
+  // proyección genérica, que solo aplica mientras no se ha pesado nada.
+  const real = c.kilosPergaminoReal != null;
+  const pergaminoKg = real ? Number(c.kilosPergaminoReal) : proyectarDesdeCereza(c.kilosCereza).pergamino;
+  const costoCalculado = pergaminoKg * r.precioKilo;
+  cont.innerHTML = `
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin:8px 0">${Number(c.kilosCereza).toFixed(1)} kg cereza → ${real ? '' : '≈ '}${pergaminoKg.toFixed(1)} kg pergamino${real ? ' (pesado real)' : ' (estimado)'} × ${fmt(r.precioKilo)}/kg (precio de hoy a factor ${factor}):</p>
+    <div class="stat-grid"><div class="stat"><div class="n">${fmt(costoCalculado)}</div><div class="l">Costo calculado — puedes ajustarlo abajo</div></div></div>`;
+  const costoInput = document.getElementById('cp-costo');
+  if (costoInput) costoInput.value = Math.round(costoCalculado);
+}
+async function guardarCompletarPagoCereza(id, btn) {
+  const costo = Math.max(0, Number(document.getElementById('cp-costo').value) || 0);
+  const pagadoPor = document.getElementById('cp-pago').value || null;
+  if (!pagadoPor) return toast('Elige quién pagó.', 'error');
+  btn.disabled = true;
+  const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
+  c.costo = costo; c.pagadoPor = pagadoPor;
+  localStorage.setItem('cp_pago', pagadoPor); localStorage.setItem('cp_usuario', pagadoPor);
+  guardarCacheLocal('cerezaComprada');
+  cerrarModal();
+  renderTrazabilidad();
+  await apiFetch('/api/cereza-comprada/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ costo, pagadoPor }) });
+  toast('Pago completado — ' + fmt(costo));
 }
 
 async function eliminarCerezaComprada(id) {
@@ -4515,6 +4662,15 @@ function bloquePrecioFnc() {
 // "Aprenda a vender su café") antes de construir esto — es plata real,
 // no se adivinó la fórmula.
 const FACTOR_BASE_REFERENCIA = 94;
+// Compartida entre la calculadora de Resumen y "Completar pago" de cereza
+// comprada — un solo lugar con la fórmula, no duplicarla en dos partes.
+// Devuelve null si todavía no hay ningún precio de referencia guardado.
+function precioPergaminoPorFactor(factor) {
+  const ultimo = state.precioFnc && state.precioFnc[0];
+  if (!ultimo || !factor || factor <= 0) return null;
+  const precioCarga = ultimo.precioCarga * (FACTOR_BASE_REFERENCIA / factor);
+  return { precioCarga, precioKilo: precioCarga / 125, fecha: ultimo.fecha };
+}
 function bloqueCalculadoraFactor() {
   if (!state.precioFnc || !state.precioFnc.length) return '';
   return `
@@ -4528,14 +4684,12 @@ function bloqueCalculadoraFactor() {
 function calcularPrecioFactor() {
   const cont = document.getElementById('resultado-factor');
   const factor = Number(document.getElementById('factor-input').value);
-  const ultimo = state.precioFnc[0];
-  if (!factor || factor <= 0 || !ultimo) { cont.innerHTML = ''; return; }
-  const precioCarga = ultimo.precioCarga * (FACTOR_BASE_REFERENCIA / factor);
-  const precioKilo = precioCarga / 125;
+  const r = precioPergaminoPorFactor(factor);
+  if (!r) { cont.innerHTML = ''; return; }
   cont.innerHTML = `
     <div class="stat-grid" style="margin-top:10px">
-      <div class="stat"><div class="n">${fmt(precioCarga)}</div><div class="l">Por carga (125 kg) a factor ${factor}</div></div>
-      <div class="stat"><div class="n">${fmt(precioKilo)}</div><div class="l">Por kilo de pergamino</div></div>
+      <div class="stat"><div class="n">${fmt(r.precioCarga)}</div><div class="l">Por carga (125 kg) a factor ${factor}</div></div>
+      <div class="stat"><div class="n">${fmt(r.precioKilo)}</div><div class="l">Por kilo de pergamino</div></div>
     </div>`;
 }
 

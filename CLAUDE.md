@@ -911,6 +911,78 @@ cosechó realmente la finca), pero **sí** suma a `rendimientosReales()` —
 es cereza real entrando a secarse igual que la propia, así que también
 sirve para calcular los rendimientos reales de secado/trilla.
 
+**Compras en varios días, mismo proveedor (📏 + 💰, 2026-09-21)**: un
+proveedor como Don Leo a veces trae cereza día tras día, y antes no
+había forma de ir sumando a la misma compra — había que crear una
+nueva cada día. Ahora `compras_cereza.pesajes` (jsonb,
+`migracion_pesajes_cereza.sql`) guarda cada pesada
+(`{ fecha, kilos }`); `kilos_cereza` SIGUE siendo el total (la suma de
+`pesajes`), así que nada del resto de la app (`rendimientosReales()`,
+margen por lote, Excel) tuvo que tocarse.
+
+- **📏 "Agregar pesaje"** (`abrirAgregarPesaje()`/`guardarPesaje()`):
+  suma un pesaje más a `pesajes[]` y recalcula `kilosCereza` como la
+  suma. Solo aparece mientras la compra no esté pagada
+  (`!c.pagadoPor`) — una vez pagada, se asume cerrada.
+- **💰 "Completar pago"** (`abrirCompletarPagoCereza()`): calcula
+  cuánto pagar por TODO lo acumulado, usando el precio de referencia
+  de HOY (el día que se completa el pago — **no** el de cada pesaje
+  individual, así lo pidió Juan) al factor que siempre pagan
+  (`FACTOR_COMPRA_CEREZA = 88`, editable en el modal por si algún día
+  negocian otro). Fórmula: `kilosCereza → proyectarDesdeCereza()` (el
+  mismo rendimiento aprendido de siempre) `→ kg pergamino equivalente
+  × precioPergaminoPorFactor(factor).precioKilo` (la MISMA función que
+  usa la calculadora de Resumen — un solo lugar con la fórmula del
+  factor, no duplicada). El costo calculado queda en un campo editable
+  (por si hay que ajustar a mano), y "Quién pagó" es obligatorio antes
+  de guardar — mismo guardarraíl que el resto de la app.
+- Compras viejas (de antes de este cambio) no tienen `pesajes` —
+  `(c.pesajes || [])` en todo el código lo trata como 0 pesajes, sigue
+  funcionando igual, solo no muestra el historial día a día.
+
+**⚖️ Pesar en conjunto — cosecha propia + cereza comprada se despulpan
+juntas (2026-09-21)**: Juan explicó cómo se procesa realmente — la
+cereza comprada a terceros (ej. Don Leo) se despulpa el mismo día junto
+con la cosecha propia, así que el pergamino que se pesa después es UNO
+SOLO para todo lo que se despulpó junto, no se puede separar
+físicamente por fuente. Antes cada ⚖️ (uno en Cosechas, otro en Cereza
+comprada) solo sabía pesar SU propio registro — no había forma de
+reflejar esto sin inventar un peso por separado.
+
+Los dos botones ⚖️ ahora llaman a la MISMA función,
+`abrirPesarConjunto(tipoOrigen, idOrigen)` (`tipoOrigen`: `'cosecha'` o
+`'cerezaComprada'`) — reemplazó a `abrirPesarPergamino()` /
+`abrirPesarPergaminoCompra()`, que ya no existen:
+
+- Si no hay otras entradas SIN pesar del mismo `proceso` (ni en
+  `cosechas` ni en `cerezaComprada`), el modal se ve exactamente igual
+  que antes — un solo campo de kilos pesados, nada más.
+- Si sí las hay, aparece una lista con checkboxes (`entradasSinPesar()`
+  junta ambas tablas) para marcar cuáles se despulparon con esta. El
+  pergamino que se pese es el TOTAL de lo combinado — la app lo reparte
+  proporcional a los kilos de cereza que aportó cada una:
+  `su_pergamino = pergamino_total × (sus_kilos_cereza / kilos_cereza_total)`.
+- **Los registros NUNCA se fusionan ni se borran** (a diferencia de
+  `unirCosechas()`, que sí fusiona cosechas ENTRE SÍ) — cada uno se
+  queda separado, solo con su `kilosPergaminoReal` repartido. Es
+  intencional: fusionar una cereza comprada dentro de una cosecha
+  perdería a quién hay que pagarle (proveedor/costo); fusionar una
+  cosecha dentro de una compra descuadraría cuánto cosechó la finca de
+  verdad — ambas cosas ya estaban prohibidas antes de este cambio (ver
+  el bullet de arriba, "sin mezclarse con cosechas").
+- La pasilla (campo que solo existe en `cosechas`, no en
+  `compras_cereza`) se sigue anotando igual, pero solo se le asigna al
+  registro desde el que se abrió el modal (el "origen") — no se reparte
+  proporcional como el pergamino. Simplificación a propósito: la pasilla
+  es un byproducto chico, no vale la pena la complejidad de repartirla
+  también.
+- **"Completar pago" (💰) ahora prefiere el peso real** cuando ya existe
+  (`c.kilosPergaminoReal != null`, así haya llegado de un pesaje
+  conjunto/repartido) en vez de la proyección genérica de
+  `proyectarDesdeCereza()` — más preciso para calcular cuánto pagarle a
+  alguien, que es plata real. El modal deja ver cuál de las dos está
+  usando (dice "(pesado real)" o "(estimado)").
+
 ## Conciliación bancaria (Configuración → Conciliar banco)
 
 Herramienta nueva (2026-09-21) para subir el extracto que se descarga del
