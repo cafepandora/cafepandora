@@ -3600,13 +3600,16 @@ function renderTrazabilidad() {
 
 /* ---------- Panel de rendimientos ---------- */
 /* ---------- Clima de la finca (Open-Meteo, gratis, sin llave) ----------
-   Coordenadas aproximadas del municipio (Pereira/Marsella, Risaralda —
-   sacadas de EMISOR_DIRECCION/EMISOR_CIUDAD, la dirección real que ya usa
-   la app en las cuentas de cobro), NO el punto GPS exacto de la finca. Si
-   Juan da coordenadas más precisas, se actualizan aquí. Sirve como apoyo
-   para decidir si conviene sacar/tapar cereza en secado según la
-   probabilidad de lluvia de los próximos días. */
-const UBICACION_FINCA = { lat: 4.8133, lon: -75.6961, nombre: 'Pereira/Marsella, Risaralda (aprox.)' };
+   La finca real es Finca Pitalito, Km 1 vía Los Mangos, Pital de Combia
+   (Pereira, Risaralda) — confirmado por Juan el 2026-09-21 (antes esto
+   usaba por error la dirección de EMISOR_DIRECCION/cuentas de cobro,
+   "vía Marsella", que resultó ser otra dirección, no la de la finca).
+   Las coordenadas siguen siendo las del centro de Pereira — no hay unas
+   exactas de Pital de Combia todavía — así que esto sigue siendo una
+   aproximación a nivel de municipio, no el punto GPS real de la finca.
+   Sirve como apoyo para decidir si conviene sacar/tapar cereza en secado
+   según la probabilidad de lluvia de los próximos días. */
+const UBICACION_FINCA = { lat: 4.8133, lon: -75.6961, nombre: 'Pital de Combia, Pereira (aprox.)' };
 const CLIMA_TTL_MS = 3 * 3600000;
 let climaCache = null;
 
