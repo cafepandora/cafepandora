@@ -393,6 +393,23 @@ funcionar, lo primero es abrir esa URL a mano y ver si cambió el marcado
   vende pergamino) — es contexto de mercado, útil sobre todo para
   negociar cereza/pergamino comprado a terceros y para tener una
   referencia de hacia dónde va el mercado en general.
+- **Calculadora de factor de rendimiento** (`bloqueCalculadoraFactor()`,
+  justo debajo de la tarjeta del precio, 2026-09-21): el precio que
+  publica la Federación siempre es "a factor 94" (94 kg de pergamino
+  seco rinden 70 kg de café exportable) — si el lote que se está
+  comprando de verdad rinde distinto, no se paga el precio publicado
+  tal cual, se ajusta proporcional:
+  `precio_a_pagar = precio_referencia × (94 ÷ factor_real)`.
+  Un factor MEJOR que 94 (número más bajo, ej. 88 — hace falta menos
+  pergamino para llegar a 70 kg) paga MÁS que el precio publicado; uno
+  PEOR (número más alto) paga MENOS. Se verificó la fórmula contra la
+  página oficial de la Federación
+  ([federaciondecafeteros.org/aprenda-a-vender-su-cafe](https://federaciondecafeteros.org/aprenda-a-vender-su-cafe/))
+  antes de construirla — es plata real, no se adivinó. `FACTOR_BASE_REFERENCIA
+  = 94` es una constante aparte (no hardcodeado inline) por si la
+  Federación lo vuelve a ajustar algún día (ya pasó antes, veía otros
+  valores históricamente). El campo de factor es libre (no solo 94 u 88)
+  porque el factor real varía lote a lote, no son solo 2 valores fijos.
 
 ## Clima de la finca (Cosecha & Tueste)
 

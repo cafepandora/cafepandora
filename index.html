@@ -4501,7 +4501,42 @@ function bloquePrecioFnc() {
         <div class="l">Frente al reporte anterior (${fechaFmt(anterior.fecha)})</div>
       </div>` : ''}
     </div>
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">Fuente: Federación Nacional de Cafeteros. Es el precio de referencia para pergamino seco, no el precio de venta de Café Pandora — sirve de contexto para negociar cereza/pergamino comprado y entender hacia dónde va el mercado.</p>`;
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">Fuente: Federación Nacional de Cafeteros. Es el precio de referencia para pergamino seco, no el precio de venta de Café Pandora — sirve de contexto para negociar cereza/pergamino comprado y entender hacia dónde va el mercado.</p>
+    ${bloqueCalculadoraFactor()}`;
+}
+
+// El precio que publica la Federación siempre es "a factor 94" (94 kg de
+// pergamino = 70 kg de café exportable) — si el lote que se está
+// comprando rinde distinto, se paga más o menos, proporcional:
+//   precio_a_pagar = precio_referencia × (94 ÷ factor_real)
+// Un factor MEJOR que 94 (ej. 88, hace falta menos pergamino para llegar
+// a 70 kg) paga MÁS que el precio publicado; uno PEOR (ej. 100) paga
+// MENOS. Confirmado con la Federación (federaciondecafeteros.org,
+// "Aprenda a vender su café") antes de construir esto — es plata real,
+// no se adivinó la fórmula.
+const FACTOR_BASE_REFERENCIA = 94;
+function bloqueCalculadoraFactor() {
+  if (!state.precioFnc || !state.precioFnc.length) return '';
+  return `
+    <div class="card" style="margin-top:12px">
+      <h4 style="margin:0 0 4px">¿A cuánto pagar según el factor del lote?</h4>
+      <p style="font-size:12px;color:var(--cafe-soft);margin:0 0 10px">La Federación publica el precio a factor ${FACTOR_BASE_REFERENCIA}. Si el lote real rinde distinto, se paga proporcional — mejor factor (número más bajo) paga más; peor factor paga menos.</p>
+      <div class="field"><label>Factor de rendimiento del lote</label><input id="factor-input" type="number" min="1" step="0.1" placeholder="Ej. 88" oninput="calcularPrecioFactor()"></div>
+      <div id="resultado-factor"></div>
+    </div>`;
+}
+function calcularPrecioFactor() {
+  const cont = document.getElementById('resultado-factor');
+  const factor = Number(document.getElementById('factor-input').value);
+  const ultimo = state.precioFnc[0];
+  if (!factor || factor <= 0 || !ultimo) { cont.innerHTML = ''; return; }
+  const precioCarga = ultimo.precioCarga * (FACTOR_BASE_REFERENCIA / factor);
+  const precioKilo = precioCarga / 125;
+  cont.innerHTML = `
+    <div class="stat-grid" style="margin-top:10px">
+      <div class="stat"><div class="n">${fmt(precioCarga)}</div><div class="l">Por carga (125 kg) a factor ${factor}</div></div>
+      <div class="stat"><div class="n">${fmt(precioKilo)}</div><div class="l">Por kilo de pergamino</div></div>
+    </div>`;
 }
 
 function renderResumen() {
