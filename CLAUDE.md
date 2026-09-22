@@ -1229,11 +1229,23 @@ brief de diseño) con el análisis de marca/público/competencia completo
   `.pres-nombre`) pasaron de `letter-spacing: .2-.4px` a `1px` y de
   colores apagados (opacity/cafe-soft) a los acentos reales de marca
   (dorado sobre fondo oscuro, teal sobre fondo claro) — mismo lenguaje
-  del `.hero-kicker`. Los colores del kraft de la tarjeta-bolsa
-  (`#2A2621`, el degradado tostado) se dejaron TAL CUAL — ya estaban
-  afinados a propósito para ese fondo cálido (hay hasta un gotcha
-  documentado sobre su especificidad CSS más abajo), forzarlos a
-  `var(--cafe)` los habría desentonado contra el kraft, no mejorado.
+  del `.hero-kicker`.
+- **⚠️ El kraft de la tarjeta-bolsa de Lavado (`.tarjeta-bolsa`, con
+  cierre zip y pliegues) YA NO SE USA — esto reemplaza lo que decía la
+  sección "Tarjeta-bolsa interactiva (Lavado)" más arriba.** El usuario
+  vio la ilustración SOLA (sin el kraft alrededor) en el Hero, mientras
+  se probaba esa sección, y pidió llevar ese mismo tratamiento limpio a
+  la tarjeta de compra — "se veía más pro". `tarjetaBolsaHTML()` (Lavado)
+  ahora usa `class="card tarjeta-bolsa-clara"`, el MISMO fondo crema
+  simple que ya usaba Honey/Natural, sin `.bolsa-zip` ni los pliegues
+  `.bolsa-cuerpo::before/::after` (esas reglas CSS se borraron). Un solo
+  tratamiento visual para los 3 lotes, no uno distinto por lote. El
+  degradado kraft (`.tarjeta-bolsa`) y sus overrides de color quedaron
+  como CSS sin usar — no se borraron por si se necesitan para un lote
+  nuevo algún día, pero ningún template los usa ahora mismo.
+- **Selección 3 veces** (lavado, trilla, tueste) tejida en la
+  descripción de cada paso de Proceso — dato real que pidió agregar el
+  usuario, no una nota aparte.
 - **Pendiente de este rediseño**: sección "Los lotes" (Lavado/Honey/
   Natural como capítulos editoriales, con su arte real) del plano
   maestro todavía no se construyó — por ahora las tarjetas del catálogo
