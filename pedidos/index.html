@@ -165,7 +165,14 @@
   .tour-kicker { font-size: 12.5px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--teal); margin: 0 0 8px; }
   .tour-titulo { font-family: var(--serif); font-weight: 600; font-size: 24px; color: var(--cafe); margin: 0 0 8px; }
   .tour-desc { font-size: 14px; color: var(--cafe-soft); max-width: 380px; margin: 0 auto 18px; line-height: 1.55; }
+  .tour-incluye { max-width: 340px; margin: 0 auto 18px; text-align: left; background: var(--crema-alt); border-radius: 14px; padding: 16px 20px; }
+  .tour-incluye-titulo { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--teal); margin: 0 0 8px; }
+  .tour-incluye ul { margin: 0; padding: 0 0 0 18px; }
+  .tour-incluye li { font-size: 13.5px; color: var(--cafe); line-height: 1.6; }
+  .tour-datos { font-size: 14.5px; color: var(--cafe); line-height: 1.7; margin: 0 0 6px; }
+  .tour-nota { font-size: 12.5px; color: var(--cafe-soft); margin: 0 0 20px; }
   .tour-cta { display: inline-block; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; color: var(--teal); border: 1.5px solid var(--teal); border-radius: 30px; padding: 11px 24px; text-decoration: none; }
+  .tour-almuerzo-nota { font-size: 11.5px; color: var(--cafe-soft); max-width: 340px; margin: 10px auto 0; line-height: 1.5; }
 
   .card { background: var(--blanco); border: 1px solid var(--linea); border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 14px rgba(62,39,35,.05); }
   /* Resuelve, ANTES de pedir los datos, las 2 dudas que la auditoría CRO
@@ -363,9 +370,21 @@
 
 <section class="tour-finca">
   <p class="tour-kicker revela">Vívelo en la finca</p>
-  <h3 class="tour-titulo revela">Tour de café — $90.000</h3>
-  <p class="tour-desc revela">Incluye merienda, café en barra libre y catación de café · dura aprox. 4 horas. También se puede coordinar con almuerzo.</p>
-  <a class="tour-cta revela" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20preguntar%20por%20el%20tour%20de%20caf%C3%A9%20en%20la%20finca." target="_blank" rel="noopener">📲 Preguntar por el tour</a>
+  <h3 class="tour-titulo revela">Tour &amp; Catación de Café</h3>
+  <p class="tour-desc revela">Un recorrido inmersivo de 4 horas por nuestra finca para conocer la historia, el arte del tueste y los secretos del café de especialidad.</p>
+  <div class="tour-incluye revela">
+    <p class="tour-incluye-titulo">Incluye:</p>
+    <ul>
+      <li>Cata guiada de selecciones de la finca</li>
+      <li>Barra libre de café de especialidad</li>
+      <li>Merienda de la finca</li>
+      <li>Recorrido guiado por el cultivo</li>
+    </ul>
+  </div>
+  <p class="tour-datos revela"><b>Inversión:</b> $90.000 COP<br><b>Duración:</b> ~4 horas</p>
+  <p class="tour-nota revela">Opción de almuerzo disponible previa reserva.</p>
+  <a class="tour-cta revela" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20reservar%20mi%20lugar%20en%20el%20tour%20de%20caf%C3%A9%20en%20la%20finca." target="_blank" rel="noopener">📲 Reservar mi lugar</a>
+  <p class="tour-almuerzo-nota revela">El almuerzo tiene un costo adicional de $25.000–$30.000 por persona y debe reservarse con anticipación.</p>
 </section>
 
 <div class="wrap">
