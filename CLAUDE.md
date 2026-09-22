@@ -1607,6 +1607,50 @@ afecta el scroll del DOCUMENTO completo, no el de sus hijos. Confirmado
 en el preview: `.clima-dias` seguía reportando `overflowX: "auto"` y
 scrolleando sus 5 tarjetas normalmente después del cambio.
 
+## Barra de secciones en `pedidos/index.html` (2026-09-23)
+
+Nueva `<nav class="nav-secciones" id="navSecciones">`, PRIMER elemento
+dentro de `<body>` (antes del Hero) — para que alguien que ya conoce la
+página pueda saltar directo a "Pedir" sin bajar por toda la historia, y
+alguien nuevo que no quiere hacer scroll pueda explorar por secciones.
+4 links fijos (no se arman dinámicamente, a diferencia de `.nav-rapida`
+que sí depende de qué lotes tengan precio): "La finca" (`#datoDuro`),
+"Proceso" (`#procesoSeccion`), "Tour" (`#tourFinca` — la sección del
+tour no tenía `id` todavía, se le agregó), y "Pedir →" (`#catalogo`,
+destacado en teal sólido — el único de los 4 que es una acción, no solo
+navegación).
+
+`position: sticky; top: 0` — al estar ANTES del Hero en el documento,
+se queda pegada arriba durante todo el resto del scroll de la página,
+sin necesitar ningún JS de scroll (mismo mecanismo ya usado en
+`.nav-rapida`, solo que esta nueva barra es la primera en aparecer y
+por eso se queda "encima" de todo lo demás mientras se navega).
+
+**Dos barras sticky al mismo tiempo — hubo que apilarlas a mano**:
+`.nav-rapida` (aparece más abajo, dentro de "Arma tu pedido") YA era
+`position: sticky; top: 0` desde antes — con la barra nueva agregada
+ENCIMA, las dos compitiendo por `top: 0` se hubieran superpuesto. Medida
+en vivo con `getBoundingClientRect()`: `.nav-secciones` mide 53.75px de
+alto, así que `.nav-rapida` pasó a `top: 54px` (se queda pegada justo
+DEBAJO de la primera, no tapada ni tapándola).
+
+**`scroll-margin-top` en los 4 destinos, para que saltar ahí no los deje
+tapados por la barra fija**: `.dato-duro`, `.proceso-seccion` y
+`.tour-finca` a `scroll-margin-top: 54px` (compensa solo `.nav-secciones`,
+que es la única barra sticky activa en esos tramos del scroll);
+`#catalogo` a `scroll-margin-top: 113px` (compensa LAS DOS barras juntas,
+`.nav-secciones` + `.nav-rapida`, que para cuando se llega al catálogo ya
+están las dos pegadas arriba a la vez). ⚠️ *Gotcha real al probar esto*:
+navegar directo a una URL con `#catalogo` en el hash (`/pedidos/#catalogo`)
+NO refleja el uso real — en ese caso el navegador intenta saltar al
+ancla ANTES de que `cargarCatalogo()` (asíncrono) haya llenado el `<div
+id="catalogo">`, así que el salto se calcula contra un div todavía
+vacío y da un resultado distinto. Probar SIEMPRE con la página ya
+cargada y haciendo clic real en el link (o `location.hash` después de
+esperar la carga) — mismo tipo de gotcha ya documentado para
+`iniciarRevelado()` y el catálogo async, esta vez aplicado a scroll en
+vez de a animaciones.
+
 ## Pendiente / a medias
 
 - **Entrega de maquila, saldo inicial y precio FNC — falta correr 3
