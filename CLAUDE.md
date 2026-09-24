@@ -1855,15 +1855,85 @@ la pantalla en celular — imposible de tocar, sin ningún error visible
 motivo, lo recorta en vez de mostrar una barra de scroll que hubiera
 delatado el problema).
 
-Arreglo: `.subtabs { flex-wrap: wrap }` + botones `flex: 0 1 auto` (se
-ajustan a su propio texto, en vez de estirarse parejo) + `border-radius:
-20px` (quedan como pills, no rectángulos) — cuando no caben todos en una
-fila, bajan a la siguiente en vez de desbordar. Es un cambio en la clase
-COMPARTIDA por las 4 pantallas que usan `.subtabs` (Ventas, Cosecha &
-Tueste, Resumen, Configuración) — a propósito: el bug de fondo
-(`min-width:auto` sin wrap) podía repetirse en cualquiera de ellas si
-algún día suman una pestaña más, y las pills se ven mejor en las cuatro,
-no solo en la nueva.
+Arreglo real (el único que quedó): `.subtabs { flex-wrap: wrap }` —
+cuando no caben todos los botones en una fila, bajan a la siguiente en
+vez de desbordar. Es un cambio en la clase COMPARTIDA por las 4
+pantallas que usan `.subtabs` (Ventas, Cosecha & Tueste, Resumen,
+Configuración) — a propósito: el bug de fondo (`min-width:auto` sin
+wrap) podía repetirse en cualquiera de ellas si algún día suman una
+pestaña más.
+
+⚠️ *Primer intento, revertido*: junto con el `flex-wrap` se probó
+también cambiar los botones de rectángulos parejos (`flex:1;
+border-radius:8px`) a pills de ancho ajustado a su texto (`flex:0 1
+auto; border-radius:20px`) — Juan lo probó y pidió volver:
+**"me gustaba más como estaba, así ya se siente como menos visual y un
+poco más perdido"**. Se revirtió SOLO la forma/tamaño de los botones,
+dejando el `flex-wrap: wrap` (el arreglo real del bug) intacto — los 4
+usos de `.subtabs` en toda la app son rectángulos de ancho parejo desde
+entonces. Moraleja para la próxima vez que se toque `.subtabs` o
+cualquier otro elemento de navegación compartido en `index.html`: no
+empaquetar un rediseño visual junto con un arreglo de bug, aunque
+parezca una mejora obvia — proponerlo aparte.
+
+## Cosecha & Tueste — de 5 pestañas a 4: Cereza, Pergamino, Café verde, Tueste (2026-09-24)
+
+Reorganización pedida por Juan en dos pasos, justo después de construir
+el inventario de café verde de arriba (que había dejado 5 pestañas:
+Cosechas, Cereza comprada, Pergamino comprado, Café verde, Tueste — se
+sentían repartidas sin un criterio claro):
+
+1. **"Cosechas es el café en cereza de la finca y cereza comprado el
+   que se compra fuera, y pergamino puede ser solo pergamino y agrupar
+   el que se compra y el que hay ya seco de la finca en una sola"** —
+   se creó `entradasPergamino()`, que junta en una sola lista los
+   pergaminos de 3 orígenes: `state.cosechas`/`state.cerezaComprada` ya
+   pesados (`kilosPergaminoReal != null`) + `state.pergamino` (siempre
+   tiene pergamino, es su naturaleza) — cada entrada normalizada a
+   `{tipo, id, fecha, proceso, kilos, kilosVerdeReal, origenLabel,
+   costo}`, con `tipo` guardando de cuál tabla vino
+   (`'cosecha'`/`'cerezaComprada'`/`'pergamino'`) para poder despachar
+   correctamente el 🌾 (`abrirTrilla(tipo, id)`, sin cambios — ya
+   aceptaba el `tipo` como primer parámetro gracias a
+   `FUENTES_TRILLA`) y el ✕ (`eliminarEntradaPergamino(tipo, id)`,
+   nuevo, delega a `eliminarCosecha`/`eliminarCerezaComprada`/
+   `eliminarPergamino` según `tipo`). `vistaPergamino()` reescrita para
+   iterar esta lista en vez de solo `state.pergamino` — el formulario
+   de arriba ("Registrar compra de pergamino") no cambió, sigue creando
+   filas en `pergamino` normal. El botón 🌾 se QUITÓ de las filas de
+   Cosechas y Cereza comprada (ya no tiene sentido trillar desde ahí si
+   esa acción ahora vive en "Pergamino") — ⚖️ (pesar) se queda en su
+   pestaña de origen, porque pesar SÍ es específico de la etapa cereza.
+2. **"que sea solo Cereza, Pergamino, Cafe verde y Tueste"** — un
+   segundo pedido, más simple todavía: juntar TAMBIÉN "Cosechas" y
+   "Cereza comprada" en una sola pestaña "Cereza", dejando 4 en vez de
+   5. Se hizo de la forma más simple y segura: la pestaña `'cereza'`
+   (antes solo cereza comprada) ahora pinta `vistaCosechas(cosechasPend)`
+   seguido de `vistaCerezaComprada()`, cada una bajo su propio
+   subtítulo ("🌱 Cosecha propia" / "🚚 Cereza comprada a terceros") —
+   NO se fusionaron los datos ni las funciones en sí (siguen siendo dos
+   tablas, dos formularios, dos historiales independientes, tal como ya
+   documentaba la sección "Convenciones importantes" sobre Ventas vs.
+   Maquila: cosas de negocio distintas no se mezclan por dentro aunque
+   compartan pantalla) — solo se apiló su HTML bajo una sola pestaña de
+   navegación. `trazaSubTab` pasó de 5 valores posibles a 4:
+   `'cereza'` (por defecto ahora, antes era `'cosechas'`),
+   `'pergamino'` (antes `'comprado'`), `'verde'`, `'tueste'`.
+
+Contador de la pestaña "Cereza" en el subtab (`state.cosechas.length +
+state.cerezaComprada.length`) sigue reflejando el total real de
+registros aunque ahora estén agrupados visualmente. El de "Pergamino"
+usa `entradasPergamino().length`, no `state.pergamino.length` —
+importante si se vuelve a tocar este número, ya no es solo el
+comprado.
+
+Probado en el preview local: los 4 botones de subtab se ven parejos
+(mismo estilo rectangular de siempre, sin volver a probar pills — ver
+gotcha de arriba), "Cereza" pinta las dos secciones apiladas con las
+filas de Cosechas sin 🌾, "Pergamino" junta los 3 orígenes y el 🌾 abre
+el modal de trilla correcto para una entrada de tipo `'cosecha'`,
+"Café verde" y "Tueste" sin cambios — sin errores de consola en ningún
+recorrido.
 
 ## Pendiente / a medias
 
