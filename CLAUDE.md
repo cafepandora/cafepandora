@@ -2330,6 +2330,16 @@ correo de la cuenta compartida de siempre para todo el mundo (degrada
 con gracia, no rompe nada) — se vuelve realmente útil apenas Juan cree
 las cuentas individuales.
 
+**Estado real, confirmado por Juan (2026-09-24)**: se creó una cuenta
+individual para Joaquín — Juan e Inés van a seguir compartiendo la
+cuenta vieja de siempre, a propósito, no por falta de terminar el
+proceso. Consecuencia esperada (no es un bug si alguien lo reporta):
+cualquier registro que haga Juan O Inés va a mostrar el mismo "agregado
+por" (el correo de esa cuenta compartida) — solo Joaquín queda
+distinguido de verdad. Si más adelante se quiere separar también a Juan
+e Inés, es el mismo paso de siempre (una cuenta más en el panel de
+Supabase, cero cambios de código).
+
 ## `sincronizar()` ya no corta todo si un endpoint falla (2026-09-24)
 
 **Incidente real**: al sumar `creadoPor:creado_por` al `SELECT` de 9
