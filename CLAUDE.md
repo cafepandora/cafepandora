@@ -1669,6 +1669,46 @@ esperar la carga) — mismo tipo de gotcha ya documentado para
 `iniciarRevelado()` y el catálogo async, esta vez aplicado a scroll en
 vez de a animaciones.
 
+## Peso siempre visible + nombre del lote (pedidos, 2026-09-23)
+
+El selector de "Peso neto" en las tarjetas-bolsa (Lavado y Honey/Natural)
+era un botón que abría/cerraba un desplegable (`togglePesoPills()`) — a
+personas mayores les costaba encontrar las opciones, solo veían el peso
+ya elegido y no era obvio que se podía tocar para ver más. Se quitó la
+interacción de abrir/cerrar: `.bolsa-peso-bar` (antes un `<button>`)
+pasó a ser `<p class="bolsa-peso-etiqueta">Peso neto</p>`, solo una
+etiqueta fija, y TODOS los pesos se ven siempre debajo en
+`.peso-pills`, cada uno como un pill de 2 líneas (gramaje + precio, no
+solo gramaje como antes) — se puede comparar todo de un vistazo sin
+tocar nada. `togglePesoPills()` se eliminó del archivo, ya no hace
+falta.
+
+**Nombre del lote explícito en la bolsa de Lavado**: a diferencia de
+Honey/Natural (que ya tienen los botones "Honey"/"Natural" como
+selector de proceso, bien visibles), la bolsa de Lavado no tenía NINGÚN
+texto que dijera "Lavado" — solo el dibujo de la bolsa. Se agregó
+`<h3 class="lote-nombre">Lavado</h3>` arriba de la descripción del lote
+en `tarjetaBolsaHTML()`.
+
+⚠️ *Gotcha real que reapareció al quitar la franja de "Peso neto"*: con
+la franja fuera, el pill activo (dorado) de Honey/Natural se veía tan
+apagado como los demás — mismo problema de especificidad CSS ya
+documentado antes para la variante kraft (`.tarjeta-bolsa`), esta vez en
+la variante clara (`.tarjeta-bolsa-clara`): `.tarjeta-bolsa-clara
+.peso-pill` (fondo crema-alt, 2 clases) y `.peso-pill.activo` (fondo
+dorado, también 2 clases) empatan en especificidad, y como la primera
+aparece DESPUÉS en el archivo, ganaba ella — el pill "elegido" nunca
+tenía fondo dorado, solo el texto se ponía blanco (por una regla de 3
+clases que sí alcanzaba a ganar, pero sin fondo dorado el texto blanco
+quedaba casi invisible sobre el crema-alt). Antes no se notaba porque la
+franja de arriba ya decía qué estaba elegido; ahora que los pills SON la
+única señal, se corrigió agregando fondo+borde a esa misma regla de 3
+clases (`.tarjeta-bolsa-clara .peso-pill.activo { background:
+var(--dorado); border-color: var(--dorado); color: #fff; }`). Moraleja
+repetida: cualquier override de color "no elegido" en una tarjeta-bolsa
+necesita su propio override de "elegido" con MÁS especificidad, con
+fondo Y color juntos, no solo color.
+
 ## Pendiente / a medias
 
 - **Entrega de maquila, saldo inicial y precio FNC — falta correr 3

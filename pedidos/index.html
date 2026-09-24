@@ -203,20 +203,28 @@
   /* Explica qué es cada proceso a alguien que nunca pidió — antes el
      catálogo asumía que ya sabías qué significa Lavado/Honey/Natural. */
   .lote-desc { font-size: 13.5px; color: var(--cafe-soft); text-align: center; padding: 8px 24px 0; margin: 0; }
+  /* La bolsa de Lavado no tiene, a diferencia de Honey/Natural (que
+     usan botones "Honey"/"Natural" como selector), ningún texto que
+     diga de qué café se trata — solo el dibujo. 2026-09-23, a pedido
+     del usuario: nombre del lote explícito arriba de la descripción. */
+  .lote-nombre { font-family: var(--serif); font-weight: 600; font-size: 22px; color: var(--cafe); text-align: center; margin: 10px 0 0; }
   /* Achicado 2026-09-23 (antes max-width: 320px) — la ilustración sola ya
      alcanzaba a ocupar casi toda la altura de una pantalla de celular
      antes de llegar a los controles de pedir; con esto la tarjeta
      completa cabe mejor sin tanto scroll. */
   .bolsa-foto { display: block; width: 100%; max-width: 220px; margin: 0 auto; }
   .bolsa-panel { position: relative; padding: 4px 22px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .bolsa-peso-bar { width: 100%; max-width: 280px; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #2A2621; color: var(--crema); border: none; border-radius: 10px; padding: 11px 16px; font-family: 'Outfit', sans-serif; cursor: pointer; }
-  .bolsa-peso-bar .etiqueta { font-size: 10.5px; font-weight: 700; letter-spacing: 1px; color: var(--dorado); text-transform: uppercase; }
-  .bolsa-peso-bar .valor { font-size: 14px; font-weight: 800; }
-  .bolsa-peso-bar .flecha { font-size: 10px; opacity: .7; transition: transform .2s ease; }
-  .bolsa-peso-bar.abierto .flecha { transform: rotate(180deg); }
-  .peso-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-height: 0; overflow: hidden; transition: max-height .25s ease; width: 100%; }
-  .peso-pills.abierto { max-height: 200px; }
-  .peso-pill { font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700; border-radius: 20px; padding: 7px 13px; cursor: pointer; }
+  /* Antes esto era un botón que abría/cerraba un desplegable con los
+     pesos — a más de una persona mayor le costó encontrar las
+     opciones, solo veían el peso ya elegido. 2026-09-23: se quita la
+     interacción de "abrir/cerrar" — ahora es solo una etiqueta fija
+     (como la franja impresa real de la bolsa) y TODOS los pesos, cada
+     uno con su precio, se ven siempre debajo, sin tocar nada. */
+  .bolsa-peso-etiqueta { font-size: 10.5px; font-weight: 700; letter-spacing: 1px; color: var(--teal); text-transform: uppercase; margin: 0; }
+  .peso-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; }
+  .peso-pill { font-family: 'Outfit', sans-serif; border-radius: 14px; padding: 9px 14px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 72px; }
+  .peso-pill-gr { font-size: 11.5px; font-weight: 600; opacity: .8; }
+  .peso-pill-precio { font-size: 13.5px; font-weight: 800; }
   .peso-pill.activo { background: var(--dorado); border-color: var(--dorado); color: #2A2621; }
   /* Variante kraft (Lavado) — botones semitransparentes sobre el degradado.
      El ".activo" va en una regla APARTE y más específica que la de abajo —
@@ -231,7 +239,14 @@
   /* Variante clara (Honey/Natural) — mismos tonos crema/línea que el resto de la página. */
   .tarjeta-bolsa-clara { padding: 0; overflow: hidden; background: var(--crema); }
   .tarjeta-bolsa-clara .peso-pill { background: var(--crema-alt); border: 1.5px solid var(--linea); color: var(--cafe); }
-  .tarjeta-bolsa-clara .peso-pill.activo { color: #fff; }
+  /* Mismo gotcha ya documentado con la variante kraft (.tarjeta-bolsa):
+     esta regla y la de arriba tienen la MISMA especificidad (2 clases) —
+     sin repetir el fondo/borde acá, "color: #fff" quedaba solo y el
+     fondo dorado de .peso-pill.activo (más abajo en el archivo, también
+     2 clases) perdía por orden de aparición. El pill "elegido" se veía
+     igual de apagado que los demás — grave ahora que ya no hay otra
+     franja que diga qué peso está activo (se quitó el 2026-09-23). */
+  .tarjeta-bolsa-clara .peso-pill.activo { background: var(--dorado); border-color: var(--dorado); color: #fff; }
   /* Achicadas 2026-09-23 (rama: antes width 100%; badge: antes 76%/280px) —
      entre las dos ramas decorativas y el badge la tarjeta de Honey/Natural
      quedaba más alta que la pantalla completa de un celular antes de
@@ -520,7 +535,7 @@ const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 // qué significan estos nombres — real (así se comportan estos procesos
 // en cualquier café, no es marketing inventado), en una sola línea.
 const LOTE_DESC = {
-  Lavado: 'Suave y limpio — el sabor clásico de toda la vida.',
+  Lavado: 'Suave y limpio — el sabor clásico de toda la vida, ahora con superpoderes.',
   Honey: 'Dulce y con cuerpo — un punto medio entre suave e intenso.',
   Natural: 'Frutal e intenso — el más atrevido de los tres.',
 };
@@ -723,6 +738,7 @@ function tarjetaBolsaHTML(lote, filas, bolsa) {
       <div class="bolsa-cuerpo">
         <img class="bolsa-foto" src="data:image/png;base64,${bolsa}" alt="Bolsa de ${lote}">
       </div>
+      <h3 class="lote-nombre">${lote}</h3>
       <p class="lote-desc">${LOTE_DESC[lote] || ''}</p>
       <div class="bolsa-panel" id="bolsa-panel-${lote}">
         ${panelBolsaHTML(lote, filas)}
@@ -742,13 +758,12 @@ function panelBolsaHTML(lote, filas) {
   const clave = claveBase + '|' + molienda;
   const cant = carrito[clave] ? carrito[clave].cantidad : 0;
   return `
-    <button type="button" class="bolsa-peso-bar" id="peso-bar-${lote}" onclick="togglePesoPills('${lote}')">
-      <span class="etiqueta">Peso neto</span>
-      <span class="valor">${PESO_NETO_POR_PRES[peso] || peso} · ${fmt(precioDe(lote, peso))}</span>
-      <span class="flecha">▼</span>
-    </button>
+    <p class="bolsa-peso-etiqueta">Peso neto</p>
     <div class="peso-pills" id="peso-pills-${lote}">
-      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPeso('${lote}','${p}')">${PESO_NETO_POR_PRES[p] || p}</button>`).join('')}
+      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPeso('${lote}','${p}')">
+        <span class="peso-pill-gr">${PESO_NETO_POR_PRES[p] || p}</span>
+        <span class="peso-pill-precio">${fmt(precioDe(lote, p))}</span>
+      </button>`).join('')}
     </div>
     <div class="molienda-toggle">
       ${MOLIENDAS.map(m => `<button type="button" class="molienda-btn ${m === molienda ? 'activo' : ''}" onclick="cambiarMolienda('${lote}','${peso}','${m}', this)">${m}</button>`).join('')}
@@ -758,11 +773,6 @@ function panelBolsaHTML(lote, filas) {
       <span id="cant-${idSafe}">${cant}</span>
       <button onclick="cambiarCantidad('${lote}','${peso}',1)">+</button>
     </div>`;
-}
-
-function togglePesoPills(lote) {
-  document.getElementById('peso-pills-' + lote)?.classList.toggle('abierto');
-  document.getElementById('peso-bar-' + lote)?.classList.toggle('abierto');
 }
 
 // Cambiar de peso en la tarjeta-bolsa no toca el carrito — solo decide
@@ -814,13 +824,12 @@ function panelBolsaGrupoHTML(procesos) {
       </div>
     </div>
     <p class="lote-desc">${LOTE_DESC[lote] || ''}</p>
-    <button type="button" class="bolsa-peso-bar" id="peso-bar-${lote}" onclick="togglePesoPills('${lote}')">
-      <span class="etiqueta">Peso neto</span>
-      <span class="valor">${PESO_NETO_POR_PRES[peso] || peso} · ${fmt(precioDe(lote, peso))}</span>
-      <span class="flecha">▼</span>
-    </button>
+    <p class="bolsa-peso-etiqueta">Peso neto</p>
     <div class="peso-pills" id="peso-pills-${lote}">
-      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPesoGrupo('${p}')">${PESO_NETO_POR_PRES[p] || p}</button>`).join('')}
+      ${filas.map(p => `<button type="button" class="peso-pill ${p === peso ? 'activo' : ''}" onclick="elegirPesoGrupo('${p}')">
+        <span class="peso-pill-gr">${PESO_NETO_POR_PRES[p] || p}</span>
+        <span class="peso-pill-precio">${fmt(precioDe(lote, p))}</span>
+      </button>`).join('')}
     </div>
     <div class="molienda-toggle">
       ${MOLIENDAS.map(m => `<button type="button" class="molienda-btn ${m === molienda ? 'activo' : ''}" onclick="cambiarMolienda('${lote}','${peso}','${m}', this)">${m}</button>`).join('')}
