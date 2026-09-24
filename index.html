@@ -662,7 +662,6 @@
       <button data-tab="maquila"><span class="ico">⚙️</span><span class="txt">Maquila</span></button>
       <button data-tab="inventario"><span class="ico">📦</span><span class="txt">Inventario Tostado</span></button>
       <button data-tab="gastos"><span class="ico">💸</span><span class="txt">Gastos</span></button>
-      <button data-tab="finca"><span class="ico">🌱</span><span class="txt">Finca &amp; Café</span></button>
       <button data-tab="trazabilidad"><span class="ico">🔥</span><span class="txt">Cosecha &amp; Tueste</span></button>
       <button data-tab="resumen"><span class="ico">📊</span><span class="txt">Resumen</span></button>
       <button data-tab="cuentas-cobro"><span class="ico">📋</span><span class="txt">Cuentas de cobro</span></button>
@@ -692,7 +691,6 @@
     <section class="view" id="view-maquila"></section>
     <section class="view" id="view-inventario"></section>
     <section class="view" id="view-gastos"></section>
-    <section class="view" id="view-finca"></section>
     <section class="view" id="view-trazabilidad"></section>
     <section class="view" id="view-resumen"></section>
     <section class="view" id="view-cuentas-cobro"></section>
@@ -1458,7 +1456,7 @@ async function sesionExpirada() {
 ================================================================ */
 // Secciones donde el buscador global realmente filtra algo — en el resto se
 // oculta para no parecer roto cuando escribir ahí no hace nada.
-const TABS_CON_BUSQUEDA = new Set(['ventas', 'maquila', 'gastos', 'finca', 'cuentas-cobro', 'config']);
+const TABS_CON_BUSQUEDA = new Set(['ventas', 'maquila', 'gastos', 'cuentas-cobro', 'config']);
 
 // Configuración modifica precios y el directorio de clientes para todo el
 // equipo — pide la clave cada vez que se abre la app, para que entrar ahí
@@ -1538,16 +1536,16 @@ function renderResultadosBusquedaModal() {
       (coincide(o.cliente, q) || coincide(detalleOrdenMaquila(o), q)))
       .sort((a, b) => b.ts - a.ts);
     cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaMaquila', o => filaOrdenMaquila(o, false), 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
+  } else if (tab === 'gastos' && gastosSubTab === 'finca') {
+    const lista = state.finca.filter(f => mesDe(f.ts) === mes &&
+      (coincide(f.concepto, q) || coincide(f.categoria, q)))
+      .sort((a, b) => b.ts - a.ts);
+    cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaFinca', filaFinca, 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
   } else if (tab === 'gastos') {
     const lista = state.gastos.filter(g => mesDe(g.ts) === mes &&
       (coincide(g.concepto, q) || coincide(g.categoria, q)))
       .sort((a, b) => b.ts - a.ts);
     cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaGastos', filaGasto, 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
-  } else if (tab === 'finca') {
-    const lista = state.finca.filter(f => mesDe(f.ts) === mes &&
-      (coincide(f.concepto, q) || coincide(f.categoria, q)))
-      .sort((a, b) => b.ts - a.ts);
-    cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaFinca', filaFinca, 'Nada coincide con esa búsqueda en ' + mes + '.')}</div>`;
   } else if (tab === 'cuentas-cobro') {
     const lista = state.cuentasCobro.filter(cc => coincide(cc.cliente, q) || coincide(String(cc.id), q));
     cont.innerHTML = `<div class="ledger">${paginar(lista, 'busquedaCuentasCobro', filaCuentaCobro, 'Ninguna cuenta de cobro coincide con esa búsqueda.')}</div>`;
@@ -1592,7 +1590,6 @@ function renderTodo() {
   renderMaquila();
   renderInventario();
   renderGastos();
-  renderFinca();
   renderTrazabilidad();
   renderResumen();
   renderCuentasCobro();
@@ -1601,7 +1598,7 @@ function renderTodo() {
 
 const RENDER_POR_TAB = {
   ventas: renderVentas, maquila: renderMaquila, inventario: renderInventario,
-  gastos: renderGastos, finca: renderFinca, trazabilidad: renderTrazabilidad,
+  gastos: renderGastos, trazabilidad: renderTrazabilidad,
   resumen: renderResumen, 'cuentas-cobro': renderCuentasCobro, config: renderConfig,
 };
 
@@ -3351,12 +3348,34 @@ async function guardarEdicionInventario(id) {
 /* ================================================================
    GASTOS
 ================================================================ */
+// Gastos y Finca & Café comparten pantalla desde el 2026-09-24 — Juan
+// las vio como "prácticamente la misma pestaña" (mismo formulario, misma
+// forma de ledger, ambas son plata que sale del negocio) y pidió juntarlas
+// para ahorrar espacio en el sidebar. Siguen siendo dos tablas separadas
+// por dentro (`gastos`/`finca`, cada una con su categoría propia) — nada
+// de la lógica financiera que ya lee `state.finca` (margen por lote,
+// balance de cuentas, `esGastoOperativo`) cambió, esto es solo
+// reorganización de la pantalla, mismo patrón que la fusión de
+// Cosechas + Cereza comprada en una sola pestaña "Cereza".
+let gastosSubTab = 'negocio';
+function cambiarGastosSubTab(t) { conservarScroll(() => { gastosSubTab = t; renderGastos(); }); }
+
 function renderGastos() {
   const mes = document.getElementById('filtroMes').value || hoyMes();
   const q = document.getElementById('filtroBusqueda').value;
-  const delMes = state.gastos.filter(g => mesDe(g.ts) === mes && (coincide(g.concepto, q) || coincide(g.categoria, q)));
 
   document.getElementById('view-gastos').innerHTML = `
+    <div class="subtabs">
+      <button class="${gastosSubTab==='negocio'?'active':''}" onclick="cambiarGastosSubTab('negocio')">Gastos del negocio</button>
+      <button class="${gastosSubTab==='finca'?'active':''}" onclick="cambiarGastosSubTab('finca')">Finca &amp; Café</button>
+    </div>
+    ${gastosSubTab === 'negocio' ? contenidoGastosNegocio(mes, q) : contenidoGastosFinca(mes, q)}
+  `;
+}
+
+function contenidoGastosNegocio(mes, q) {
+  const delMes = state.gastos.filter(g => mesDe(g.ts) === mes && (coincide(g.concepto, q) || coincide(g.categoria, q)));
+  return `
     <div class="card">
       <h3 class="section-title" style="margin-top:0">Registrar gasto</h3>
       <div class="row">
@@ -3471,14 +3490,11 @@ async function guardarEdicionGasto(id) {
 }
 
 /* ================================================================
-   FINCA & CAFÉ
+   FINCA & CAFÉ (subpestaña de Gastos, ver contenidoGastosFinca())
 ================================================================ */
-function renderFinca() {
-  const mes = document.getElementById('filtroMes').value || hoyMes();
-  const q = document.getElementById('filtroBusqueda').value;
+function contenidoGastosFinca(mes, q) {
   const delMes = state.finca.filter(f => mesDe(f.ts) === mes && (coincide(f.concepto, q) || coincide(f.categoria, q)));
-
-  document.getElementById('view-finca').innerHTML = `
+  return `
     <div class="card">
       <h3 class="section-title" style="margin-top:0">Registrar movimiento de finca</h3>
       <div class="row">
@@ -4745,9 +4761,27 @@ function vistaInventarioVerde() {
     const kg = Number(state.inventarioPergamino.find(x => x.lote === lote)?.kilos) || 0;
     return `<div class="tarifa-row"><div class="nombre">${lote}</div><div style="font-weight:700">${kg.toFixed(1)} kg</div></div>`;
   };
-  const filaVerde = (lote, grado) => {
-    const kg = Number(state.inventarioVerde.find(x => x.lote === lote && x.grado === grado)?.kilos) || 0;
-    return `<div class="tarifa-row" style="padding-left:14px"><div class="nombre" style="font-weight:400;font-size:13px">${grado}</div><div>${kg.toFixed(1)} kg</div></div>`;
+  // Compacto a propósito (2026-09-24, pedido de Juan): antes esta tarjeta
+  // listaba las 6 mallas de los 4 lotes SIEMPRE, 24 filas fijas — mucho
+  // scroll para algo que casi siempre está en $0 en la mayoría de mallas.
+  // Ahora solo muestra el LOTE (proceso) + su total + cuánto de eso está
+  // "sin clasificar" (lo que sí importa ver de entrada, porque avisa que
+  // falta separar por tamaño de grano) — el desglose completo por malla
+  // se ve tocando la fila, en `abrirDetalleVerdeLote()`.
+  const totalVerdeLote = lote => GRADOS_VERDE.reduce((s, g) =>
+    s + (Number(state.inventarioVerde.find(x => x.lote === lote && x.grado === g)?.kilos) || 0), 0);
+  const sinClasificarLote = lote => Number(state.inventarioVerde.find(x => x.lote === lote && x.grado === 'Sin clasificar')?.kilos) || 0;
+  const filaVerdeLote = lote => {
+    const total = totalVerdeLote(lote);
+    const sinClasificar = sinClasificarLote(lote);
+    return `
+      <div class="tarifa-row" style="cursor:pointer" onclick="abrirDetalleVerdeLote('${lote}')">
+        <div class="nombre">${lote}${sinClasificar > 0.01 ? `<br><span style="font-weight:400;font-size:11.5px;color:var(--cafe-soft)">${sinClasificar.toFixed(1)} kg sin clasificar</span>` : ''}</div>
+        <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+          <span style="font-weight:700">${total.toFixed(1)} kg</span>
+          <span style="color:var(--cafe-soft);font-size:12px">Ver mallas ›</span>
+        </div>
+      </div>`;
   };
   return `
     <div class="card">
@@ -4755,6 +4789,7 @@ function vistaInventarioVerde() {
       <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">Café ya seco, antes de trillar. Se suma solo (⚖️ pesar pergamino real, o comprar pergamino ya seco) y se resta solo (🌾 trillar).</p>
       ${LOTES.map(filaPergamino).join('')}
       <button class="sec-btn" style="width:100%;margin-top:10px" onclick="abrirAgregarPergaminoExistente()">+ Agregar pergamino que ya tenías</button>
+      <button class="add-btn" style="width:100%;margin-top:8px" onclick="abrirTrillarPergaminoExistente()">🌾 Trillar pergamino disponible</button>
     </div>
 
     <div class="card">
@@ -4762,12 +4797,8 @@ function vistaInventarioVerde() {
         <h3 class="section-title" style="margin:0">Café verde disponible</h3>
         <button class="add-btn" style="width:auto;padding:10px 16px" onclick="abrirRetiroTostion()">Retirar para tostión</button>
       </div>
-      <p style="font-size:12px;color:var(--cafe-soft);margin:10px 0 0">Ya trillado y clasificado por malla. Se suma solo al trillar (🌾) y se resta solo al retirar para tostión.</p>
-      ${LOTES.map(lote => `
-        <div style="margin-top:14px">
-          <div class="nombre" style="font-weight:700;font-size:14px">${lote}</div>
-          ${GRADOS_VERDE.map(g => filaVerde(lote, g)).join('')}
-        </div>`).join('')}
+      <p style="font-size:12px;color:var(--cafe-soft);margin:10px 0 0">Ya trillado. Se suma solo al trillar (🌾) y se resta solo al retirar para tostión — toca un lote para ver el detalle por malla.</p>
+      ${LOTES.map(filaVerdeLote).join('')}
       <button class="sec-btn" style="width:100%;margin-top:14px" onclick="abrirAgregarVerdeExistente()">+ Agregar café verde que ya tenías</button>
     </div>
 
@@ -4816,6 +4847,92 @@ async function guardarPergaminoExistente(btn) {
   } finally { btn.disabled = false; }
 }
 
+// "🌾 Trillar pergamino disponible" (2026-09-24, corrige un hueco real):
+// el pergamino que se agrega con "+ Agregar pergamino que ya tenías" (o
+// cualquier otro que ya esté en el POOL de inventario_pergamino sin
+// pertenecer a una cosecha/cereza comprada/compra puntual todavía sin
+// trillar) no tenía NINGÚN botón 🌾 en ningún lado — el 🌾 de "Pergamino
+// disponible" (pestaña Pergamino) solo vive pegado a una entrada
+// concreta de cosechas/cerezaComprada/pergamino. Juan reportó
+// exactamente este caso: agregó pergamino existente y no encontraba
+// dónde seguir con la trilla. Este botón trilla DIRECTO del pool por
+// lote (mismo `aplicarTrilla()` de siempre, sin necesitar un registro
+// de origen) — mismo patrón de desglosar-por-malla que ya usa
+// `abrirTrilla()`, con sus propios ids (`tpe-*`) para no chocar si algún
+// día los dos modales llegan a convivir.
+function abrirTrillarPergaminoExistente() {
+  const lotesConStock = LOTES.filter(l => Number(state.inventarioPergamino.find(x => x.lote === l)?.kilos) > 0.01);
+  if (!lotesConStock.length) return toast('No hay pergamino disponible todavía.', 'error');
+  abrirModal(`
+    <h3>Trillar pergamino disponible</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">Para pergamino que no viene de una cosecha o compra puntual en la app (ej. lo que agregaste con "+ Agregar pergamino que ya tenías") — resta del inventario de pergamino y suma al de café verde.</p>
+    <div class="row"><div class="field"><label>Lote</label><select id="tpe-lote" onchange="actualizarDisponibleTrillarExistente()">${lotesConStock.map(l => `<option>${l}</option>`).join('')}</select></div></div>
+    <p id="tpe-disponible" style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px"></p>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;margin:10px 0 6px;cursor:pointer">
+      <input type="checkbox" id="tpe-desglosar" onchange="alternarDesgloseTrillarExistente()"> Desglosar por malla
+    </label>
+    <div id="tpe-campos-malla" style="display:none">
+      <p style="font-size:12.5px;color:var(--cafe-soft);margin:0 0 4px">Reparte lo pesado por malla.</p>
+      ${GRADOS_MALLA.map(g => `
+        <div class="row"><div class="field"><label>${g}</label>
+          <input type="number" min="0" step="0.1" id="tpe-grado-${g.replace(/\s+/g, '')}" placeholder="0" oninput="actualizarTotalTrillarExistente()"></div></div>`).join('')}
+    </div>
+    <div id="tpe-campo-total">
+      <p style="font-size:12.5px;color:var(--cafe-soft);margin:0 0 4px">Sin separar por tamaño de grano todavía — se puede clasificar después.</p>
+      <div class="row"><div class="field"><label>Total trillado</label>
+        <input type="number" min="0" step="0.1" id="tpe-grado-Sinclasificar" placeholder="0" oninput="actualizarTotalTrillarExistente()"></div></div>
+    </div>
+    <div style="text-align:right;font-weight:700;margin:6px 0 4px">Total: <span id="tpe-total">0.0</span> kg</div>
+    <div class="row"><div class="field"><label>De quién (opcional)</label><input id="tpe-nota" placeholder="Ej. cosecha 2025, compra a Don Leo…"></div></div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarTrillarPergaminoExistente(this)">Guardar</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>`);
+  actualizarDisponibleTrillarExistente();
+}
+function actualizarDisponibleTrillarExistente() {
+  const lote = document.getElementById('tpe-lote')?.value;
+  const el = document.getElementById('tpe-disponible');
+  if (!el) return;
+  const kg = Number(state.inventarioPergamino.find(x => x.lote === lote)?.kilos) || 0;
+  el.textContent = `Disponible: ${kg.toFixed(1)} kg`;
+}
+function alternarDesgloseTrillarExistente() {
+  const desglosar = document.getElementById('tpe-desglosar').checked;
+  document.getElementById('tpe-campos-malla').style.display = desglosar ? '' : 'none';
+  document.getElementById('tpe-campo-total').style.display = desglosar ? 'none' : '';
+  actualizarTotalTrillarExistente();
+}
+function actualizarTotalTrillarExistente() {
+  const desglosar = document.getElementById('tpe-desglosar')?.checked;
+  const grados = desglosar ? GRADOS_MALLA : ['Sin clasificar'];
+  const total = grados.reduce((s, g) => s + (Number(document.getElementById('tpe-grado-' + g.replace(/\s+/g, ''))?.value) || 0), 0);
+  const el = document.getElementById('tpe-total');
+  if (el) el.textContent = total.toFixed(1);
+}
+async function guardarTrillarPergaminoExistente(btn) {
+  const lote = document.getElementById('tpe-lote').value;
+  const desglosar = document.getElementById('tpe-desglosar').checked;
+  const verdeGrados = {};
+  (desglosar ? GRADOS_MALLA : ['Sin clasificar']).forEach(g => {
+    const v = Math.max(0, Number(document.getElementById('tpe-grado-' + g.replace(/\s+/g, ''))?.value) || 0);
+    if (v > 0) verdeGrados[g] = v;
+  });
+  if (!Object.keys(verdeGrados).length) return toast(desglosar ? 'Anota al menos un kilo en alguna malla.' : 'Escribe el total trillado.', 'error');
+  const nota = document.getElementById('tpe-nota').value.trim() || null;
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/api/inventario-pergamino/trillar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lote, verdeGrados, nota }) });
+    if (!res.ok) throw new Error(await res.text());
+    cerrarModal();
+    const total = Object.values(verdeGrados).reduce((s, v) => s + v, 0);
+    toast(`${total.toFixed(1)} kg de ${lote} trillados`);
+    await sincronizar();
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
 // "+ Agregar café verde que ya tenías" (2026-09-24, corrige un caso que
 // faltaba): "Agregar pergamino que ya tenías" de arriba sirve para stock
 // de antes de la app que TODAVÍA no está trillado — pero a veces lo que
@@ -4856,6 +4973,25 @@ async function guardarVerdeExistente(btn) {
   } catch (err) {
     toast('No se pudo agregar: ' + err.message, 'error');
   } finally { btn.disabled = false; }
+}
+
+// Detalle por malla de un lote (2026-09-24) — la tarjeta "Café verde
+// disponible" solo muestra el total + lo sin clasificar por lote para no
+// ser tan larga; esto abre el desglose de las 6 mallas cuando sí hace
+// falta verlo o anotarlo con cuidado. Solo lectura — para corregir un
+// número se sigue usando 🌾 (trillar), "Retirar para tostión" o
+// "+ Agregar café verde que ya tenías", igual que antes.
+function abrirDetalleVerdeLote(lote) {
+  const filas = GRADOS_VERDE.map(g => {
+    const kg = Number(state.inventarioVerde.find(x => x.lote === lote && x.grado === g)?.kilos) || 0;
+    return `<div class="tarifa-row"><div class="nombre" style="font-weight:400">${g}</div><div style="font-weight:700">${kg.toFixed(1)} kg</div></div>`;
+  }).join('');
+  abrirModal(`
+    <h3>Café verde de ${escapeHtml(lote)}, por malla</h3>
+    ${filas}
+    <div class="modal-actions">
+      <button class="sec-btn" onclick="cerrarModal()">Cerrar</button>
+    </div>`);
 }
 
 function abrirRetiroTostion() {

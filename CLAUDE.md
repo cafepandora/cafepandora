@@ -2124,6 +2124,79 @@ Comportamiento → Precio FNC → Rendimiento de producción se confirmó
 programáticamente comparando posiciones en el HTML; los 5 `id` de
 navegación existen — todo sin errores nuevos de consola.
 
+## "🌾 Trillar pergamino disponible" — el hueco real que faltaba (2026-09-24)
+
+Juan preguntó, muy concretamente: *"si en café verde pongo agregar
+pergamino que ya tenía, dónde queda disponible ese para proseguir con la
+trilla?"* — y la respuesta, revisando el código, era **"en ningún
+lado"**. El 🌾 de la pestaña Pergamino solo vive pegado a una entrada
+concreta de `cosechas`/`cerezaComprada`/`pergamino` (`abrirTrilla(tipo,
+id)`, necesita un `id` real) — pero "+ Agregar pergamino que ya tenías"
+(`POST /api/inventario-pergamino`) solo suma al POOL
+(`inventario_pergamino[lote]`), sin crear ningún registro en esas 3
+tablas. Si Juan sembraba, por ejemplo, 50 kg de Exótico que nunca tuvo
+ninguna cosecha/compra en la app, ese Exótico aparecía correctamente en
+los stats y en "Pergamino disponible" (kilos), pero **no había ningún
+botón 🌾 en ningún lado de la pantalla para trillarlo** — quedaba
+atrapado como un número sin acción posible.
+
+Arreglado con un botón nuevo, "🌾 Trillar pergamino disponible", junto a
+"+ Agregar pergamino que ya tenías" en la tarjeta de Café verde —
+`abrirTrillarPergaminoExistente()` trilla DIRECTO del pool por lote
+(elige el lote entre los que tengan stock > 0.01, muestra "Disponible: X
+kg", mismo checkbox "Desglosar por malla" que ya usa `abrirTrilla()`,
+con sus propios ids `tpe-*` para no chocar). Backend nuevo: `POST
+/api/inventario-pergamino/trillar` (`functions/api/inventario-pergamino/
+trillar.ts`) — llama a la MISMA `aplicarTrilla()` de siempre, sin
+necesitar ningún registro de origen. A diferencia de PATCH
+`/cosechas|cereza-comprada|pergamino/:id`, este es un movimiento de una
+sola vía (no hay ningún `verde_grados` que revertir al corregir, porque
+no hay ningún registro dueño) — mismo criterio que ya tiene "Retirar
+para tostión".
+
+## Gastos y Finca & Café, una sola pestaña (2026-09-24)
+
+Juan: *"la pestaña finca y café es prácticamente una pestaña extra de
+gastos... eliminemos esa pestaña para ahorrar espacio"* — tenía razón:
+`renderFinca()` era estructuralmente IDÉNTICA a `renderGastos()` (mismo
+formulario concepto/monto/categoría/estado/quién pagó, mismo ledger
+mensual), solo con su propia tabla (`finca`) y categorías
+(`CATEGORIAS_FINCA`). Se sacó el botón del sidebar
+(`data-tab="finca"`) y su `<section id="view-finca">`, y Finca pasó a
+ser una subpestaña DENTRO de Gastos (`gastosSubTab`, `'negocio'` |
+`'finca'`, mismo patrón `.subtabs` de siempre) — igual que la fusión de
+Cosechas + Cereza comprada en una sola pestaña "Cereza" de días atrás.
+
+**Nada de la lógica financiera se tocó** — `state.finca` sigue siendo
+exactamente la misma tabla, y todo lo que ya la leía (margen por lote,
+balance de cuentas, `esGastoOperativo`, el aviso de huérfanos) sigue
+funcionando idéntico, porque nada de eso depende de en qué pestaña vive
+el formulario, solo de los datos. Lo único que cambió es dónde vive la
+PANTALLA: `renderFinca()` se volvió `contenidoGastosFinca(mes, q)`
+(devuelve HTML en vez de pintarlo directo), llamada desde
+`renderGastos()` según `gastosSubTab`. `TABS_CON_BUSQUEDA` perdió
+`'finca'` (ya no es una pestaña principal); el buscador global (🔍)
+ahora revisa `gastosSubTab` dentro de la rama `tab === 'gastos'` del
+modal de búsqueda, para buscar en la lista correcta según cuál de las
+dos subpestañas esté activa. `renderTodo()`/`RENDER_POR_TAB` perdieron
+su entrada de `finca` (ya se repinta solo, como parte de
+`renderGastos()`).
+
+## Café verde disponible, compacto (2026-09-24)
+
+Pedido de Juan: *"pongamos los procesos y sin clasificar, y en caso de
+que se desee anotar cada peso, poder abrir una pestaña para ver todo
+eso"* — la tarjeta "Café verde disponible" mostraba SIEMPRE las 6
+mallas de los 4 lotes (24 filas fijas), casi todas en $0 la mayoría del
+tiempo. Ahora muestra solo 4 filas — una por lote, con el TOTAL del lote
+y, si hay algo sin clasificar, una líneita chica avisándolo (lo único
+que de verdad hace falta ver de entrada, porque avisa que falta separar
+por malla) — y un "Ver mallas ›" que abre `abrirDetalleVerdeLote(lote)`,
+un modal de solo lectura con el desglose completo de las 6 mallas de
+ese lote. No cambia NINGÚN dato ni cálculo, es puramente visual — los
+números vienen exactamente de donde ya venían
+(`state.inventarioVerde`).
+
 ## Pendiente / a medias
 
 - **Inventario de café verde/pergamino — falta correr la migración**: el
