@@ -950,10 +950,28 @@ nueva cada día. Ahora `compras_cereza.pesajes` (jsonb,
 `pesajes`), así que nada del resto de la app (`rendimientosReales()`,
 margen por lote, Excel) tuvo que tocarse.
 
-- **📏 "Agregar pesaje"** (`abrirAgregarPesaje()`/`guardarPesaje()`):
-  suma un pesaje más a `pesajes[]` y recalcula `kilosCereza` como la
-  suma. Solo aparece mientras la compra no esté pagada
-  (`!c.pagadoPor`) — una vez pagada, se asume cerrada.
+- **📏 "Pesajes"** (`abrirPesajes()`/`guardarPesajes()`, reescrito
+  2026-09-23 — antes `abrirAgregarPesaje()`/`guardarPesaje()` solo
+  dejaba AGREGAR, nunca corregir uno que se anotó mal sin borrar toda
+  la compra): abre un modal con un campo fecha+kilos por cada pesaje ya
+  guardado (editables ahí mismo), un botón "+ Agregar otro día", y ✕
+  para quitar alguno si sobra — todo en un buffer aparte
+  (`pesajesEdit`, no toca `state` hasta darle Guardar). Al guardar,
+  `kilosCereza` se recalcula como la suma de lo que haya quedado.
+  Disponible SIEMPRE, incluso con la compra ya pagada — a diferencia de
+  antes, porque un error se puede notar después de pagar y hay que
+  poder corregir el registro igual (Juan: "debo poder editar los
+  totales"). Compras viejas sin `pesajes[]` se tratan como un solo
+  pesaje sintético (`{ fecha: c.fecha, kilos: c.kilosCereza }`) para
+  que el modal tenga de dónde partir.
+- **✎ "Editar"** (`abrirEdicionCerezaComprada()`/
+  `guardarEdicionCerezaComprada()`, nuevo 2026-09-23): proveedor,
+  proceso, fecha, costo, quién pagó y notas — antes no había ninguna
+  forma de corregir esto (ni el costo ni quién pagó) una vez
+  registrado, había que borrar y volver a crear la compra entera. A
+  propósito NO edita `kilosCereza` (eso sigue gobernado por 📏
+  Pesajes, para que el total nunca quede desalineado de la suma de sus
+  pesajes). Disponible siempre, como 📏.
 - **💰 "Completar pago"** (`abrirCompletarPagoCereza()`): calcula
   cuánto pagar por TODO lo acumulado, usando el precio de referencia
   de HOY (el día que se completa el pago — **no** el de cada pesaje

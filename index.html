@@ -4150,8 +4150,9 @@ function vistaCerezaComprada() {
             ${nPesajes > 1 ? `<div class="details" style="opacity:.75">Pesajes: ${c.pesajes.map(pj => fechaCorta(pj.fecha) + ' (' + Number(pj.kilos).toFixed(1) + ' kg)').join(' · ')}</div>` : ''}
           </div>
           <div class="acciones">
-            ${!pagado ? `<button onclick="abrirAgregarPesaje(${c.id})" title="Agregar otro pesaje (mismo proveedor, otro día)">📏</button>` : ''}
+            <button onclick="abrirPesajes(${c.id})" title="Ver y corregir pesajes">📏</button>
             ${!pagado ? `<button onclick="abrirCompletarPagoCereza(${c.id})" title="Calcular y completar el pago">💰</button>` : ''}
+            <button onclick="abrirEdicionCerezaComprada(${c.id})" title="Editar">✎</button>
             <button onclick="abrirPesarConjunto('cerezaComprada', ${c.id})" title="Anotar pergamino real">⚖️</button>
             ${real ? `<button onclick="abrirTrilla('cerezaComprada', ${c.id})" title="Anotar verde tras trillar">🌾</button>` : ''}
             <button onclick="eliminarCerezaComprada(${c.id})" title="Eliminar">✕</button>
@@ -4220,35 +4221,122 @@ async function registrarCerezaComprada(btn) {
 // más a la MISMA compra. kilosCereza sigue siendo el TOTAL acumulado (la
 // suma de pesajes), así que el resto de la app (rendimientos, margen por
 // lote, Excel) sigue funcionando igual sin tocar nada más.
-function abrirAgregarPesaje(id) {
+//
+// Este modal deja VER, CORREGIR y AGREGAR pesajes en un solo lugar
+// (2026-09-23, a pedido de Juan — antes solo se podían agregar, y si un
+// día se anotaba mal no había forma de corregirlo sin borrar toda la
+// compra). `pesajesEdit` es un buffer aparte mientras se edita — no se
+// toca `state.cerezaComprada` hasta que se le da Guardar.
+let pesajesEdit = [];
+function abrirPesajes(id) {
   const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
-  const n = (c.pesajes || []).length;
+  pesajesEdit = (c.pesajes && c.pesajes.length ? c.pesajes : [{ fecha: c.fecha, kilos: c.kilosCereza }]).map(p => ({ ...p }));
   abrirModal(`
-    <h3>Agregar pesaje — ${escapeHtml(c.proveedor || 'sin proveedor')}</h3>
-    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">Lleva ${Number(c.kilosCereza).toFixed(1)} kg acumulados en ${n} pesaje${n === 1 ? '' : 's'}.</p>
-    <div class="row">
-      <div class="field"><label>Fecha</label><input id="pj-fecha" type="date" value="${hoyISO()}"></div>
-      <div class="field"><label>Kilos de este pesaje</label><input id="pj-kilos" type="number" min="0" step="0.1" placeholder="0"></div>
-    </div>
+    <h3>Pesajes — ${escapeHtml(c.proveedor || 'sin proveedor')}</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">Corrige un día si hace falta, o agrega uno nuevo.</p>
+    <div id="pj-lista"></div>
+    <button class="sec-btn" style="width:100%" onclick="agregarFilaPesaje()">+ Agregar otro día</button>
+    <div style="text-align:right;font-weight:700;margin:10px 0 4px">Total: <span id="pj-total"></span> kg</div>
     <div class="modal-actions">
-      <button class="add-btn" onclick="guardarPesaje(${id}, this)">Agregar</button>
+      <button class="add-btn" onclick="guardarPesajes(${id}, this)">Guardar</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>`);
+  pintarFilasPesaje();
+}
+function pintarFilasPesaje() {
+  const cont = document.getElementById('pj-lista');
+  if (!cont) return;
+  cont.innerHTML = pesajesEdit.map((p, i) => `
+    <div class="row">
+      <div class="field"><label>Fecha</label>
+        <input type="date" value="${fechaLocalInput(p.fecha).slice(0, 10)}" onchange="pesajesEdit[${i}].fecha = new Date(this.value + 'T12:00:00').getTime()"></div>
+      <div class="field"><label>Kilos</label>
+        <input type="number" min="0" step="0.1" value="${p.kilos}" oninput="pesajesEdit[${i}].kilos = Math.max(0, Number(this.value) || 0); actualizarTotalPesaje()"></div>
+      ${pesajesEdit.length > 1 ? `<button class="sec-btn" style="align-self:flex-end" onclick="quitarFilaPesaje(${i})" title="Quitar este pesaje">✕</button>` : ''}
+    </div>`).join('');
+  actualizarTotalPesaje();
+}
+function agregarFilaPesaje() {
+  pesajesEdit.push({ fecha: Date.now(), kilos: 0 });
+  pintarFilasPesaje();
+}
+function quitarFilaPesaje(i) {
+  pesajesEdit.splice(i, 1);
+  pintarFilasPesaje();
+}
+function actualizarTotalPesaje() {
+  const el = document.getElementById('pj-total');
+  if (el) el.textContent = pesajesEdit.reduce((s, p) => s + (Number(p.kilos) || 0), 0).toFixed(1);
+}
+async function guardarPesajes(id, btn) {
+  const pesajes = pesajesEdit.filter(p => p.kilos > 0);
+  if (!pesajes.length) return toast('Agrega al menos un pesaje con kilos mayores a cero.', 'error');
+  btn.disabled = true;
+  const kilosCereza = pesajes.reduce((s, p) => s + (Number(p.kilos) || 0), 0);
+  try {
+    const res = await apiFetch('/api/cereza-comprada/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pesajes, kilosCereza }) });
+    if (!res.ok) throw new Error(await res.text());
+    const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
+    c.pesajes = pesajes; c.kilosCereza = kilosCereza;
+    guardarCacheLocal('cerezaComprada');
+    cerrarModal();
+    renderTrazabilidad();
+    toast('Pesajes guardados — ' + kilosCereza.toFixed(1) + ' kg en total');
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+// Editar los datos generales de una compra (proveedor, proceso, fecha,
+// costo, quién pagó, notas) — antes no había forma de corregir esto
+// después de registrar, ni siquiera después de completar el pago; ahora
+// siempre está disponible, para poder corregir la suma el último día de
+// compra sin tener que borrar y volver a crear el registro.
+function abrirEdicionCerezaComprada(id) {
+  const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
+  abrirModal(`
+    <h3>Editar compra de cereza</h3>
+    <div class="row">
+      <div class="field"><label>Fecha</label><input id="ecz-fecha" type="date" value="${fechaLocalInput(c.fecha).slice(0, 10)}"></div>
+      <div class="field"><label>Proveedor</label><input id="ecz-proveedor" value="${escapeAttr(c.proveedor || '')}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Proceso</label><select id="ecz-proceso">${LOTES.map(l => `<option ${l === c.proceso ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Costo total</label><input id="ecz-costo" type="number" min="0" value="${c.costo || 0}"></div>
+      <div class="field"><label>Quién pagó</label><select id="ecz-pago"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === c.pagadoPor ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    </div>
+    <div class="row"><div class="field"><label>Notas</label><input id="ecz-notas" value="${escapeAttr(c.notas || '')}"></div></div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarEdicionCerezaComprada(${id}, this)">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
     </div>`);
 }
-async function guardarPesaje(id, btn) {
-  const kilos = Math.max(0, Number(document.getElementById('pj-kilos').value) || 0);
-  if (!kilos) return toast('Escribe cuántos kilos se pesaron.', 'error');
+async function guardarEdicionCerezaComprada(id, btn) {
+  const costo = Math.max(0, Number(document.getElementById('ecz-costo').value) || 0);
+  const pagadoPor = document.getElementById('ecz-pago').value || null;
+  if (costo > 0 && !pagadoPor) return toast('Elige quién pagó.', 'error');
   btn.disabled = true;
-  const fecha = new Date(document.getElementById('pj-fecha').value + 'T12:00:00').getTime();
-  const c = state.cerezaComprada.find(x => x.id === id); if (!c) return;
-  const pesajes = [...(c.pesajes || []), { fecha, kilos }];
-  const kilosCereza = pesajes.reduce((s, p) => s + (Number(p.kilos) || 0), 0);
-  c.pesajes = pesajes; c.kilosCereza = kilosCereza;
-  guardarCacheLocal('cerezaComprada');
-  cerrarModal();
-  renderTrazabilidad();
-  await apiFetch('/api/cereza-comprada/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pesajes, kilosCereza }) });
-  toast('Pesaje agregado — ' + kilosCereza.toFixed(1) + ' kg en total');
+  const cambios = {
+    fecha: new Date(document.getElementById('ecz-fecha').value + 'T12:00:00').getTime(),
+    proveedor: document.getElementById('ecz-proveedor').value.trim() || null,
+    proceso: document.getElementById('ecz-proceso').value,
+    costo,
+    pagadoPor,
+    notas: document.getElementById('ecz-notas').value.trim() || null,
+  };
+  try {
+    const res = await apiFetch('/api/cereza-comprada/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios) });
+    if (!res.ok) throw new Error(await res.text());
+    const c = state.cerezaComprada.find(x => x.id === id); Object.assign(c, cambios);
+    guardarCacheLocal('cerezaComprada');
+    cerrarModal();
+    renderTrazabilidad();
+    toast('Compra actualizada');
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
 }
 
 // Cierre de una compra: cuánto pagar por TODO lo acumulado, usando el
