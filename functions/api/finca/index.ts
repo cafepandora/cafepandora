@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
 
-const SELECT = 'id, concepto, categoria, monto, estado, ts, pagadoPor:pagado_por';
+const SELECT = 'id, concepto, categoria, monto, estado, ts, pagadoPor:pagado_por, creadoPor:creado_por';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -14,7 +14,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const authError = await requireAuth(context.request, context.env);
+  const { error: authError, email } = await requireAuthConUsuario(context.request, context.env);
   if (authError) return authError;
 
   const supabase = getSupabase(context.env);
@@ -27,6 +27,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       monto: Number(body.monto) || 0,
       estado: body.estado || 'Pagado',
       pagado_por: body.pagadoPor || null,
+      creado_por: email,
       ts: body.ts || Date.now(),
     })
     .select(SELECT)

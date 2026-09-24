@@ -1,8 +1,8 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
 import { registrarMovimiento } from '../../_lib/verde.js';
 
-const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts, grado';
+const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts, grado, creadoPor:creado_por';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -19,7 +19,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 // (y para Lavado, cuánto fue Tostión Media y cuánto Media alta). Solo se
 // suma al inventario si ya viene el dato de salida en este mismo registro.
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const authError = await requireAuth(context.request, context.env);
+  const { error: authError, email } = await requireAuthConUsuario(context.request, context.env);
   if (authError) return authError;
 
   const supabase = getSupabase(context.env);
@@ -40,6 +40,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     notas_cata: body.notasCata || null,
     usuario: body.usuario || null,
     grado: body.grado || null,
+    creado_por: email,
     ts: Date.now(),
   }).select(SELECT).single();
 

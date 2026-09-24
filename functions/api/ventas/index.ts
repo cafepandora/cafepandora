@@ -1,8 +1,8 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
 import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
-const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, ts';
+const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, creadoPor:creado_por, ts';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
 
 async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre: unknown, tipoCliente: unknown) {
@@ -32,7 +32,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 // Cada item es { tipo:'cafe', lote, presentacion, cantidad, valor } o
 // { tipo:'maquila', servicio, presentacion (o null si se cobra por kg), cantidad, valor }.
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const authError = await requireAuth(context.request, context.env);
+  const { error: authError, email } = await requireAuthConUsuario(context.request, context.env);
   if (authError) return authError;
 
   const supabase = getSupabase(context.env);
@@ -59,6 +59,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       origen_web: !!body.origenWeb,
       metodo: body.metodo || '',
       recibido_por: body.recibidoPor || null,
+      creado_por: email,
       ts: body.ts || Date.now(),
     })
     .select(SELECT_VENTA)

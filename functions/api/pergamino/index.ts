@@ -1,8 +1,8 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
 import { registrarMovimiento } from '../../_lib/verde.js';
 
-const SELECT = 'id, fecha, proveedor, kilosPergamino:kilos_pergamino, proceso, costo, kilosVerdeReal:kilos_verde_real, notas, usuario, ts';
+const SELECT = 'id, fecha, proveedor, kilosPergamino:kilos_pergamino, proceso, costo, kilosVerdeReal:kilos_verde_real, notas, usuario, ts, creadoPor:creado_por';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -15,7 +15,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const authError = await requireAuth(context.request, context.env);
+  const { error: authError, email } = await requireAuthConUsuario(context.request, context.env);
   if (authError) return authError;
 
   const supabase = getSupabase(context.env);
@@ -29,6 +29,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     costo: Math.max(0, Number(body.costo) || 0),
     notas: body.notas || null,
     usuario: body.usuario || null,
+    creado_por: email,
     ts: Date.now(),
   }).select(SELECT).single();
   if (error) return new Response(error.message, { status: 500 });

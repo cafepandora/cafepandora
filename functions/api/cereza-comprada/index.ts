@@ -1,12 +1,12 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
 
 // Café en cereza comprado a terceros (no de la finca propia) — mismo
 // recorrido que una cosecha (cereza → pergamino real → verde real), pero
 // con proveedor, costo y quién lo pagó, para que entre al balance de
 // cuentas y también aporte a los rendimientos reales (rendimientosReales()
 // en index.html suma esta tabla junto con cosechas).
-const SELECT = 'id, fecha, proveedor, kilosCereza:kilos_cereza, proceso, costo, pagadoPor:pagado_por, kilosPergaminoReal:kilos_pergamino_real, kilosVerdeReal:kilos_verde_real, notas, usuario, ts, pesajes';
+const SELECT = 'id, fecha, proveedor, kilosCereza:kilos_cereza, proceso, costo, pagadoPor:pagado_por, kilosPergaminoReal:kilos_pergamino_real, kilosVerdeReal:kilos_verde_real, notas, usuario, ts, pesajes, creadoPor:creado_por';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -19,7 +19,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const authError = await requireAuth(context.request, context.env);
+  const { error: authError, email } = await requireAuthConUsuario(context.request, context.env);
   if (authError) return authError;
 
   const supabase = getSupabase(context.env);
@@ -35,6 +35,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     kilos_verde_real: body.kilosVerdeReal != null ? Number(body.kilosVerdeReal) : null,
     notas: body.notas || null,
     usuario: body.usuario || null,
+    creado_por: email,
     ts: Date.now(),
     pesajes: Array.isArray(body.pesajes) ? body.pesajes : null,
   }).select(SELECT).single();

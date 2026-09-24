@@ -2244,24 +2244,10 @@ individuales es una decisión real de Juan (implica login individual,
 recuperación de contraseña, posiblemente permisos por rol) y no algo
 para decidir en silencio dentro de un pase de "mejoras de claridad".
 Juan preguntó cómo se podría mejorar esto — se le presentaron 2 niveles
-posibles y, por ahora, prefirió solo entender las opciones sin
-implementar nada todavía. Quedan anotadas acá para cuando las quiera
-retomar:
+posibles. **El Nivel 1 ya está implementado (ver sección siguiente,
+"Atribución real por sesión")**. El Nivel 2 sigue sin construirse,
+anotado acá para cuando Juan lo quiera retomar:
 
-- **Nivel 1 — Atribución real, sin restringir nada**: cada persona
-  entra con su PROPIA cuenta de Supabase Auth (mismo formulario de
-  login de siempre — nada nuevo que construir ahí), en vez de la clave
-  compartida de hoy. Juan crea cada cuenta desde el panel de Supabase
-  (unos minutos por persona, sin código). En la app: una columna nueva
-  tipo `creado_por`/`editado_por` en cada tabla (migración nueva) + un
-  cambio chico en cada endpoint de escritura para guardar
-  `context.user.id`/email de la sesión real (que `requireAuth()` YA
-  valida, solo no se usa todavía para nada más que autenticar) en vez
-  de confiar en lo que la persona escriba a mano en "quién pagó"/"quién
-  recibió" (esos dos campos se QUEDAN igual — son sobre de qué CUENTA
-  BANCARIA sale/entra la plata, no sobre quién usó la app; los dos
-  conceptos coexisten sin pisarse). Nadie pierde acceso a nada — es
-  pura trazabilidad, cero riesgo de bloquear a alguien sin querer.
 - **Nivel 2 — Restricciones de verdad, sobre la base del Nivel 1**:
   decidir qué pantallas/acciones solo pueden tocar ciertas personas
   (ej. ¿quién entra a Configuración? ¿quién puede eliminar un
@@ -2269,8 +2255,101 @@ retomar:
   para inventar), y un campo `rol` nuevo + lógica de permisos en cada
   pantalla sensible.
 
+## Atribución real por sesión — Nivel 1 implementado (2026-09-24)
+
+Juan confirmó el Nivel 1 descrito arriba ("solo atribución real, sin
+restringir nada") y pidió el paso a paso — implementado por completo.
+
+**Cómo funciona, de fondo**: el login de `index.html` (`iniciarSesion()`)
+YA aceptaba cualquier correo/contraseña de Supabase Auth — nunca estuvo
+atado a una sola cuenta por código, solo por costumbre (todo el equipo
+usaba las mismas credenciales). Así que no hizo falta tocar NADA del
+login ni de la UI para "activarlo" — el único cambio real es que ahora,
+cuando alguien crea un registro, el backend guarda de forma automática
+el correo de la sesión que lo creó, en vez de confiar en lo que el
+navegador diga.
+
+- **Migración nueva** (`migracion_atribucion_usuarios.sql`): columna
+  `creado_por` (text, nullable) en las 9 tablas que importan para esto —
+  `ventas`, `ordenes_maquila`, `gastos`, `finca`, `cosechas`,
+  `compras_cereza`, `compras_pergamino`, `lotes_tueste`,
+  `cuentas_cobro`.
+- **`functions/_lib/auth.ts`**: nueva `requireAuthConUsuario(request,
+  env)` — mismo contrato que `requireAuth()` (Response = corta la
+  petición, sigue igual en todos los GET y en los PATCH/DELETE que no
+  cambiaron), pero además devuelve el correo real de
+  `supabase.auth.getUser(token)`. Los dos comparten una función interna
+  (`validarSesion()`) para no repetir la lógica ni el `try/catch` del
+  gotcha ya documentado ("JWT issued at future").
+- **Los 9 endpoints POST correspondientes**: cambiaron `requireAuth()`
+  por `requireAuthConUsuario()` y guardan `creado_por: email` en el
+  INSERT — el navegador nunca manda este valor, así que no se puede
+  falsear. Los `SELECT` de cada endpoint (mismos en GET y POST) ganaron
+  `creadoPor:creado_por` para que `sincronizar()` lo traiga solo, como
+  cualquier otro campo.
+- **`nombreDeCorreo(correo)`** (`index.html`, junto a `fechaCorta`):
+  saca la parte antes de la `@` y la pone con mayúscula inicial — para
+  no mostrar el correo completo en cada fila. Es una aproximación (no
+  lleva tildes, por ejemplo "Ines" en vez de "Inés", porque los correos
+  no las llevan) — si hace falta más adelante un nombre bonito de
+  verdad, tocaría una tabla chica correo→nombre, no se construyó todavía
+  porque no se pidió.
+- **Se muestra en las 9 filas correspondientes** (`filaVenta`,
+  `filaOrdenMaquila`, `filaGasto`, `filaFinca`, `filaCuentaCobro`, la
+  fila de Cosechas, la de Cereza comprada, la lista de
+  `vistaPergamino()`/`entradasPergamino()`, y la de Tueste): `· agregado
+  por <Nombre>` al final de la línea `.meta`, SOLO si `creadoPor` existe
+  (los registros de antes de esta migración se quedan sin esa parte,
+  sin romper nada). **"Quién pagó"/"Quién recibió" NO se tocaron** —
+  siguen siendo campos que la persona llena a mano, sobre de qué CUENTA
+  BANCARIA sale/entra la plata (un concepto distinto de quién usó la
+  app para escribirlo, los dos coexisten). **Mismo criterio para
+  `titular` en Cuentas de cobro** (confirmado por Juan): cualquiera
+  puede generar una cuenta de cobro, `titular` solo dice a nombre de
+  quién queda emitida en el PDF (Juan o Inés) — es un eje totalmente
+  distinto de `creado_por` (quién la generó desde la app), y los dos
+  campos son independientes a propósito, no hay que confundirlos ni
+  fusionarlos si se toca esto de nuevo.
+
+**Lo que Juan tiene que hacer para que se vea real** (nada de esto es
+código, es un pendiente operativo — ver "Pendiente" más abajo):
+1. Correr `migracion_atribucion_usuarios.sql` en el SQL Editor de
+   Supabase.
+2. Ir al panel de Supabase → Authentication → Users → "Add user" (o
+   "Invite") por cada persona del equipo, con su correo real — Supabase
+   ya soporta esto sin ningún cambio de código, es solo usar el panel.
+3. Cada persona entra a la app con SU PROPIO correo/contraseña, en vez
+   de la clave compartida de siempre — mismo formulario de login de
+   siempre, no cambió nada ahí.
+4. Opcional, cuando ya no se quiera que la cuenta compartida vieja
+   siga funcionando: desactivarla o cambiarle la contraseña desde el
+   panel de Supabase — nada de esto es código tampoco.
+
+Mientras el paso 2 no se haga, `creado_por` va a seguir mostrando el
+correo de la cuenta compartida de siempre para todo el mundo (degrada
+con gracia, no rompe nada) — se vuelve realmente útil apenas Juan cree
+las cuentas individuales.
+
 ## Pendiente / a medias
 
+- **⚠️ Atribución de usuarios — falta correr la migración, y esta vez el
+  riesgo es más grande que de costumbre**: el código ya está (ver
+  sección "Atribución real por sesión" arriba), pero a diferencia de
+  migraciones anteriores (que afectaban 1-2 endpoints), esta vez el
+  `SELECT` de los 9 endpoints (ventas, maquila, gastos, finca, cosechas,
+  cereza comprada, pergamino, tuestes, cuentas de cobro) ya incluye
+  `creadoPor:creado_por` — mientras no se corra
+  `migracion_atribucion_usuarios.sql` en Supabase, **`sincronizar()` va
+  a fallar en los 9 a la vez** (columna inexistente), no solo en uno.
+  El panel de ⚠️ migraciones pendientes en Configuración ya lo detecta
+  (2 entradas nuevas en `CHEQUEOS`), pero corre esta migración cuanto
+  antes — es la de mayor impacto si se olvida.
+- **Cuentas individuales — falta que Juan las cree en Supabase**: aunque
+  se corra la migración de arriba, `creado_por` va a seguir mostrando el
+  correo de la cuenta compartida para todo el mundo hasta que Juan cree
+  una cuenta de Supabase Auth por persona (panel de Supabase →
+  Authentication → Users) y cada quien entre con la suya — ver el paso a
+  paso completo en "Atribución real por sesión" arriba.
 - **Inventario de café verde/pergamino — falta correr la migración**: el
   código ya está (ver sección "Inventario de café verde por malla +
   pergamino disponible" arriba), pero hasta que no se corra

@@ -19,6 +19,8 @@ const CHEQUEOS = [
   { tabla: 'inventario_verde', columna: 'kilos', migracion: 'migracion_inventario_verde.sql', descripcion: 'Inventario de café verde por malla y pergamino disponible' },
   { tabla: 'cosechas', columna: 'verde_grados', migracion: 'migracion_inventario_verde.sql', descripcion: 'Desglose por malla al trillar' },
   { tabla: 'movimientos_inventario_cafe', columna: 'kilos', migracion: 'migracion_inventario_verde.sql', descripcion: 'Historial de movimientos del inventario de café' },
+  { tabla: 'ventas', columna: 'creado_por', migracion: 'migracion_atribucion_usuarios.sql', descripcion: 'Atribución real de quién creó cada registro (creado_por)' },
+  { tabla: 'cuentas_cobro', columna: 'creado_por', migracion: 'migracion_atribucion_usuarios.sql', descripcion: 'Atribución real de quién creó cada registro (creado_por)' },
 ];
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {

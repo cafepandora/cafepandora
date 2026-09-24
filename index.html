@@ -989,6 +989,16 @@ function fechaSecadoEstimada(fechaCosecha, proceso) {
 const fechaCorta = ts => new Date(Number(ts)).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 const hoyISO = () => new Date().toISOString().split('T')[0];
 
+// Nombre corto y legible a partir del correo de la sesión que creó un
+// registro (`creado_por`, ver migracion_atribucion_usuarios.sql) — para
+// no mostrar el correo completo ("juan@cafepandora.com") en cada fila,
+// solo la parte antes de la @, con mayúscula inicial.
+function nombreDeCorreo(correo) {
+  if (!correo) return '';
+  const local = String(correo).split('@')[0];
+  return local.charAt(0).toUpperCase() + local.slice(1);
+}
+
 
 const state = {
   ventas: [], gastos: [], clientes: [], inventario: [], maquila: [], finca: [], preciosCafe: [],
@@ -1874,7 +1884,7 @@ function filaCuentaCobro(cc) {
     <div class="ledger-row">
       <div class="main">
         <div class="title">No. ${cc.id} — ${escapeHtml(cc.cliente)}</div>
-        <div class="meta">${new Date(Number(cc.ts)).toLocaleDateString('es-CO')}${cc.clienteNit ? ' · ' + escapeHtml(cc.clienteNit) : ''} · a nombre de ${escapeHtml(datosTitularCC(cc.titular).label)}${cc.transporte > 0 ? ' · + envío ' + fmt(cc.transporte) : ''}</div>
+        <div class="meta">${new Date(Number(cc.ts)).toLocaleDateString('es-CO')}${cc.clienteNit ? ' · ' + escapeHtml(cc.clienteNit) : ''} · a nombre de ${escapeHtml(datosTitularCC(cc.titular).label)}${cc.transporte > 0 ? ' · + envío ' + fmt(cc.transporte) : ''}${cc.creadoPor ? ' · agregada por ' + escapeHtml(nombreDeCorreo(cc.creadoPor)) : ''}</div>
         <div class="details">${escapeHtml(detalle)}</div>
       </div>
       <div class="amount pos">${fmt(cc.total)}</div>
@@ -2416,7 +2426,7 @@ function filaVenta(v, esDeuda) {
     <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''} ${envioPendiente ? 'envio-pendiente' : ''}">
       <div class="main">
         <div class="title">${escapeHtml(v.cliente || 'Venta directa')} ${v.origenWeb ? '<span class="badge-web">🌐 Pedido web</span>' : ''}</div>
-        <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')}${v.recibidoPor ? ' · recibió ' + escapeHtml(v.recibidoPor) : (v.usuario ? ' · ' + escapeHtml(v.usuario) : '')} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
+        <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')}${v.recibidoPor ? ' · recibió ' + escapeHtml(v.recibidoPor) : (v.usuario ? ' · ' + escapeHtml(v.usuario) : '')}${v.creadoPor ? ' · agregado por ' + escapeHtml(nombreDeCorreo(v.creadoPor)) : ''} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
         <div class="details">${escapeHtml(detalleVenta(v))}</div>
         ${paquetes ? `<div class="meta" style="color:var(--azul);font-weight:700">📦 ${paquetes.pagadas} de ${paquetes.total} paquetes pagados</div>` : ''}
         <div style="margin-top:5px"><button class="tag ${envioPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEnvio(${v.id})">${envioPendiente ? '📦 Pendiente de envío' : '✅ Enviado'}</button></div>
@@ -3010,7 +3020,7 @@ function filaOrdenMaquila(o, esDeuda) {
     <div class="ledger-row ${esDeuda ? 'deuda-anterior' : ''} ${entregaPendiente ? 'envio-pendiente' : ''}">
       <div class="main">
         <div class="title">${escapeHtml(o.cliente)}</div>
-        <div class="meta">${new Date(Number(o.ts)).toLocaleDateString('es-CO')}${o.metodo ? ' · ' + escapeHtml(o.metodo) : ''}${o.recibidoPor ? ' · recibió ' + escapeHtml(o.recibidoPor) : ''} ${esDeuda ? '· desde ' + mesDe(o.ts) : ''}</div>
+        <div class="meta">${new Date(Number(o.ts)).toLocaleDateString('es-CO')}${o.metodo ? ' · ' + escapeHtml(o.metodo) : ''}${o.recibidoPor ? ' · recibió ' + escapeHtml(o.recibidoPor) : ''}${o.creadoPor ? ' · agregada por ' + escapeHtml(nombreDeCorreo(o.creadoPor)) : ''} ${esDeuda ? '· desde ' + mesDe(o.ts) : ''}</div>
         <div class="details">${escapeHtml(detalleOrdenMaquila(o))}</div>
         <div style="margin-top:5px"><button class="tag ${entregaPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEntregaMaquila(${o.id})">${entregaPendiente ? '📦 Pendiente de entrega' : '✅ Entregado'}</button></div>
       </div>
@@ -3420,7 +3430,7 @@ function filaGasto(g) {
     <div class="ledger-row">
       <div class="main">
         <div class="title">${escapeHtml(g.concepto)}</div>
-        <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)}${g.categoria === CATEGORIA_TRANSFERENCIA && g.transferidoA ? ' · ' + escapeHtml(g.pagadoPor || '?') + ' → ' + escapeHtml(g.transferidoA) : (g.pagadoPor ? ' · pagó ' + escapeHtml(g.pagadoPor) : (g.usuario ? ' · ' + escapeHtml(g.usuario) : ''))}</div>
+        <div class="meta">${new Date(Number(g.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(g.categoria)}${g.categoria === CATEGORIA_TRANSFERENCIA && g.transferidoA ? ' · ' + escapeHtml(g.pagadoPor || '?') + ' → ' + escapeHtml(g.transferidoA) : (g.pagadoPor ? ' · pagó ' + escapeHtml(g.pagadoPor) : (g.usuario ? ' · ' + escapeHtml(g.usuario) : ''))}${g.creadoPor ? ' · agregado por ' + escapeHtml(nombreDeCorreo(g.creadoPor)) : ''}</div>
       </div>
       <button class="tag ${g.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoGasto(${g.id})">${g.estado}</button>
       <div class="amount neg">-${fmt(g.monto)}</div>
@@ -3538,7 +3548,7 @@ function filaFinca(f) {
     <div class="ledger-row">
       <div class="main">
         <div class="title">${escapeHtml(f.concepto)}</div>
-        <div class="meta">${new Date(Number(f.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(f.categoria)}${f.pagadoPor ? ' · pagó ' + escapeHtml(f.pagadoPor) : ''}</div>
+        <div class="meta">${new Date(Number(f.ts)).toLocaleDateString('es-CO')} · ${escapeHtml(f.categoria)}${f.pagadoPor ? ' · pagó ' + escapeHtml(f.pagadoPor) : ''}${f.creadoPor ? ' · agregado por ' + escapeHtml(nombreDeCorreo(f.creadoPor)) : ''}</div>
       </div>
       <button class="tag ${f.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoFinca(${f.id})">${f.estado}</button>
       <div class="amount neg">-${fmt(f.monto)}</div>
@@ -3816,7 +3826,7 @@ function vistaCosechas(pendientes) {
             </div>
             <div class="meta">Cosechado ${fechaCorta(c.fecha)} · ${real
               ? 'pergamino real: ' + Number(c.kilosPergaminoReal).toFixed(1) + ' kg' + (c.kilosPasilla > 0 ? ' · pasilla: ' + Number(c.kilosPasilla).toFixed(1) + ' kg' : '')
-              : (yaSeco ? 'secado estimado listo' : 'seco aprox. ' + fechaCorta(seco.getTime()))}</div>
+              : (yaSeco ? 'secado estimado listo' : 'seco aprox. ' + fechaCorta(seco.getTime()))}${c.creadoPor ? ' · agregada por ' + escapeHtml(nombreDeCorreo(c.creadoPor)) : ''}</div>
             ${ferm ? `<div class="meta" style="color:${ferm.vencida ? 'var(--terracota)' : 'var(--verde)'};font-weight:700">${ferm.texto}</div>` : ''}
             <div class="details">${c.kilosVerdeReal > 0
               ? `Verde real tras trillar: <b>${Number(c.kilosVerdeReal).toFixed(1)} kg</b>`
@@ -4260,7 +4270,7 @@ function vistaCerezaComprada() {
                 <span class="paso ${c.kilosVerdeReal > 0 ? 'activo' : ''}"></span>
               </span>
             </div>
-            <div class="meta">${fechaCorta(c.fecha)}${nPesajes > 1 ? ' · ' + nPesajes + ' pesajes' : ''}${c.costo ? ' · ' + fmt(c.costo) : ''}${c.pagadoPor ? ' · pagó ' + escapeHtml(c.pagadoPor) : ''}</div>
+            <div class="meta">${fechaCorta(c.fecha)}${nPesajes > 1 ? ' · ' + nPesajes + ' pesajes' : ''}${c.costo ? ' · ' + fmt(c.costo) : ''}${c.pagadoPor ? ' · pagó ' + escapeHtml(c.pagadoPor) : ''}${c.creadoPor ? ' · agregada por ' + escapeHtml(nombreDeCorreo(c.creadoPor)) : ''}</div>
             <div class="details">${c.kilosVerdeReal > 0
               ? `Verde real tras trillar: <b>${Number(c.kilosVerdeReal).toFixed(1)} kg</b>`
               : (real
@@ -4642,17 +4652,17 @@ async function guardarTrilla(tipo, id, btn) {
 function entradasPergamino() {
   const deCosechas = state.cosechas.filter(c => c.kilosPergaminoReal != null).map(c => ({
     tipo: 'cosecha', id: c.id, fecha: c.fecha, proceso: c.proceso, costo: null,
-    kilos: c.kilosPergaminoReal, kilosVerdeReal: c.kilosVerdeReal,
+    kilos: c.kilosPergaminoReal, kilosVerdeReal: c.kilosVerdeReal, creadoPor: c.creadoPor,
     origenLabel: 'Cosecha propia', esComprado: false,
   }));
   const deCereza = state.cerezaComprada.filter(c => c.kilosPergaminoReal != null).map(c => ({
     tipo: 'cerezaComprada', id: c.id, fecha: c.fecha, proceso: c.proceso, costo: null,
-    kilos: c.kilosPergaminoReal, kilosVerdeReal: c.kilosVerdeReal,
+    kilos: c.kilosPergaminoReal, kilosVerdeReal: c.kilosVerdeReal, creadoPor: c.creadoPor,
     origenLabel: 'Cereza comprada' + (c.proveedor ? ' — ' + c.proveedor : ''), esComprado: true,
   }));
   const deComprado = state.pergamino.map(p => ({
     tipo: 'pergamino', id: p.id, fecha: p.fecha, proceso: p.proceso, costo: p.costo,
-    kilos: p.kilosPergamino, kilosVerdeReal: p.kilosVerdeReal,
+    kilos: p.kilosPergamino, kilosVerdeReal: p.kilosVerdeReal, creadoPor: p.creadoPor,
     origenLabel: 'Comprado' + (p.proveedor ? ' — ' + p.proveedor : ''), esComprado: true,
   }));
   return [...deCosechas, ...deCereza, ...deComprado];
@@ -4707,7 +4717,7 @@ function vistaPergamino() {
         <div class="ledger-row" style="${yaTrillada ? 'opacity:.6' : ''}">
           <div class="main">
             <div class="title">${Number(e.kilos).toFixed(1)} kg <span class="badge-origen ${e.esComprado ? 'comprado' : 'casa'}" title="${e.esComprado ? 'Comprado a terceros' : 'De la finca propia'}">${e.esComprado ? '🚚' : '🏠'}</span> · ${escapeHtml(e.origenLabel)}${yaTrillada ? ' <span class="badge-web" style="background:var(--verde-bg);color:var(--verde)">✅ Ya trillado</span>' : ''}</div>
-            <div class="meta">${fechaCorta(e.fecha)} · ${escapeHtml(e.proceso)}${e.costo ? ' · ' + fmt(e.costo) : ''}</div>
+            <div class="meta">${fechaCorta(e.fecha)} · ${escapeHtml(e.proceso)}${e.costo ? ' · ' + fmt(e.costo) : ''}${e.creadoPor ? ' · agregado por ' + escapeHtml(nombreDeCorreo(e.creadoPor)) : ''}</div>
             <div class="details">${yaTrillada
               ? `Verde real tras trillar: <b>${Number(e.kilosVerdeReal).toFixed(1)} kg</b>`
               : `≈ ${pr.verde.toFixed(1)} kg verde → ${Math.round(pr.libras)} libras tostadas`}</div>
@@ -5113,7 +5123,7 @@ function vistaTueste() {
         <div class="ledger-row ${tieneSalida ? '' : 'envio-pendiente'}">
           <div class="main">
             <div class="title">${escapeHtml(t.lote)} · ${tieneSalida ? Number(t.kilosTostado).toFixed(1) + ' kg tostados' + desglose : 'esperando salida'}</div>
-            <div class="meta">${fechaCorta(t.fecha)} · ${Number(t.kilosVerde).toFixed(1)} kg verde${merma != null ? ' · merma ' + merma.toFixed(1) + '%' : ''}${t.grado ? ' · ' + escapeHtml(t.grado) : ''}${t.origen ? ' · ' + escapeHtml(t.origen) : ''}</div>
+            <div class="meta">${fechaCorta(t.fecha)} · ${Number(t.kilosVerde).toFixed(1)} kg verde${merma != null ? ' · merma ' + merma.toFixed(1) + '%' : ''}${t.grado ? ' · ' + escapeHtml(t.grado) : ''}${t.origen ? ' · ' + escapeHtml(t.origen) : ''}${t.creadoPor ? ' · agregado por ' + escapeHtml(nombreDeCorreo(t.creadoPor)) : ''}</div>
             ${t.notasCata ? `<div class="details">${escapeHtml(t.notasCata)}</div>` : ''}
           </div>
           <div class="amount pos">${tieneSalida ? '+' + Math.round(Number(t.kilosTostado) / KG_POR_LIBRA_VENTA) + ' lb' : ''}</div>
