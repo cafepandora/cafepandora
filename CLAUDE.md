@@ -2197,6 +2197,54 @@ ese lote. No cambia NINGÚN dato ni cálculo, es puramente visual — los
 números vienen exactamente de donde ya venían
 (`state.inventarioVerde`).
 
+## "Subcard" ①② en Maquila y Cuentas de cobro (2026-09-24)
+
+Pedido de Juan: *"haz las mejoras que consideres como si fuera una
+empresa de 10 empleados y tuviera que ser extremadamente claro"*. La
+sección "Profesionalizar la app interna" (arriba) ya había identificado
+el patrón `.subcard`/`.subcard-titulo`/`.campo-ayuda` como reusable "en
+Maquila, Gastos, Finca y Cuentas de cobro más adelante" — este es ese
+pase, para los dos formularios que todavía mezclaban, sin separación
+visual, "agregar UNA línea/concepto" con "cerrar TODO el registro" (el
+mismo problema que ya se había corregido en Ventas):
+
+- **Maquila**: "① Agregar servicio a la orden" (Servicio, Kilos o
+  Presentación+Cantidad o nota de transporte según el servicio, Valor de
+  esta línea) y "② Cerrar la orden" (Estado, Método de pago, Quién
+  recibió) — Cliente se queda afuera de los dos, igual que Cliente/Tipo
+  de cliente en Ventas.
+- **Cuentas de cobro**: "① Agregar un concepto" (Descripción,
+  Presentación, Cantidad, Valor unitario, Valor total — de ESE concepto,
+  no de toda la cuenta) y "② Cerrar y generar el PDF" (Otros, envío,
+  Total, botón de generar) — Cliente/NIT/Ciudad/A nombre de se quedan
+  afuera, son datos del encabezado, no de un concepto ni del cierre.
+
+Ningún `id`/`onchange`/`onclick` cambió — es puramente visual (agregar
+los `<div class="subcard">`/`<p class="subcard-titulo">`/`<p
+class="campo-ayuda">` alrededor de los campos que ya existían), mismo
+criterio que ya se documentó para `.subtabs`: no inventar nada nuevo, ni
+mezclar un rediseño con lógica nueva. Probado en el preview: Maquila
+sigue calculando la línea/orden igual, el toggle de "Quién recibió"
+según método sigue funcionando, y Cuentas de cobro sigue agregando
+líneas y sumando el total — sin errores de consola.
+
+**Sobre "extremadamente claro" a 10 empleados — una pregunta que no
+resolví sola, porque es una decisión de negocio, no de UI**: lo más
+grande que cambiaría la claridad real a esa escala es que **hoy toda la
+app usa una sola cuenta compartida de Supabase Auth para todo el
+equipo** (`CLAVE_CONFIG` aparte solo protege Configuración) — con 3
+personas de confianza ya era una decisión consciente de Juan ("no hay
+roles ni usuarios individuales"), pero con 10 empleados eso significa
+que ningún registro se puede atribuir de verdad a quién lo hizo (más
+allá de "quién pagó"/"quién recibió", que el usuario mismo escribe a
+mano y puede equivocarse o mentir sin que quede rastro), y cualquiera
+con la sesión abierta puede tocar cualquier cosa, incluida Configuración
+si conoce la clave. No se tocó nada de esto — cambiar a cuentas
+individuales es una decisión real de Juan (implica login individual,
+recuperación de contraseña, posiblemente permisos por rol) y no algo
+para decidir en silencio dentro de un pase de "mejoras de claridad".
+Queda anotado acá para cuando Juan quiera esa conversación.
+
 ## Pendiente / a medias
 
 - **Inventario de café verde/pergamino — falta correr la migración**: el

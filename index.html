@@ -1823,34 +1823,41 @@ function renderCuentasCobro() {
         <div class="field"><label>A nombre de</label><select id="cc-titular">${Object.entries(TITULARES_CUENTA_COBRO).map(([k, t]) => `<option value="${k}" ${k === (localStorage.getItem('cp_titular_cc') || 'juan') ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
       </div>
 
-      <h3 class="section-title">Concepto</h3>
-      <div class="row">
-        <div class="field"><label>Descripción</label><input id="cc-ln-desc" placeholder="Ej. CAFÉ x 500 gr"></div>
-        <div class="field"><label>Presentación</label><input id="cc-ln-pres" placeholder="Opcional"></div>
+      <div class="subcard">
+        <p class="subcard-titulo">① Agregar un concepto</p>
+        <div class="row">
+          <div class="field"><label>Descripción</label><input id="cc-ln-desc" placeholder="Ej. CAFÉ x 500 gr"></div>
+          <div class="field"><label>Presentación</label><input id="cc-ln-pres" placeholder="Opcional"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Cantidad</label><input id="cc-ln-cant" type="number" value="1" min="0" step="0.01" oninput="recalcularLineaCC()"></div>
+          <div class="field"><label>Valor unitario</label><input id="cc-ln-valor" type="number" min="0" oninput="recalcularLineaCC()"></div>
+          <div class="field"><label>Valor total</label><input id="cc-ln-total" type="number" min="0"></div>
+        </div>
+        <p class="campo-ayuda">Es de ESTE concepto — puedes agregar varios antes de generar el PDF.</p>
+        <button class="sec-btn" style="width:100%" onclick="agregarLineaCC()">+ Agregar línea</button>
       </div>
-      <div class="row">
-        <div class="field"><label>Cantidad</label><input id="cc-ln-cant" type="number" value="1" min="0" step="0.01" oninput="recalcularLineaCC()"></div>
-        <div class="field"><label>Valor unitario</label><input id="cc-ln-valor" type="number" min="0" oninput="recalcularLineaCC()"></div>
-        <div class="field"><label>Valor total</label><input id="cc-ln-total" type="number" min="0"></div>
-      </div>
-      <button class="sec-btn" style="width:100%" onclick="agregarLineaCC()">+ Agregar línea</button>
 
       <div id="cc-lista"></div>
-      <div class="row" style="margin-top:10px">
-        <div class="field"><label>Otros (opcional)</label><input id="cc-otros" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
-      </div>
-      <div class="row" style="margin-top:6px;align-items:center">
-        <label style="display:flex;align-items:center;gap:7px;font-size:13.5px;cursor:pointer">
-          <input id="cc-incluye-transporte" type="checkbox" onchange="actualizarTransporteVisible()">
-          Incluir costo de envío (transporte)
-        </label>
-      </div>
-      <div class="row" id="cc-transporte-fila" style="display:none;margin-top:6px">
-        <div class="field"><label>Costo de envío</label><input id="cc-transporte" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
-      </div>
-      <div style="text-align:right;font-weight:800;font-size:17px;margin:8px 0">Total: <span id="cc-total">$0</span></div>
 
-      <button class="add-btn" onclick="guardarCuentaCobro(this)">Generar y guardar (PDF)</button>
+      <div class="subcard">
+        <p class="subcard-titulo">② Cerrar y generar el PDF</p>
+        <div class="row">
+          <div class="field"><label>Otros (opcional)</label><input id="cc-otros" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
+        </div>
+        <div class="row" style="margin-top:6px;align-items:center">
+          <label style="display:flex;align-items:center;gap:7px;font-size:13.5px;cursor:pointer">
+            <input id="cc-incluye-transporte" type="checkbox" onchange="actualizarTransporteVisible()">
+            Incluir costo de envío (transporte)
+          </label>
+        </div>
+        <div class="row" id="cc-transporte-fila" style="display:none;margin-top:6px">
+          <div class="field"><label>Costo de envío</label><input id="cc-transporte" type="number" min="0" value="0" oninput="pintarCarritoCC()"></div>
+        </div>
+        <p class="campo-ayuda">Se suma solo con los conceptos que agregaste arriba, más "Otros" y el envío si aplica.</p>
+        <div style="text-align:right;font-weight:800;font-size:17px;margin:8px 0">Total: <span id="cc-total">$0</span></div>
+        <button class="add-btn" onclick="guardarCuentaCobro(this)">Generar y guardar (PDF)</button>
+      </div>
     </div>
 
     <h3 class="section-title">Historial</h3>
@@ -2915,54 +2922,64 @@ function renderMaquila() {
         </div>
       </div>
 
-      <div class="row">
-        <div class="field"><label>Servicio</label>
-          <select id="mq-servicio" onchange="onMaquilaServicioChange()">
-            ${servicios.map(s => `<option>${escapeHtml(s)}</option>`).join('') || '<option value="">Configura tarifas primero</option>'}
-          </select>
+      <div class="subcard">
+        <p class="subcard-titulo">① Agregar servicio a la orden</p>
+        <div class="row">
+          <div class="field"><label>Servicio</label>
+            <select id="mq-servicio" onchange="onMaquilaServicioChange()">
+              ${servicios.map(s => `<option>${escapeHtml(s)}</option>`).join('') || '<option value="">Configura tarifas primero</option>'}
+            </select>
+          </div>
         </div>
+        <div class="row" id="mq-campos-kg" style="display:none">
+          <div class="field"><label>Kilos</label>
+            <input id="mq-kg" type="number" min="0" step="0.1" placeholder="0" onchange="recalcularLineaMaquila()">
+          </div>
+        </div>
+        <div class="row" id="mq-campos-pres" style="display:none">
+          <div class="field"><label>Presentación</label>
+            <select id="mq-presentacion" onchange="recalcularLineaMaquila()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Cantidad</label>
+            <input id="mq-cantidad" type="number" value="1" min="1" onchange="recalcularLineaMaquila()">
+          </div>
+        </div>
+        <div class="row" id="mq-campos-transporte" style="display:none">
+          <div class="field"><label>Trayecto / distancia (opcional)</label>
+            <input id="mq-nota-transporte" placeholder="Ej. Ida y vuelta a la finca en Combia">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Valor de esta línea</label>
+            <input id="mq-valor" type="number" placeholder="0" min="0">
+          </div>
+        </div>
+        <p class="campo-ayuda">Precio sugerido según la tarifa configurada — puedes ajustarlo a mano si hace falta.</p>
+        <button class="sec-btn" style="width:100%" onclick="agregarLineaMaquila()">+ Agregar a la orden</button>
       </div>
-      <div class="row" id="mq-campos-kg" style="display:none">
-        <div class="field"><label>Kilos</label>
-          <input id="mq-kg" type="number" min="0" step="0.1" placeholder="0" onchange="recalcularLineaMaquila()">
-        </div>
-      </div>
-      <div class="row" id="mq-campos-pres" style="display:none">
-        <div class="field"><label>Presentación</label>
-          <select id="mq-presentacion" onchange="recalcularLineaMaquila()">${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}</select>
-        </div>
-        <div class="field"><label>Cantidad</label>
-          <input id="mq-cantidad" type="number" value="1" min="1" onchange="recalcularLineaMaquila()">
-        </div>
-      </div>
-      <div class="row" id="mq-campos-transporte" style="display:none">
-        <div class="field"><label>Trayecto / distancia (opcional)</label>
-          <input id="mq-nota-transporte" placeholder="Ej. Ida y vuelta a la finca en Combia">
-        </div>
-      </div>
-      <div class="row">
-        <div class="field"><label>Valor de esta línea</label>
-          <input id="mq-valor" type="number" placeholder="0" min="0">
-        </div>
-      </div>
-      <button class="sec-btn" style="width:100%" onclick="agregarLineaMaquila()">+ Agregar a la orden</button>
 
       <h3 class="section-title">Orden actual</h3>
       <div id="mq-carrito-lista"></div>
       <div style="text-align:right;font-weight:700;margin:6px 0 4px">Total: <span id="mq-carrito-total">$0</span></div>
 
-      <div class="row" style="margin-top:10px">
-        <div class="field"><label>Estado</label>
-          <select id="mq-estado"><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option></select>
+      <div class="subcard">
+        <p class="subcard-titulo">② Cerrar la orden</p>
+        <div class="row">
+          <div class="field"><label>Estado</label>
+            <select id="mq-estado"><option ${orden.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option><option ${orden.estado === 'Pagado' ? 'selected' : ''}>Pagado</option></select>
+          </div>
+          <div class="field"><label>Método de pago</label>
+            <select id="mq-metodo" onchange="actualizarRecibioVisible('mq')"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
+          </div>
         </div>
-        <div class="field"><label>Método de pago</label>
-          <select id="mq-metodo" onchange="actualizarRecibioVisible('mq')"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m === orden.metodo ? 'selected' : ''}>${m}</option>`).join('')}</select>
+        <p class="campo-ayuda">Es de la orden completa, no de la última línea que agregaste — el total ya se suma solo arriba.</p>
+        <div class="row" id="mq-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}">
+          <div class="field"><label>Quién recibió</label>
+            <select id="mq-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
+          </div>
         </div>
-        <div class="field" id="mq-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}"><label>Quién recibió</label>
-          <select id="mq-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
-        </div>
+        <button class="add-btn" onclick="registrarOrdenMaquila(this)">Registrar orden</button>
       </div>
-      <button class="add-btn" onclick="registrarOrdenMaquila(this)">Registrar orden</button>
     </div>
 
     ${anteriores.length ? `
