@@ -2336,9 +2336,14 @@ cuenta vieja de siempre, a propósito, no por falta de terminar el
 proceso. Consecuencia esperada (no es un bug si alguien lo reporta):
 cualquier registro que haga Juan O Inés va a mostrar el mismo "agregado
 por" (el correo de esa cuenta compartida) — solo Joaquín queda
-distinguido de verdad. Si más adelante se quiere separar también a Juan
-e Inés, es el mismo paso de siempre (una cuenta más en el panel de
-Supabase, cero cambios de código).
+distinguido de verdad. Razón por la que esto no molesta en la práctica:
+**Inés casi no anota nada en la app** — su uso real es casi
+exclusivamente entrar a generar una cuenta de cobro, y ahí `titular` (a
+nombre de quién queda emitida, ver arriba) ya distingue perfectamente
+si es la de ella o la de Juan, sin depender de `creado_por` para nada.
+Si más adelante se quiere separar también a Juan e Inés, es el mismo
+paso de siempre (una cuenta más en el panel de Supabase, cero cambios
+de código).
 
 ## `sincronizar()` ya no corta todo si un endpoint falla (2026-09-24)
 
