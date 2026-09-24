@@ -19,10 +19,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const supabase = getSupabase(context.env);
   const body: any = await context.request.json();
+  const kilosPergamino = Math.max(0, Number(body.kilosPergamino) || 0);
   const { data, error } = await supabase.from('compras_pergamino').insert({
     fecha: body.fecha || Date.now(),
     proveedor: body.proveedor,
-    kilos_pergamino: Math.max(0, Number(body.kilosPergamino) || 0),
+    kilos_pergamino: kilosPergamino,
     proceso: body.proceso,
     costo: Math.max(0, Number(body.costo) || 0),
     notas: body.notas || null,
@@ -30,5 +31,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     ts: Date.now(),
   }).select(SELECT).single();
   if (error) return new Response(error.message, { status: 500 });
+
+  // Este pergamino ya está seco y en bodega — a diferencia de cosecha
+  // propia / cereza comprada, acá no hay un paso de "pesar" aparte, así
+  // que suma al inventario de pergamino disponible desde ya.
+  if (kilosPergamino > 0 && body.proceso) {
+    await supabase.rpc('ajustar_stock_pergamino', { p_lote: body.proceso, p_delta: kilosPergamino });
+  }
+
   return Response.json(data, { status: 201 });
 };

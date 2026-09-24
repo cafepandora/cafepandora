@@ -249,6 +249,9 @@ functions/api/cereza-comprada/     # café en cereza comprado a terceros (cereza
 functions/api/cron/precio-fnc.ts   # scrape del precio de referencia FNC — la llama un cron externo, no la app
 functions/api/precio-fnc/          # GET del historial de precio de referencia (con login)
 functions/api/saldos-iniciales/    # saldo inicial por persona, para el balance de cuentas
+functions/api/inventario-pergamino/ # pergamino disponible por lote, antes de trillar
+functions/api/inventario-verde/    # café verde disponible por lote × malla, después de trillar
+functions/_lib/verde.ts            # aplicarTrilla()/revertirTrilla() — pergamino disponible -> verde por malla
 migracion_*.sql, migration.sql     # ver "Pendiente / a medias" — no todas están corridas en producción
 ```
 
@@ -1709,8 +1712,104 @@ repetida: cualquier override de color "no elegido" en una tarjeta-bolsa
 necesita su propio override de "elegido" con MÁS especificidad, con
 fondo Y color juntos, no solo color.
 
+## Inventario de café verde por malla + pergamino disponible (2026-09-23)
+
+Pedido de Juan: la app ya llevaba trazabilidad de cada cosecha/compra por
+separado (cereza → pergamino real → verde real), pero no un STOCK
+acumulado de cuánto café hay disponible en cada etapa — y como la app
+recién se empezó a usar, ya había pergamino de antes (que hoy se manda a
+trillar y seleccionar) que no estaba contemplado en ningún lado.
+
+Dos inventarios nuevos, mismo patrón atómico que ya usa `inventario`
+(café tostado, `ajustar_stock_inventario`) — nunca un UPDATE directo
+desde la app, todo por una función SQL (`migracion_inventario_verde.sql`):
+
+- **`inventario_pergamino`** (`lote` → `kilos`): café ya seco, antes de
+  trillar. Se suma solo (⚖️ pesar pergamino real de una cosecha/cereza
+  comprada, comprar pergamino ya seco, o "+ Agregar pergamino que ya
+  tenías") y se resta solo (🌾 trillar). `ajustar_stock_pergamino(p_lote,
+  p_delta)`.
+- **`inventario_verde`** (`lote` + `grado` → `kilos`, 20 filas: 4 lotes ×
+  5 mallas): café ya trillado, clasificado por malla — **Juan confirmó
+  que cada malla se separa TAMBIÉN por lote** (Malla 16 de Lavado es un
+  stock distinto de Malla 16 de Honey), así que es una tabla de 2
+  dimensiones, no una bolsa única por malla. Se suma solo al trillar (🌾)
+  y se resta solo al "Retirar para tostión". `ajustar_stock_verde(p_lote,
+  p_grado, p_delta)`. `GRADOS_VERDE = ['Malla 18', 'Malla 16', 'Malla 14',
+  'Aprovechable', 'Pasilla']` en `index.html`.
+
+**El pipeline completo, 4 etapas** (cada flecha es un paso que YA
+existía en la app, ninguno es nuevo — lo nuevo es que ahora cada uno
+también ajusta un inventario):
+1. Cosecha/cereza comprada/pergamino comprado → pesar pergamino real (⚖️,
+   o inmediato al comprar pergamino) → **+`inventario_pergamino[lote]`**.
+2. Trillar (🌾, `abrirTrilla()`/`guardarTrilla()`, reescrito para pedir
+   el desglose por malla en vez de un solo número "kilos de verde") →
+   **−`inventario_pergamino[lote]`, +`inventario_verde[lote][grado]`**
+   por cada malla que se anote (la suma de las 5 sigue siendo
+   `kilosVerdeReal`, igual que antes, para no romper
+   `rendimientosReales()`). `functions/_lib/verde.ts` tiene
+   `aplicarTrilla()`/`revertirTrilla()`, compartida por los 3 orígenes
+   (cosechas, cereza comprada, pergamino comprado — los mismos 3 de
+   `FUENTES_TRILLA`, sin que ninguno necesite tratamiento especial).
+3. "Retirar para tostión" (botón nuevo en la pestaña "Café verde",
+   `abrirRetiroTostion()`) → crea un `POST /api/tuestes` con `lote` +
+   `grado` + `kilosVerde` → **−`inventario_verde[lote][grado]`**, de una
+   vez, no cuando se pesa lo que sale (`"pase inmediatamente a tostión y
+   se descuente de ese inventario"`, tal cual lo pidió Juan). El tueste
+   queda igual que uno registrado a mano — anotar la salida con 🔥 sigue
+   funcionando exactamente igual (eso ajusta el inventario TOSTADO,
+   sin relación con esto).
+4. Pesar lo que sale del tueste (🔥, ya existía) → `+inventario[lote]`
+   (café tostado, sin cambios).
+
+**"Agregar pergamino que ya tenías"** (`abrirAgregarPergaminoExistente()`
+→ `POST /api/inventario-pergamino`): la manera de sembrar el stock viejo
+que no tenía ninguna cosecha/compra en la app — un lote + unos kilos,
+sin crear ningún registro nuevo, solo suma al inventario. Se pone
+mientras se van registrando esas cosechas viejas, y de ahí en adelante
+todo fluye por el pipeline normal (trillar esas mismas, etc.).
+
+**Reversión precisa al borrar o corregir**: `cosechas`, `compras_cereza`
+y `compras_pergamino` ganaron una columna `verde_grados` (jsonb) que
+guarda el desglose exacto que produjo la trilla de ESE registro — sin
+esto, borrar un registro ya trillado solo sabría el TOTAL de verde que
+había sumado, no cuánto de cada malla, y no se podría revertir con
+precisión. `lotes_tueste` ganó `grado` (nullable — un tueste anotado a
+mano, sin pasar por "Retirar para tostión", se queda con `grado: null` y
+nunca toca `inventario_verde`, ni al crearse ni al borrarse). Los 3
+endpoints de trilla (`cosechas/[id].ts`, `cereza-comprada/[id].ts`,
+`pergamino/[id].ts`) ahora hacen SELECT del registro actual ANTES del
+PATCH (mismo patrón que ya usaba `lotes_tueste/[id].ts` para el tostado)
+— necesario para calcular la diferencia de `kilosPergaminoReal` Y para
+revertir el `verde_grados` anterior antes de aplicar uno corregido.
+
+Nueva pestaña "Café verde" en Cosecha & Tueste (`trazaSubTab = 'verde'`,
+`vistaInventarioVerde()`) — entre "Pergamino comprado" y "Tueste", el
+orden real del proceso. Muestra los dos inventarios + los 2 botones de
+acción ("+ Agregar pergamino que ya tenías" y "Retirar para tostión").
+"Retirar para tostión" solo ofrece lotes/mallas con stock > 0.01 kg
+(`abrirRetiroTostion()`/`actualizarGradosRetiro()`), y avisa si el
+usuario pide más de lo disponible (no lo bloquea — mismo criterio ya
+establecido en el resto de la app, avisar en vez de impedir).
+
+Probado a fondo en el preview local (sin errores de consola en ningún
+recorrido): "Retirar para tostión" filtra lotes/mallas correctamente
+según stock real, `abrirTrilla()` reparte y calcula el total en vivo, y
+las 3 escrituras (retiro, trilla, pergamino existente) devuelven el
+toast esperado.
+
 ## Pendiente / a medias
 
+- **Inventario de café verde/pergamino — falta correr la migración**: el
+  código ya está (ver sección "Inventario de café verde por malla +
+  pergamino disponible" arriba), pero hasta que no se corra
+  `migracion_inventario_verde.sql` en Supabase, la pestaña "Café verde"
+  y el paso de trilla (🌾) en Cosechas/Cereza comprada/Pergamino comprado
+  van a fallar con el error real de Postgres — mismo patrón ya
+  establecido para cualquier migración nueva. El panel de ⚠️ migraciones
+  pendientes en Configuración ya la detecta sola (se agregaron 2 entradas
+  nuevas a `CHEQUEOS` en `functions/api/salud-esquema/index.ts`).
 - **Entrega de maquila, saldo inicial y precio FNC — falta correr 3
   migraciones**: el código ya está (ver secciones "Órdenes de maquila...",
   "Balance de cuentas por persona" y "Precio de referencia del café"

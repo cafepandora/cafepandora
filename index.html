@@ -744,6 +744,10 @@ const TITULARES_CUENTA_COBRO = {
 };
 const datosTitularCC = titular => TITULARES_CUENTA_COBRO[titular] || TITULARES_CUENTA_COBRO.juan;
 const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
+// Grados de café verde tras trillar (inventario, ver "Café verde" en
+// Cosecha & Tueste) — malla 18/16/14 son los tamaños de grano estándar,
+// Aprovechable y Pasilla son los grados menores.
+const GRADOS_VERDE = ['Malla 18', 'Malla 16', 'Malla 14', 'Aprovechable', 'Pasilla'];
 // Libra primero (2026-09-21, a pedido de Juan) — es la que más se vende,
 // así que al abrir el desplegable de Presentación ya queda seleccionada
 // por defecto, sin tener que cambiarla cada vez.
@@ -979,6 +983,8 @@ const state = {
   precioFnc: [],
   costosMargen: { costoTostionKg: 0, costoBolsaMediaLb: 0, costoBolsaLibra: 0, costoBolsaKilo: 0, costoBolsaCuarteron: 0 },
   saludEsquema: [],
+  inventarioPergamino: [],
+  inventarioVerde: [],
   tabActiva: 'ventas',
 };
 // Una sola orden a la vez en Ventas — antes se podían tener varias
@@ -1357,7 +1363,7 @@ supabaseClient.auth.onAuthStateChange((_evento, session) => { if (session) sesio
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc', costosMargen: 'cp_c_costosMargen' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc', costosMargen: 'cp_c_costosMargen', inventarioPergamino: 'cp_c_inventarioPergamino', inventarioVerde: 'cp_c_inventarioVerde' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -1374,7 +1380,7 @@ function guardarCacheLocal(k) {
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
-  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen', '/api/salud-esquema'];
+  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen', '/api/salud-esquema', '/api/inventario-pergamino', '/api/inventario-verde'];
 
   let respuestas;
   try {
@@ -1404,12 +1410,13 @@ async function sincronizar() {
   }
 
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm, se] = await Promise.all(respuestas.map(r => r.json()));
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm, se, ip, iv] = await Promise.all(respuestas.map(r => r.json()));
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
     state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si; state.precioFnc = pf; state.costosMargen = cm;
     state.saludEsquema = se;
+    state.inventarioPergamino = ip; state.inventarioVerde = iv;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -3590,12 +3597,14 @@ function renderTrazabilidad() {
       <button class="${trazaSubTab==='cosechas'?'active':''}" onclick="cambiarTrazaSubTab('cosechas')">Cosechas (${state.cosechas.length})</button>
       <button class="${trazaSubTab==='cereza'?'active':''}" onclick="cambiarTrazaSubTab('cereza')">Cereza comprada (${state.cerezaComprada.length})</button>
       <button class="${trazaSubTab==='comprado'?'active':''}" onclick="cambiarTrazaSubTab('comprado')">Pergamino comprado (${state.pergamino.length})</button>
+      <button class="${trazaSubTab==='verde'?'active':''}" onclick="cambiarTrazaSubTab('verde')">Café verde</button>
       <button class="${trazaSubTab==='tueste'?'active':''}" onclick="cambiarTrazaSubTab('tueste')">Tueste (${state.tuestes.length})</button>
     </div>
 
     ${trazaSubTab === 'cosechas' ? vistaCosechas(cosechasPend) : ''}
     ${trazaSubTab === 'cereza' ? vistaCerezaComprada() : ''}
     ${trazaSubTab === 'comprado' ? vistaPergamino() : ''}
+    ${trazaSubTab === 'verde' ? vistaInventarioVerde() : ''}
     ${trazaSubTab === 'tueste' ? vistaTueste() : ''}
   `;
   cargarClimaFinca();
@@ -4415,6 +4424,14 @@ const FUENTES_TRILLA = {
   cerezaComprada: { lista: () => state.cerezaComprada, endpoint: 'cereza-comprada', cache: 'cerezaComprada', entra: r => Number(r.kilosPergaminoReal) },
 };
 
+// Reparte el verde pesado por malla (2026-09-23) en vez de un solo
+// número — cada malla se suma al inventario de "Café verde" del lote de
+// este registro, y se descuenta la misma cantidad del inventario de
+// "Pergamino disponible" (ver migracion_inventario_verde.sql). El id de
+// cada campo le quita los espacios al nombre de la malla ("Malla 18" ->
+// "tr-grado-Malla18"), no hace falta un idSeguro() genérico para esto.
+const idGrado = g => 'tr-grado-' + g.replace(/\s+/g, '');
+
 function abrirTrilla(tipo, id) {
   const fuente = FUENTES_TRILLA[tipo];
   const reg = fuente.lista().find(x => x.id === id);
@@ -4422,34 +4439,55 @@ function abrirTrilla(tipo, id) {
   const pergamino = fuente.entra(reg);
   const r = rendimientosReales();
   const estimado = pergamino * r.pergaminoAVerde.valor;
+  const grados = reg.verdeGrados || {};
 
   abrirModal(`
     <h3>Café verde después de trillar</h3>
     <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">
-      Entraron ${pergamino.toFixed(1)} kg de pergamino · estimado ${estimado.toFixed(1)} kg de verde</p>
-    <div class="row"><div class="field"><label>Kilos de verde (pesados)</label>
-      <input id="tr-kilos" type="number" min="0" step="0.1" value="${reg.kilosVerdeReal ?? estimado.toFixed(1)}"></div></div>
-    <p style="font-size:12.5px;color:var(--cafe-soft)">Con este dato la app calcula el rendimiento real de trilla de tu café.</p>
+      Entraron ${pergamino.toFixed(1)} kg de pergamino de ${escapeHtml(reg.proceso)} · estimado ${estimado.toFixed(1)} kg de verde en total</p>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin:8px 0 4px">Reparte lo pesado por malla — se suma al inventario de café verde de ${escapeHtml(reg.proceso)}.</p>
+    ${GRADOS_VERDE.map(g => `
+      <div class="row"><div class="field"><label>${g}</label>
+        <input type="number" min="0" step="0.1" id="${idGrado(g)}" value="${grados[g] || ''}" placeholder="0" oninput="actualizarTotalTrilla()"></div></div>`).join('')}
+    <div style="text-align:right;font-weight:700;margin:6px 0 4px">Total: <span id="tr-total">${(reg.kilosVerdeReal || 0).toFixed(1)}</span> kg</div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarTrilla('${tipo}', ${id}, this)">Guardar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
     </div>`);
 }
 
+function actualizarTotalTrilla() {
+  const total = GRADOS_VERDE.reduce((s, g) => s + (Number(document.getElementById(idGrado(g))?.value) || 0), 0);
+  const el = document.getElementById('tr-total');
+  if (el) el.textContent = total.toFixed(1);
+}
+
 async function guardarTrilla(tipo, id, btn) {
-  btn.disabled = true;
-  const kilosVerdeReal = Math.max(0, Number(document.getElementById('tr-kilos').value) || 0);
-  const fuente = FUENTES_TRILLA[tipo];
-  const reg = fuente.lista().find(x => x.id === id);
-  if (reg) reg.kilosVerdeReal = kilosVerdeReal;
-  guardarCacheLocal(fuente.cache);
-  cerrarModal();
-  renderTrazabilidad();
-  await apiFetch('/api/' + fuente.endpoint + '/' + id, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kilosVerdeReal }),
+  const verdeGrados = {};
+  GRADOS_VERDE.forEach(g => {
+    const v = Math.max(0, Number(document.getElementById(idGrado(g))?.value) || 0);
+    if (v > 0) verdeGrados[g] = v;
   });
-  toast('Verde real anotado · rendimiento actualizado');
+  if (!Object.keys(verdeGrados).length) return toast('Anota al menos un kilo en alguna malla.', 'error');
+  btn.disabled = true;
+  const kilosVerdeReal = Object.values(verdeGrados).reduce((s, v) => s + v, 0);
+  const fuente = FUENTES_TRILLA[tipo];
+  try {
+    const res = await apiFetch('/api/' + fuente.endpoint + '/' + id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verdeGrados, kilosVerdeReal }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const reg = fuente.lista().find(x => x.id === id);
+    if (reg) { reg.kilosVerdeReal = kilosVerdeReal; reg.verdeGrados = verdeGrados; }
+    guardarCacheLocal(fuente.cache);
+    cerrarModal();
+    renderTrazabilidad();
+    toast('Verde real anotado — ' + kilosVerdeReal.toFixed(1) + ' kg repartidos por malla');
+    sincronizar(); // trae los inventarios de pergamino/verde ya actualizados por el servidor
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
 }
 
 /* ---------- Pergamino comprado ---------- */
@@ -4540,6 +4578,139 @@ async function eliminarPergamino(id) {
   await apiFetch('/api/pergamino/' + id, { method:'DELETE' });
 }
 
+/* ---------- Inventario de café verde (2026-09-23) ----------
+   Dos etapas: "pergamino disponible" (ya seco, antes de trillar — se
+   suma al pesar pergamino real o comprar pergamino, se resta al
+   trillar) y "café verde disponible" (ya trillado, clasificado por
+   malla — se suma al trillar, se resta al retirar para tostión). Nació
+   porque al empezar a usar la app ya había pergamino de antes que no
+   estaba contemplado en ningún lado — "Agregar pergamino que ya
+   tenías" existe justo para sembrar ese stock viejo, una sola vez. */
+function vistaInventarioVerde() {
+  const filaPergamino = lote => {
+    const kg = Number(state.inventarioPergamino.find(x => x.lote === lote)?.kilos) || 0;
+    return `<div class="tarifa-row"><div class="nombre">${lote}</div><div style="font-weight:700">${kg.toFixed(1)} kg</div></div>`;
+  };
+  const filaVerde = (lote, grado) => {
+    const kg = Number(state.inventarioVerde.find(x => x.lote === lote && x.grado === grado)?.kilos) || 0;
+    return `<div class="tarifa-row" style="padding-left:14px"><div class="nombre" style="font-weight:400;font-size:13px">${grado}</div><div>${kg.toFixed(1)} kg</div></div>`;
+  };
+  return `
+    <div class="card">
+      <h3 class="section-title" style="margin-top:0">Pergamino disponible</h3>
+      <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">Café ya seco, antes de trillar. Se suma solo (⚖️ pesar pergamino real, o comprar pergamino ya seco) y se resta solo (🌾 trillar).</p>
+      ${LOTES.map(filaPergamino).join('')}
+      <button class="sec-btn" style="width:100%;margin-top:10px" onclick="abrirAgregarPergaminoExistente()">+ Agregar pergamino que ya tenías</button>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h3 class="section-title" style="margin:0">Café verde disponible</h3>
+        <button class="add-btn" style="width:auto;padding:10px 16px" onclick="abrirRetiroTostion()">Retirar para tostión</button>
+      </div>
+      <p style="font-size:12px;color:var(--cafe-soft);margin:10px 0 0">Ya trillado y clasificado por malla. Se suma solo al trillar (🌾) y se resta solo al retirar para tostión.</p>
+      ${LOTES.map(lote => `
+        <div style="margin-top:14px">
+          <div class="nombre" style="font-weight:700;font-size:14px">${lote}</div>
+          ${GRADOS_VERDE.map(g => filaVerde(lote, g)).join('')}
+        </div>`).join('')}
+    </div>`;
+}
+
+function abrirAgregarPergaminoExistente() {
+  abrirModal(`
+    <h3>Agregar pergamino que ya tenías</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">Para el stock de antes de usar la app — se suma directo al inventario de pergamino disponible, sin crear ninguna cosecha ni compra.</p>
+    <div class="row">
+      <div class="field"><label>Lote</label><select id="pe-lote">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Kilos</label><input id="pe-kilos" type="number" min="0" step="0.1" placeholder="0"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarPergaminoExistente(this)">Agregar</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>`);
+}
+async function guardarPergaminoExistente(btn) {
+  const lote = document.getElementById('pe-lote').value;
+  const kilos = Math.max(0, Number(document.getElementById('pe-kilos').value) || 0);
+  if (!kilos) return toast('Escribe cuántos kilos vas a agregar.', 'error');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/api/inventario-pergamino', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lote, kilos }) });
+    if (!res.ok) throw new Error(await res.text());
+    cerrarModal();
+    toast(`+${kilos.toFixed(1)} kg de pergamino de ${lote}`);
+    await sincronizar();
+  } catch (err) {
+    toast('No se pudo agregar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+function abrirRetiroTostion() {
+  const lotesConStock = LOTES.filter(l => state.inventarioVerde.some(x => x.lote === l && Number(x.kilos) > 0.01));
+  if (!lotesConStock.length) return toast('No hay café verde disponible todavía — trilla algo primero (🌾).', 'error');
+  abrirModal(`
+    <h3>Retirar para tostión</h3>
+    <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">Se descuenta del inventario de café verde apenas lo registras — el tueste queda listo, anota lo que sale con 🔥 cuando lo sepas.</p>
+    <div class="row">
+      <div class="field"><label>Lote</label><select id="rt-lote" onchange="actualizarGradosRetiro()">${lotesConStock.map(l => `<option>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Fecha</label><input id="rt-fecha" type="date" value="${hoyISO()}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Malla</label><select id="rt-grado" onchange="actualizarDisponibleRetiro()"></select></div>
+      <div class="field"><label>Kilos a retirar</label><input id="rt-kilos" type="number" min="0" step="0.1" placeholder="0" oninput="actualizarDisponibleRetiro()"></div>
+    </div>
+    <p id="rt-disponible" style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px"></p>
+    <div class="modal-actions">
+      <button class="add-btn" onclick="guardarRetiroTostion(this)">Retirar y enviar a tostión</button>
+      <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
+    </div>`);
+  actualizarGradosRetiro();
+}
+function actualizarGradosRetiro() {
+  const lote = document.getElementById('rt-lote')?.value;
+  const sel = document.getElementById('rt-grado');
+  if (!lote || !sel) return;
+  const grados = GRADOS_VERDE.filter(g => Number(state.inventarioVerde.find(x => x.lote === lote && x.grado === g)?.kilos) > 0.01);
+  sel.innerHTML = grados.length ? grados.map(g => `<option>${g}</option>`).join('') : '<option value="">Sin stock</option>';
+  actualizarDisponibleRetiro();
+}
+function actualizarDisponibleRetiro() {
+  const lote = document.getElementById('rt-lote')?.value;
+  const grado = document.getElementById('rt-grado')?.value;
+  const el = document.getElementById('rt-disponible');
+  if (!el) return;
+  if (!grado) { el.textContent = 'No hay ninguna malla con stock para ese lote.'; return; }
+  const kg = Number(state.inventarioVerde.find(x => x.lote === lote && x.grado === grado)?.kilos) || 0;
+  const pedido = Number(document.getElementById('rt-kilos')?.value) || 0;
+  el.textContent = `Disponible: ${kg.toFixed(1)} kg` + (pedido > kg ? ' — no alcanza para lo que pusiste arriba' : '');
+}
+async function guardarRetiroTostion(btn) {
+  const lote = document.getElementById('rt-lote').value;
+  const grado = document.getElementById('rt-grado').value;
+  const kilos = Math.max(0, Number(document.getElementById('rt-kilos').value) || 0);
+  if (!grado) return toast('No hay ninguna malla con stock para ese lote.', 'error');
+  if (!kilos) return toast('Escribe cuántos kilos vas a retirar.', 'error');
+  btn.disabled = true;
+  try {
+    const payload = {
+      fecha: new Date(document.getElementById('rt-fecha').value + 'T12:00:00').getTime(),
+      lote, grado, kilosVerde: kilos, kilosTostado: null,
+      origen: 'Inventario de verde',
+      usuario: localStorage.getItem('cp_usuario') || 'Equipo',
+    };
+    const res = await apiFetch('/api/tuestes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
+    state.tuestes.push(await res.json());
+    guardarCacheLocal('tuestes');
+    cerrarModal();
+    toast(`${kilos.toFixed(1)} kg de ${grado} (${lote}) retirados para tostión`);
+    await sincronizar();
+  } catch (err) {
+    toast('No se pudo registrar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
 /* ---------- Tueste ---------- */
 function vistaTueste() {
   return `
@@ -4577,7 +4748,7 @@ function vistaTueste() {
         <div class="ledger-row ${tieneSalida ? '' : 'envio-pendiente'}">
           <div class="main">
             <div class="title">${escapeHtml(t.lote)} · ${tieneSalida ? Number(t.kilosTostado).toFixed(1) + ' kg tostados' + desglose : 'esperando salida'}</div>
-            <div class="meta">${fechaCorta(t.fecha)} · ${Number(t.kilosVerde).toFixed(1)} kg verde${merma != null ? ' · merma ' + merma.toFixed(1) + '%' : ''}${t.origen ? ' · ' + escapeHtml(t.origen) : ''}</div>
+            <div class="meta">${fechaCorta(t.fecha)} · ${Number(t.kilosVerde).toFixed(1)} kg verde${merma != null ? ' · merma ' + merma.toFixed(1) + '%' : ''}${t.grado ? ' · ' + escapeHtml(t.grado) : ''}${t.origen ? ' · ' + escapeHtml(t.origen) : ''}</div>
             ${t.notasCata ? `<div class="details">${escapeHtml(t.notasCata)}</div>` : ''}
           </div>
           <div class="amount pos">${tieneSalida ? '+' + Math.round(Number(t.kilosTostado) / KG_POR_LIBRA_VENTA) + ' lb' : ''}</div>

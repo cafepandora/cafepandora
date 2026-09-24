@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
-const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts';
+const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts, grado';
 
 // Anota (o corrige) cuánto salió tostado de un lote ya registrado. Para
 // Lavado se puede desglosar en Tostión Media / Media alta; para los demás
@@ -63,6 +63,12 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
 
   if (tueste && Number(tueste.kilosTostado) > 0 && tueste.lote) {
     await supabase.rpc('ajustar_stock_inventario', { p_lote: tueste.lote, p_delta: -Number(tueste.kilosTostado) });
+  }
+  // Si este tueste había salido del inventario de verde (traía grado),
+  // borrar el registro le devuelve ese verde — igual que arriba con el
+  // tostado.
+  if (tueste && tueste.grado && Number(tueste.kilosVerde) > 0 && tueste.lote) {
+    await supabase.rpc('ajustar_stock_verde', { p_lote: tueste.lote, p_grado: tueste.grado, p_delta: Number(tueste.kilosVerde) });
   }
 
   return new Response(null, { status: 204 });
