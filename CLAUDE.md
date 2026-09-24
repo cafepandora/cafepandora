@@ -1935,6 +1935,93 @@ el modal de trilla correcto para una entrada de tipo `'cosecha'`,
 "Café verde" y "Tueste" sin cambios — sin errores de consola en ningún
 recorrido.
 
+## Calculadora de precio de cereza + badges 🏠/🚚 + café verde existente (2026-09-24)
+
+Tres pedidos chicos de Juan seguidos, todos sobre el pipeline de café
+verde/pergamino que se construyó el mismo día (ver secciones de arriba).
+
+**¿Cuánto pagar por cierta cantidad de cereza?** (`bloqueCalculadoraCereza()`
++ `calcularPrecioCereza()`, tarjeta nueva en "Cereza", justo debajo del
+formulario de "Registrar compra de cereza"): Juan dio un ejemplo real para
+explicar cómo se calcula ("60 kilos de cereza, a precio de 12.5 kilos
+seco, factor 88... ambos a precio del día") — resultó ser EXACTAMENTE la
+misma cuenta que ya hacía "Completar pago" (💰, en la sección "Cereza
+comprada a terceros" de más abajo): `60 × 4.000 = 240.000` de un lado,
+`12,5 × 19.200 = 240.000` del otro, la misma plata vista dos formas (el
+12.5 sale de aplicarle el rendimiento cereza→pergamino a 60 kg, no es un
+número que se escriba a mano). Por eso esta calculadora NO inventa
+ninguna fórmula nueva — reusa `proyectarDesdeCereza()` (que ya prefiere
+el rendimiento APRENDIDO de tus propios datos, cayendo al genérico solo
+mientras no hay suficientes muestras) y `precioPergaminoPorFactor()`
+tal cual. Juan confirmó explícitamente **"que no se pierdan los cálculos
+de rendimiento aprendido de la app"** — ninguna cifra fija reemplaza eso.
+Es un calculador APARTE de "Completar pago": sirve para estimar ANTES de
+comprar, sin crear ningún registro todavía (mismo espíritu que
+`bloqueCalculadoraFactor()` de Resumen, pero para cereza en vez de
+pergamino). De paso, `recalcularCompletarPago()` (💰) ganó una segunda
+estadística "Por kilo de cereza" al lado de la de siempre — antes solo
+mostraba el costo total, y Juan claramente piensa en $/kilo primero.
+
+**Badges 🏠/🚚 en "Pergamino disponible"**: Juan pidió que la lista
+unificada de Pergamino (`entradasPergamino()`, ver sección de arriba)
+mostrara de un vistazo qué es de la finca y qué es comprado, en vez de
+solo el texto `origenLabel` — comparó el patrón con el badge 🌐 que ya
+usan las ventas de origen web. `entradasPergamino()` ganó un campo
+`esComprado` (`false` para `'cosecha'`, `true` para `'cerezaComprada'` y
+`'pergamino'`) y `vistaPergamino()` pinta un `<span class="badge-origen">`
+(🏠 verde para casa, 🚚 azul para comprado) justo al lado del peso, antes
+del texto de siempre — mismo lugar/patrón que `.badge-web`, CSS nuevo
+`.badge-origen`/`.badge-origen.casa`/`.badge-origen.comprado` reusando
+`--verde-bg`/`--azul-bg` que ya existían (nada de color nuevo).
+
+**"+ Agregar café verde que ya tenías"** (`abrirAgregarVerdeExistente()`/
+`guardarVerdeExistente()`, botón nuevo en la tarjeta "Café verde
+disponible", junto a "Retirar para tostión"): "+ Agregar pergamino que ya
+tenías" solo cubre el caso de stock viejo que TODAVÍA no está trillado —
+Juan señaló que a veces lo que ya se tenía de antes de usar la app YA
+estaba trillado (verde), y no había forma de sembrar ese caso sin
+inventar una trilla falsa. Mismo patrón que el de pergamino
+(Lote + Kilos + nota opcional), un escalón más adelante: el desplegable
+de Malla usa `GRADOS_VERDE` completo, así que incluye "Sin clasificar"
+para cuando no se tiene separado por tamaño de grano. Backend nuevo:
+`POST /api/inventario-verde` (antes esa carpeta solo tenía GET), mismo
+patrón que `POST /api/inventario-pergamino` — `ajustar_stock_verde` +
+`registrarMovimiento(etapa:'verde', origen:'Café verde que ya tenías')`.
+
+**Bug real encontrado de paso, mientras se armaba lo de arriba — "Sin
+clasificar" nunca sumaba nada al inventario**: al revisar por qué Juan
+reportó que trillar sin desglosar por malla "debería poder usarse para
+tostar" (y sospechar que no funcionaba), se encontró que
+`functions/_lib/verde.ts` tenía su PROPIO `GRADOS_VERDE` — copiado del de
+`index.html` pero SIN "Sin clasificar" (`['Malla 18', 'Malla 16', 'Malla
+14', 'Aprovechable', 'Pasilla']`, sin el 6º valor). `aplicarTrilla()`/
+`revertirTrilla()`/`totalGrados()` usan ESE array para recorrer el
+desglose (`for (const grado of GRADOS_VERDE)`) — así que un
+`verdeGrados = {'Sin clasificar': 32.5}` (el resultado de trillar con el
+checkbox "Desglosar por malla" desmarcado) daba `total = 0` en
+`totalGrados()`, y el `for` nunca iteraba nada: **ni restaba del
+pergamino disponible, ni sumaba al café verde** — el café quedaba
+"perdido" entre las dos tablas, sin ningún error visible (el PATCH
+respondía 200 igual, porque `cosechas.kilos_pergamino_real`/`verde_grados`
+sí se guardaban bien; solo los inventarios agregados nunca se
+actualizaban). Arreglado agregando `'Sin clasificar'` al `GRADOS_VERDE`
+de `functions/_lib/verde.ts`, para que quede igual al de `index.html`.
+Como la migración de este inventario (`migracion_inventario_verde.sql`)
+todavía no se ha corrido en producción (ver "Pendiente" más abajo), este
+bug nunca llegó a afectar datos reales — se encontró y corrigió antes de
+que production lo pudiera tocar. Moraleja: cualquier constante que exista
+DUPLICADA en frontend y backend (mismo nombre, mismo propósito) es un
+lugar donde se pueden desincronizar en silencio — si se vuelve a tocar
+`GRADOS_VERDE` en `index.html`, hay que revisar también el de
+`functions/_lib/verde.ts`.
+
+Probado en el preview local: la calculadora de cereza da el resultado
+esperado con el mismo ejemplo de Juan (60 kg → ≈13.3 kg pergamino a tu
+rendimiento real de 22.1%, no el genérico), los badges 🏠/🚚 se ven
+correctos en "Pergamino disponible", y el modal de "Agregar café verde
+que ya tenías" lista las 6 mallas (incluida "Sin clasificar") — sin
+errores de consola.
+
 ## Pendiente / a medias
 
 - **Inventario de café verde/pergamino — falta correr la migración**: el

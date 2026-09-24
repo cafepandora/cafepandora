@@ -1,4 +1,12 @@
-export const GRADOS_VERDE = ['Malla 18', 'Malla 16', 'Malla 14', 'Aprovechable', 'Pasilla'];
+// "Sin clasificar" tiene que estar acá igual que en el GRADOS_VERDE de
+// index.html — es el destino cuando se trilla sin desglosar por malla
+// (checkbox "Desglosar por malla"). Sin él en esta lista, totalGrados()
+// contaba 0 kg para un desglose {'Sin clasificar': X} y aplicarTrilla()
+// nunca sumaba nada a inventario_verde ni restaba de inventario_pergamino
+// — el café quedaba "perdido" entre las dos tablas, sin error visible
+// (bug real reportado 2026-09-24: "cuando se añade cafe que no se
+// selecciona por mallas igual debería poderse utilizar... para tostar").
+export const GRADOS_VERDE = ['Malla 18', 'Malla 16', 'Malla 14', 'Aprovechable', 'Pasilla', 'Sin clasificar'];
 
 function totalGrados(verdeGrados: Record<string, number>): number {
   return GRADOS_VERDE.reduce((s, g) => s + (Number(verdeGrados[g]) || 0), 0);
