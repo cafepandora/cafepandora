@@ -1,6 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
-import { aplicarTrilla, revertirTrilla } from '../../_lib/verde.js';
+import { aplicarTrilla, revertirTrilla, registrarMovimiento } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, kilosCereza:kilos_cereza, proceso, kilosPergaminoReal:kilos_pergamino_real, kilosVerdeReal:kilos_verde_real, kilosPasilla:kilos_pasilla, verdeGrados:verde_grados, notas, usuario, ts, fermentacionInicio:fermentacion_inicio, fermentacionFin:fermentacion_fin, fermentacionAlertado:fermentacion_alertado';
 
@@ -44,6 +44,7 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
     const delta = ahora - antes;
     if (delta !== 0 && actual.proceso) {
       await supabase.rpc('ajustar_stock_pergamino', { p_lote: actual.proceso, p_delta: delta });
+      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: delta, origen: 'Cosecha propia', fecha: actual.fecha });
     }
   }
 
@@ -52,9 +53,9 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   // que corregirlo no duplique lo sumado).
   if (body.verdeGrados !== undefined) {
     const lote = (body.proceso as string) ?? actual.proceso;
-    if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>);
+    if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cosecha propia');
     if (body.verdeGrados) {
-      await aplicarTrilla(supabase, lote, body.verdeGrados);
+      await aplicarTrilla(supabase, lote, body.verdeGrados, 'Cosecha propia');
       updates.kilos_verde_real = Object.values(body.verdeGrados as Record<string, number>).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
     } else {
       updates.kilos_verde_real = null;
@@ -91,10 +92,11 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     // falta además restar ESE pergamino, porque el registro entero
     // desaparece, no solo su trilla.
     if (actual.verdeGrados) {
-      await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>);
+      await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cosecha propia (registro eliminado)');
     }
     if (Number(actual.kilosPergaminoReal) > 0) {
       await supabase.rpc('ajustar_stock_pergamino', { p_lote: actual.proceso, p_delta: -Number(actual.kilosPergaminoReal) });
+      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: -Number(actual.kilosPergaminoReal), origen: 'Cosecha propia (registro eliminado)' });
     }
   }
 

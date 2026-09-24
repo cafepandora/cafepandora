@@ -1,6 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
-import { aplicarTrilla, revertirTrilla } from '../../_lib/verde.js';
+import { aplicarTrilla, revertirTrilla, registrarMovimiento } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, proveedor, kilosPergamino:kilos_pergamino, proceso, costo, kilosVerdeReal:kilos_verde_real, verdeGrados:verde_grados, notas, usuario, ts';
 
@@ -23,9 +23,9 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   // Trillar (🌾) — este pergamino ya sumó al inventario disponible desde
   // que se compró (POST), así que acá solo aplica la trilla en sí.
   if (body.verdeGrados !== undefined) {
-    if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>);
+    if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Pergamino comprado', actual.proveedor);
     if (body.verdeGrados) {
-      await aplicarTrilla(supabase, actual.proceso, body.verdeGrados);
+      await aplicarTrilla(supabase, actual.proceso, body.verdeGrados, 'Pergamino comprado', actual.proveedor);
       updates.kilos_verde_real = Object.values(body.verdeGrados as Record<string, number>).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
     } else {
       updates.kilos_verde_real = null;
@@ -54,10 +54,11 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
 
   if (actual && actual.proceso) {
     if (actual.verdeGrados) {
-      await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>);
+      await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Pergamino comprado (registro eliminado)', actual.proveedor);
     }
     if (Number(actual.kilosPergamino) > 0) {
       await supabase.rpc('ajustar_stock_pergamino', { p_lote: actual.proceso, p_delta: -Number(actual.kilosPergamino) });
+      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: -Number(actual.kilosPergamino), origen: 'Pergamino comprado (registro eliminado)', referencia: actual.proveedor });
     }
   }
 

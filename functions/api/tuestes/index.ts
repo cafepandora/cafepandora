@@ -1,5 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
+import { registrarMovimiento } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts, grado';
 
@@ -54,6 +55,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   // inventario); un tueste anotado "a mano" sin grado no toca nada.
   if (body.grado && kilosVerde > 0 && body.lote) {
     await supabase.rpc('ajustar_stock_verde', { p_lote: body.lote, p_grado: body.grado, p_delta: -kilosVerde });
+    await registrarMovimiento(supabase, { etapa: 'verde', lote: body.lote, grado: body.grado, kilos: -kilosVerde, origen: 'Retiro para tostión', fecha: body.fecha });
   }
 
   return Response.json(data, { status: 201 });

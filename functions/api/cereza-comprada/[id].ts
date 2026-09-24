@@ -1,6 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
-import { aplicarTrilla, revertirTrilla } from '../../_lib/verde.js';
+import { aplicarTrilla, revertirTrilla, registrarMovimiento } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, proveedor, kilosCereza:kilos_cereza, proceso, costo, pagadoPor:pagado_por, kilosPergaminoReal:kilos_pergamino_real, kilosVerdeReal:kilos_verde_real, verdeGrados:verde_grados, notas, usuario, ts, pesajes';
 
@@ -34,15 +34,16 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
     const delta = ahora - antes;
     if (delta !== 0 && actual.proceso) {
       await supabase.rpc('ajustar_stock_pergamino', { p_lote: actual.proceso, p_delta: delta });
+      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: delta, origen: 'Cereza comprada', referencia: actual.proveedor, fecha: actual.fecha });
     }
   }
 
   // Trillar (🌾) — mismo mecanismo que cosechas/[id].ts.
   if (body.verdeGrados !== undefined) {
     const lote = (body.proceso as string) ?? actual.proceso;
-    if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>);
+    if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cereza comprada', actual.proveedor);
     if (body.verdeGrados) {
-      await aplicarTrilla(supabase, lote, body.verdeGrados);
+      await aplicarTrilla(supabase, lote, body.verdeGrados, 'Cereza comprada', actual.proveedor);
       updates.kilos_verde_real = Object.values(body.verdeGrados as Record<string, number>).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
     } else {
       updates.kilos_verde_real = null;
@@ -73,10 +74,11 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
 
   if (actual && actual.proceso) {
     if (actual.verdeGrados) {
-      await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>);
+      await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cereza comprada (registro eliminado)', actual.proveedor);
     }
     if (Number(actual.kilosPergaminoReal) > 0) {
       await supabase.rpc('ajustar_stock_pergamino', { p_lote: actual.proceso, p_delta: -Number(actual.kilosPergaminoReal) });
+      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: -Number(actual.kilosPergaminoReal), origen: 'Cereza comprada (registro eliminado)', referencia: actual.proveedor });
     }
   }
 

@@ -251,6 +251,7 @@ functions/api/precio-fnc/          # GET del historial de precio de referencia (
 functions/api/saldos-iniciales/    # saldo inicial por persona, para el balance de cuentas
 functions/api/inventario-pergamino/ # pergamino disponible por lote, antes de trillar
 functions/api/inventario-verde/    # café verde disponible por lote × malla, después de trillar
+functions/api/movimientos-inventario/ # historial de entradas/salidas de pergamino/verde, con origen
 functions/_lib/verde.ts            # aplicarTrilla()/revertirTrilla() — pergamino disponible -> verde por malla
 migracion_*.sql, migration.sql     # ver "Pendiente / a medias" — no todas están corridas en producción
 ```
@@ -1798,6 +1799,45 @@ recorrido): "Retirar para tostión" filtra lotes/mallas correctamente
 según stock real, `abrirTrilla()` reparte y calcula el total en vivo, y
 las 3 escrituras (retiro, trilla, pergamino existente) devuelven el
 toast esperado.
+
+**"Sin clasificar" — trillar sin desglosar por malla (mismo día)**:
+Juan pidió poder anotar solo el TOTAL trillado cuando todavía no separó
+por tamaño de grano, en vez de obligar a llenar las 5 mallas cada vez.
+Checkbox "Desglosar por malla" en `abrirTrilla()`
+(`alternarDesgloseTrilla()`) — desmarcado muestra un solo campo "Total
+trillado" en vez de los 5 de malla. Ese total se guarda como
+`verdeGrados = { 'Sin clasificar': total }`, reutilizando EXACTAMENTE
+el mismo mecanismo de siempre (`aplicarTrilla()`) — "Sin clasificar" es
+un 6º grado más en `GRADOS_VERDE` (`GRADOS_MALLA` es la constante
+derivada que excluye ese 6º para los formularios que sí desglosan:
+`abrirTrilla()` en modo desglosado, y ya está — "Retirar para tostión"
+y la tabla de inventario SÍ deben verlo, para que ese café siga siendo
+utilizable). Al reabrir el modal de un registro ya trillado,
+`yaDesglosado` decide en qué modo abrir: si el único grado guardado es
+"Sin clasificar", abre en modo simple con ese valor precargado; si hay
+cualquier malla real, abre desglosado. No hace falta ninguna
+clasificación posterior para poder tostarlo — "Sin clasificar" es una
+bolsa más del inventario de verde, se puede retirar para tostión igual
+que cualquier malla real.
+
+**Historial de movimientos ("cuánto es de quién")**: los dos
+inventarios de arriba (`inventario_pergamino`, `inventario_verde`)
+siguen siendo un solo total mezclado por lote — separar el stock por
+proveedor habría complicado mucho "Retirar para tostión" (que sale de
+una bolsa ya mezclada). En vez de eso, tabla nueva
+`movimientos_inventario_cafe` (`etapa`: 'pergamino'|'verde', `lote`,
+`grado` opcional, `kilos` con signo, `origen` texto legible,
+`referencia` con el proveedor si aplica) — CADA ajuste de inventario en
+todo el pipeline (pesar pergamino, comprar pergamino, trillar, agregar
+pergamino existente, retirar para tostión, y las reversiones de
+borrar/corregir) deja una fila acá, vía `registrarMovimiento()` en
+`functions/_lib/verde.ts`. `GET /api/movimientos-inventario` (máximo
+300, más reciente primero) — nueva pestaña "Café verde" la lista al
+final con `paginar()` (clave `movimientosInventario`, agregada a
+`paginas` de entrada, mismo gotcha de siempre). "+ Agregar pergamino
+que ya tenías" ganó un campo "De quién" (opcional, texto libre — ej.
+"cosecha 2025", "compra a Don Leo") que viaja como `referencia` en su
+movimiento.
 
 ## Pendiente / a medias
 

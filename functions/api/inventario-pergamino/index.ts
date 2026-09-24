@@ -1,5 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
+import { registrarMovimiento } from '../../_lib/verde.js';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -24,6 +25,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const { error } = await supabase.rpc('ajustar_stock_pergamino', { p_lote: body.lote, p_delta: kilos });
   if (error) return new Response(error.message, { status: 500 });
+  await registrarMovimiento(supabase, { etapa: 'pergamino', lote: body.lote, kilos, origen: 'Pergamino que ya tenías', referencia: body.nota || null });
   const { data, error: error2 } = await supabase.from('inventario_pergamino').select('lote, kilos').eq('lote', body.lote).single();
   if (error2) return new Response(error2.message, { status: 500 });
   return Response.json(data, { status: 201 });

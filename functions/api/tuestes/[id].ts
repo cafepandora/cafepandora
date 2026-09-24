@@ -1,5 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
+import { registrarMovimiento } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts, grado';
 
@@ -69,6 +70,7 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   // tostado.
   if (tueste && tueste.grado && Number(tueste.kilosVerde) > 0 && tueste.lote) {
     await supabase.rpc('ajustar_stock_verde', { p_lote: tueste.lote, p_grado: tueste.grado, p_delta: Number(tueste.kilosVerde) });
+    await registrarMovimiento(supabase, { etapa: 'verde', lote: tueste.lote, grado: tueste.grado, kilos: Number(tueste.kilosVerde), origen: 'Retiro para tostión (registro eliminado)' });
   }
 
   return new Response(null, { status: 204 });

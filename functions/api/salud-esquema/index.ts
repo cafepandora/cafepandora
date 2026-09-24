@@ -18,6 +18,7 @@ const CHEQUEOS = [
   { tabla: 'cosechas', columna: 'kilos_pasilla', migracion: 'migracion_pasilla.sql', descripcion: 'Kilos de pasilla al pesar pergamino' },
   { tabla: 'inventario_verde', columna: 'kilos', migracion: 'migracion_inventario_verde.sql', descripcion: 'Inventario de café verde por malla y pergamino disponible' },
   { tabla: 'cosechas', columna: 'verde_grados', migracion: 'migracion_inventario_verde.sql', descripcion: 'Desglose por malla al trillar' },
+  { tabla: 'movimientos_inventario_cafe', columna: 'kilos', migracion: 'migracion_inventario_verde.sql', descripcion: 'Historial de movimientos del inventario de café' },
 ];
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {

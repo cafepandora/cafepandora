@@ -747,7 +747,10 @@ const LOTES = ['Lavado', 'Honey', 'Natural', 'Exotico'];
 // Grados de café verde tras trillar (inventario, ver "Café verde" en
 // Cosecha & Tueste) — malla 18/16/14 son los tamaños de grano estándar,
 // Aprovechable y Pasilla son los grados menores.
-const GRADOS_VERDE = ['Malla 18', 'Malla 16', 'Malla 14', 'Aprovechable', 'Pasilla'];
+// "Sin clasificar" es el destino cuando se trilla sin desglosar por malla
+// (checkbox "Desglosar por malla" en abrirTrilla()) — mismo inventario,
+// solo que no se separó por tamaño de grano todavía.
+const GRADOS_VERDE = ['Malla 18', 'Malla 16', 'Malla 14', 'Aprovechable', 'Pasilla', 'Sin clasificar'];
 // Libra primero (2026-09-21, a pedido de Juan) — es la que más se vende,
 // así que al abrir el desplegable de Presentación ya queda seleccionada
 // por defecto, sin tener que cambiarla cada vez.
@@ -985,6 +988,7 @@ const state = {
   saludEsquema: [],
   inventarioPergamino: [],
   inventarioVerde: [],
+  movimientosInventario: [],
   tabActiva: 'ventas',
 };
 // Una sola orden a la vez en Ventas — antes se podían tener varias
@@ -1235,7 +1239,7 @@ let ventasSubTab = 'porEnviar';
 const POR_PAGINA = 8;
 const paginas = {
   ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1,
-  ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1,
+  ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1, movimientosInventario: 1,
   // Paginación propia del modal de búsqueda (abrirBusquedaModal) — separada
   // de la de cada pestaña para no interferir con la página de atrás.
   busquedaVentas: 1, busquedaMaquila: 1, busquedaGastos: 1, busquedaFinca: 1, busquedaCuentasCobro: 1, busquedaClientes: 1,
@@ -1363,7 +1367,7 @@ supabaseClient.auth.onAuthStateChange((_evento, session) => { if (session) sesio
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc', costosMargen: 'cp_c_costosMargen', inventarioPergamino: 'cp_c_inventarioPergamino', inventarioVerde: 'cp_c_inventarioVerde' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc', costosMargen: 'cp_c_costosMargen', inventarioPergamino: 'cp_c_inventarioPergamino', inventarioVerde: 'cp_c_inventarioVerde', movimientosInventario: 'cp_c_movimientosInventario' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -1380,7 +1384,7 @@ function guardarCacheLocal(k) {
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
-  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen', '/api/salud-esquema', '/api/inventario-pergamino', '/api/inventario-verde'];
+  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen', '/api/salud-esquema', '/api/inventario-pergamino', '/api/inventario-verde', '/api/movimientos-inventario'];
 
   let respuestas;
   try {
@@ -1410,13 +1414,13 @@ async function sincronizar() {
   }
 
   try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm, se, ip, iv] = await Promise.all(respuestas.map(r => r.json()));
+    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm, se, ip, iv, mi] = await Promise.all(respuestas.map(r => r.json()));
     state.ventas = v; state.gastos = g; state.clientes = c;
     state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
     state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
     state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si; state.precioFnc = pf; state.costosMargen = cm;
     state.saludEsquema = se;
-    state.inventarioPergamino = ip; state.inventarioVerde = iv;
+    state.inventarioPergamino = ip; state.inventarioVerde = iv; state.movimientosInventario = mi;
     Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
     renderTodo();
@@ -4432,6 +4436,8 @@ const FUENTES_TRILLA = {
 // "tr-grado-Malla18"), no hace falta un idSeguro() genérico para esto.
 const idGrado = g => 'tr-grado-' + g.replace(/\s+/g, '');
 
+const GRADOS_MALLA = GRADOS_VERDE.filter(g => g !== 'Sin clasificar');
+
 function abrirTrilla(tipo, id) {
   const fuente = FUENTES_TRILLA[tipo];
   const reg = fuente.lista().find(x => x.id === id);
@@ -4440,15 +4446,29 @@ function abrirTrilla(tipo, id) {
   const r = rendimientosReales();
   const estimado = pergamino * r.pergaminoAVerde.valor;
   const grados = reg.verdeGrados || {};
+  // Si ya tenía un desglose guardado sin usar "Sin clasificar", se abre
+  // en modo desglosado; si el único grado que tenía era "Sin
+  // clasificar" (o no tenía nada todavía), se abre en modo simple.
+  const yaDesglosado = Object.keys(grados).some(g => g !== 'Sin clasificar');
 
   abrirModal(`
     <h3>Café verde después de trillar</h3>
     <p style="font-size:13px;color:var(--cafe-soft);margin-top:-6px">
       Entraron ${pergamino.toFixed(1)} kg de pergamino de ${escapeHtml(reg.proceso)} · estimado ${estimado.toFixed(1)} kg de verde en total</p>
-    <p style="font-size:12.5px;color:var(--cafe-soft);margin:8px 0 4px">Reparte lo pesado por malla — se suma al inventario de café verde de ${escapeHtml(reg.proceso)}.</p>
-    ${GRADOS_VERDE.map(g => `
-      <div class="row"><div class="field"><label>${g}</label>
-        <input type="number" min="0" step="0.1" id="${idGrado(g)}" value="${grados[g] || ''}" placeholder="0" oninput="actualizarTotalTrilla()"></div></div>`).join('')}
+    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;margin:10px 0 6px;cursor:pointer">
+      <input type="checkbox" id="tr-desglosar" ${yaDesglosado ? 'checked' : ''} onchange="alternarDesgloseTrilla()"> Desglosar por malla
+    </label>
+    <div id="tr-campos-malla" style="display:${yaDesglosado ? '' : 'none'}">
+      <p style="font-size:12.5px;color:var(--cafe-soft);margin:0 0 4px">Reparte lo pesado por malla — se suma al inventario de café verde de ${escapeHtml(reg.proceso)}.</p>
+      ${GRADOS_MALLA.map(g => `
+        <div class="row"><div class="field"><label>${g}</label>
+          <input type="number" min="0" step="0.1" id="${idGrado(g)}" value="${grados[g] || ''}" placeholder="0" oninput="actualizarTotalTrilla()"></div></div>`).join('')}
+    </div>
+    <div id="tr-campo-total" style="display:${yaDesglosado ? 'none' : ''}">
+      <p style="font-size:12.5px;color:var(--cafe-soft);margin:0 0 4px">Sin separar por tamaño de grano todavía — se puede clasificar después.</p>
+      <div class="row"><div class="field"><label>Total trillado</label>
+        <input type="number" min="0" step="0.1" id="${idGrado('Sin clasificar')}" value="${grados['Sin clasificar'] || (yaDesglosado ? '' : (reg.kilosVerdeReal || ''))}" placeholder="0" oninput="actualizarTotalTrilla()"></div></div>
+    </div>
     <div style="text-align:right;font-weight:700;margin:6px 0 4px">Total: <span id="tr-total">${(reg.kilosVerdeReal || 0).toFixed(1)}</span> kg</div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarTrilla('${tipo}', ${id}, this)">Guardar</button>
@@ -4456,19 +4476,29 @@ function abrirTrilla(tipo, id) {
     </div>`);
 }
 
+function alternarDesgloseTrilla() {
+  const desglosar = document.getElementById('tr-desglosar').checked;
+  document.getElementById('tr-campos-malla').style.display = desglosar ? '' : 'none';
+  document.getElementById('tr-campo-total').style.display = desglosar ? 'none' : '';
+  actualizarTotalTrilla();
+}
+
 function actualizarTotalTrilla() {
-  const total = GRADOS_VERDE.reduce((s, g) => s + (Number(document.getElementById(idGrado(g))?.value) || 0), 0);
+  const desglosar = document.getElementById('tr-desglosar')?.checked;
+  const grados = desglosar ? GRADOS_MALLA : ['Sin clasificar'];
+  const total = grados.reduce((s, g) => s + (Number(document.getElementById(idGrado(g))?.value) || 0), 0);
   const el = document.getElementById('tr-total');
   if (el) el.textContent = total.toFixed(1);
 }
 
 async function guardarTrilla(tipo, id, btn) {
+  const desglosar = document.getElementById('tr-desglosar').checked;
   const verdeGrados = {};
-  GRADOS_VERDE.forEach(g => {
+  (desglosar ? GRADOS_MALLA : ['Sin clasificar']).forEach(g => {
     const v = Math.max(0, Number(document.getElementById(idGrado(g))?.value) || 0);
     if (v > 0) verdeGrados[g] = v;
   });
-  if (!Object.keys(verdeGrados).length) return toast('Anota al menos un kilo en alguna malla.', 'error');
+  if (!Object.keys(verdeGrados).length) return toast(desglosar ? 'Anota al menos un kilo en alguna malla.' : 'Escribe el total trillado.', 'error');
   btn.disabled = true;
   const kilosVerdeReal = Object.values(verdeGrados).reduce((s, v) => s + v, 0);
   const fuente = FUENTES_TRILLA[tipo];
@@ -4483,7 +4513,7 @@ async function guardarTrilla(tipo, id, btn) {
     guardarCacheLocal(fuente.cache);
     cerrarModal();
     renderTrazabilidad();
-    toast('Verde real anotado — ' + kilosVerdeReal.toFixed(1) + ' kg repartidos por malla');
+    toast('Verde real anotado — ' + kilosVerdeReal.toFixed(1) + (desglosar ? ' kg repartidos por malla' : ' kg (sin clasificar)'));
     sincronizar(); // trae los inventarios de pergamino/verde ya actualizados por el servidor
   } catch (err) {
     toast('No se pudo guardar: ' + err.message, 'error');
@@ -4614,6 +4644,19 @@ function vistaInventarioVerde() {
           <div class="nombre" style="font-weight:700;font-size:14px">${lote}</div>
           ${GRADOS_VERDE.map(g => filaVerde(lote, g)).join('')}
         </div>`).join('')}
+    </div>
+
+    <h3 class="section-title">Historial de movimientos</h3>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-10px">De dónde vino (o hacia dónde fue) cada entrada/salida — el inventario de arriba es un solo total por lote, esto es para poder ver "cuánto es de quién".</p>
+    <div class="ledger">
+      ${paginar(state.movimientosInventario.slice().sort((a, b) => b.ts - a.ts), 'movimientosInventario', m => `
+        <div class="ledger-row">
+          <div class="main">
+            <div class="title">${escapeHtml(m.origen)}${m.referencia ? ' — ' + escapeHtml(m.referencia) : ''}</div>
+            <div class="meta">${fechaCorta(m.fecha)} · ${m.etapa === 'pergamino' ? 'Pergamino' : 'Verde'} · ${escapeHtml(m.lote)}${m.grado ? ' · ' + escapeHtml(m.grado) : ''}</div>
+          </div>
+          <div class="amount ${m.kilos > 0 ? 'pos' : 'neg'}">${m.kilos > 0 ? '+' : ''}${Number(m.kilos).toFixed(1)} kg</div>
+        </div>`, 'Todavía no hay movimientos registrados.')}
     </div>`;
 }
 
@@ -4625,6 +4668,7 @@ function abrirAgregarPergaminoExistente() {
       <div class="field"><label>Lote</label><select id="pe-lote">${LOTES.map(l => `<option>${l}</option>`).join('')}</select></div>
       <div class="field"><label>Kilos</label><input id="pe-kilos" type="number" min="0" step="0.1" placeholder="0"></div>
     </div>
+    <div class="row"><div class="field"><label>De quién (opcional)</label><input id="pe-nota" placeholder="Ej. cosecha 2025, compra a Don Leo…"></div></div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarPergaminoExistente(this)">Agregar</button>
       <button class="sec-btn" onclick="cerrarModal()">Cancelar</button>
@@ -4633,10 +4677,11 @@ function abrirAgregarPergaminoExistente() {
 async function guardarPergaminoExistente(btn) {
   const lote = document.getElementById('pe-lote').value;
   const kilos = Math.max(0, Number(document.getElementById('pe-kilos').value) || 0);
+  const nota = document.getElementById('pe-nota').value.trim() || null;
   if (!kilos) return toast('Escribe cuántos kilos vas a agregar.', 'error');
   btn.disabled = true;
   try {
-    const res = await apiFetch('/api/inventario-pergamino', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lote, kilos }) });
+    const res = await apiFetch('/api/inventario-pergamino', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lote, kilos, nota }) });
     if (!res.ok) throw new Error(await res.text());
     cerrarModal();
     toast(`+${kilos.toFixed(1)} kg de pergamino de ${lote}`);

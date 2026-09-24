@@ -1,5 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
+import { registrarMovimiento } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, proveedor, kilosPergamino:kilos_pergamino, proceso, costo, kilosVerdeReal:kilos_verde_real, notas, usuario, ts';
 
@@ -37,6 +38,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   // que suma al inventario de pergamino disponible desde ya.
   if (kilosPergamino > 0 && body.proceso) {
     await supabase.rpc('ajustar_stock_pergamino', { p_lote: body.proceso, p_delta: kilosPergamino });
+    await registrarMovimiento(supabase, { etapa: 'pergamino', lote: body.proceso, kilos: kilosPergamino, origen: 'Pergamino comprado', referencia: body.proveedor, fecha: body.fecha });
   }
 
   return Response.json(data, { status: 201 });
