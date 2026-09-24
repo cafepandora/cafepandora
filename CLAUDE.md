@@ -2022,6 +2022,108 @@ correctos en "Pergamino disponible", y el modal de "Agregar café verde
 que ya tenías" lista las 6 mallas (incluida "Sin clasificar") — sin
 errores de consola.
 
+## Auditoría de Cosecha & Tueste + Resumen (2026-09-24)
+
+A pedido de Juan ("actúa como un auditor web profesional con experiencia
+en finanzas"), se revisaron a fondo estas dos pantallas y se corrigió
+todo lo encontrado en el mismo pase ("hazlo todo de una vez").
+
+**🔴 Crítico, ya corregido — tres números de "pergamino disponible" que
+no coincidían entre sí.** El stat de arriba de Cosecha & Tueste sumaba
+TODO lo que `cosechas`/`cereza comprada`/`pergamino comprado` habían
+producido alguna vez (un acumulado DE POR VIDA, que nunca bajaba aunque
+ya se hubiera trillado y tostado) — mientras que la tarjeta "Pergamino
+disponible" de la pestaña Café verde (`state.inventarioPergamino`) sí es
+el stock REAL actual, que baja al trillar. Y NINGUNO de los dos incluía
+el stock sembrado a mano con "+ Agregar pergamino/verde que ya tenías" —
+justo el caso que originó toda esta función. Se corrigió:
+
+- Los 4 stats de arriba de `renderTrazabilidad()` ahora se calculan
+  desde `state.inventarioPergamino`/`state.inventarioVerde` (la MISMA
+  fuente que ya usaba la pestaña Café verde) — "Pergamino pendiente por
+  trillar" y "Verde disponible + esperado al trillar" (real +
+  proyección de lo que falta) ya SIEMPRE coinciden con las tarjetas de
+  abajo, e incluyen el stock agregado a mano. Se agregó una nota chica
+  aclarando que combinan real + estimado.
+- `vistaPergamino()` ahora muestra, justo debajo del título "Pergamino
+  disponible", el mismo total real (`state.inventarioPergamino`) en
+  negrita — antes esa cabecera no tenía ningún número propio, solo la
+  lista de entradas (que sí sube pero nunca baja al trillar).
+- Las entradas de la lista que ya se trillaron (`kilosVerdeReal > 0`) se
+  ordenan al final, quedan con opacidad reducida y un badge
+  "✅ Ya trillado" — antes se veían exactamente igual que las pendientes,
+  con su kilaje completo en negrita como si todavía estuviera disponible.
+
+**🟠 Alto, ya corregido — mismo problema, ya cubierto arriba** (el stock
+"que ya tenías" ahora sí entra en los totales de arriba, por el mismo
+cambio de fuente de datos).
+
+**🟡 Medio, ya corregido — botones de solo ícono sin etiqueta.** Cereza
+comprada (hasta 5 botones: 📏💰✎⚖️✕) y Pergamino (🌾✕) ganaron el mismo
+`<span class="accion-texto">` que ya tenía Cosecha — el texto solo se ve
+desde 700px de ancho (mismo breakpoint ya establecido, no rompe nada en
+celular). Con esto, los 3 tipos de fila en "Cereza"/"Pergamino" quedan
+igual de explicados, en vez de solo Cosecha.
+
+**🟡 Medio, ya corregido — datos reales vs. estimados sin badge.** Ya
+resuelto de raíz: los stats de arriba dejaron de ser una proyección de
+TODO el histórico y pasaron a ser mayormente reales (inventario actual);
+la nota nueva bajo el stat-grid explica que la parte "esperada" sigue
+siendo proyección, sin necesitar un badge por stat.
+
+**🟠 Alto, ya corregido — precio FNC (dato externo) antes que las
+gráficas del propio negocio.** En `renderResumen()`, "Comportamiento en
+el tiempo" (flujo, egresos por categoría, ventas por lote) ahora va
+INMEDIATAMENTE después de los stats del mes, antes de "Precio de
+referencia del café" — tu propia plata primero, el contexto de mercado
+después.
+
+**🟡 Medio, ya corregido — gráfica de producción mezclada con gráficas de
+plata.** "Rendimiento de cosecha, mes a mes" salió de "Comportamiento en
+el tiempo" (que ahora son solo las 3 gráficas financieras) y pasó a su
+propia sección "Rendimiento de producción, mes a mes", después de Precio
+FNC — con una nota explicando por qué está aparte (dato de producción,
+no financiero).
+
+**🟡 Medio, ya corregido — pantalla larga sin navegación interna.**
+Fila nueva de 5 botones "↓ Comportamiento / ↓ Margen por lote /
+↓ Mejores clientes / ↓ Balance de cuentas / ↓ Detalle del mes" justo
+debajo de los stats del mes, con `scrollIntoView({behavior:'smooth'})` a
+`id`s nuevos en cada `<h3>` de destino (`res-comportamiento`,
+`res-margen`, `res-clientes`, `res-balance`, `res-detalle`). Reusa
+`button.sec-btn` (el mismo estilo de píldora que ya usan "🔗 Unir
+cosechas" y otros botones secundarios en toda la app) — a diferencia de
+`.subtabs`, `.sec-btn` SÍ es redondeado desde siempre, así que esto no
+repite el error de las pills que Juan revirtió en `.subtabs` (ver
+sección de arriba), es el patrón ya aceptado para botones sueltos.
+
+**🟡 Medio, deliberadamente NO hecho — cargar las 6 gráficas de Chart.js
+solo cuando entran a la vista (lazy load).** Sería la forma correcta de
+aliviar el peso de abrir Resumen en una conexión débil, pero es un
+cambio de arquitectura real (coordinar `IntersectionObserver` con el
+refresco de `cambiarRango()`/`cambiarPeriodoClientes()`, que hoy
+reconstruyen TODO el HTML y vuelven a llamar `dibujarGraficos()` sin
+condicional) — se decidió NO meterlo en este mismo lote de arreglos para
+no arriesgar una regresión en las gráficas por apurar algo que no es un
+error, es una optimización. Si se quiere, es una tarea aparte.
+
+**🟢 Bajo, deliberadamente NO hecho — trazabilidad de quién corrigió qué
+número y cuándo.** Necesitaría una tabla nueva (`migracion_*.sql`) y
+enganchar el registro en cada uno de los endpoints de edición (ventas,
+gastos, finca, cosechas, cereza comprada...) — un negocio familiar como
+este no lo necesita todavía, así que se deja anotado acá para el día que
+haga falta (ej. si entra alguien más a tocar la caja), en vez de
+construirlo sin que nadie lo vaya a usar.
+
+Probado en el preview local: el stat "Pergamino pendiente por trillar"
+(54.5 kg) coincide EXACTO con la suma de `state.inventarioPergamino`; la
+pestaña Pergamino muestra el mismo 54.5 kg en su cabecera; una entrada ya
+trillada aparece al final, apagada, con "✅ Ya trillado"; los botones de
+Cereza comprada muestran su texto en desktop; el orden
+Comportamiento → Precio FNC → Rendimiento de producción se confirmó
+programáticamente comparando posiciones en el HTML; los 5 `id` de
+navegación existen — todo sin errores nuevos de consola.
+
 ## Pendiente / a medias
 
 - **Inventario de café verde/pergamino — falta correr la migración**: el

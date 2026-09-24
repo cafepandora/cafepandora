@@ -3587,26 +3587,36 @@ function renderTrazabilidad() {
   const cont = document.getElementById('view-trazabilidad');
   if (!cont) return;
 
-  // --- Proyección global: qué café se espera tener ---
+  // --- Qué hay REALMENTE pendiente en el pipeline (2026-09-24, corregido
+  // en la auditoría) --- Antes esto sumaba solo cosechas+cereza
+  // comprada+pergamino comprado (un total DE POR VIDA, que nunca bajaba
+  // aunque ya se hubiera trillado y tostado todo) y NO incluía el stock
+  // que se siembra a mano con "+ Agregar pergamino/verde que ya tenías"
+  // — así que este resumen de arriba podía decir una cosa mientras las
+  // tarjetas de "Café verde" (que sí leen el inventario real) decían
+  // otra. Ahora los 2 primeros stats usan LA MISMA fuente que esas
+  // tarjetas (`state.inventarioPergamino`/`state.inventarioVerde`), así
+  // que siempre van a coincidir con lo que se ve más abajo.
   const cosechasPend = state.cosechas.filter(c => c.kilosPergaminoReal == null);
-  const pergaminoDeCosechas = state.cosechas.reduce((s, c) =>
-    s + (c.kilosPergaminoReal != null ? Number(c.kilosPergaminoReal) : proyectarDesdeCereza(c.kilosCereza).pergamino), 0);
-  const pergaminoDeCerezaComprada = state.cerezaComprada.reduce((s, c) =>
-    s + (c.kilosPergaminoReal != null ? Number(c.kilosPergaminoReal) : proyectarDesdeCereza(c.kilosCereza).pergamino), 0);
-  const pergaminoComprado = state.pergamino.reduce((s, p) => s + Number(p.kilosPergamino || 0), 0);
-  const pergaminoTotal = pergaminoDeCosechas + pergaminoDeCerezaComprada + pergaminoComprado;
-  const proy = proyectarDesdePergamino(pergaminoTotal);
+  const pergaminoPendiente = state.inventarioPergamino.reduce((s, p) => s + Number(p.kilos || 0), 0);
+  const verdePendiente = state.inventarioVerde.reduce((s, v) => s + Number(v.kilos || 0), 0);
+  const r = rendimientosReales();
+  const proyDesdePergamino = proyectarDesdePergamino(pergaminoPendiente);
+  const tostadoDesdeVerde = verdePendiente * (1 - r.mermaTueste.valor);
+  const verdeEsperado = verdePendiente + proyDesdePergamino.verde;
+  const librasEsperadas = tostadoDesdeVerde / KG_POR_LIBRA_VENTA + proyDesdePergamino.libras;
   const yaTostado = state.tuestes.reduce((s, t) => s + Number(t.kilosTostado || 0), 0);
   const pasillaTotal = state.cosechas.reduce((s, c) => s + (Number(c.kilosPasilla) || 0), 0);
 
   cont.innerHTML = `
     <div class="stat-grid">
-      <div class="stat"><div class="n">${pergaminoTotal.toFixed(1)} kg</div><div class="l">Pergamino acumulado (finca + comprado)</div></div>
-      <div class="stat"><div class="n">${proy.verde.toFixed(1)} kg</div><div class="l">Verde esperado al trillar</div></div>
-      <div class="stat"><div class="n pos">${Math.round(proy.libras)}</div><div class="l">Libras de 500 g esperadas</div></div>
+      <div class="stat"><div class="n">${pergaminoPendiente.toFixed(1)} kg</div><div class="l">Pergamino pendiente por trillar</div></div>
+      <div class="stat"><div class="n">${verdeEsperado.toFixed(1)} kg</div><div class="l">Verde disponible + esperado al trillar</div></div>
+      <div class="stat"><div class="n pos">${Math.round(librasEsperadas)}</div><div class="l">Libras de 500 g esperadas</div></div>
       <div class="stat"><div class="n">${yaTostado.toFixed(1)} kg</div><div class="l">Ya tostado a la fecha</div></div>
     </div>
-    ${pasillaTotal > 0 ? `<p style="font-size:13px;color:var(--cafe-soft);margin:10px 0 0">🫘 ${pasillaTotal.toFixed(1)} kg de pasilla acumulada en pergamino — se tuesta y se vende aparte (lote "Pasilla" en Tueste y Ventas).</p>` : ''}
+    <p style="font-size:12px;color:var(--cafe-soft);margin:8px 0 0">Los dos primeros stats combinan lo que ya está listo (real) con una proyección de lo que falta por trillar, según tu rendimiento aprendido abajo — coinciden con "Café verde disponible" más abajo.</p>
+    ${pasillaTotal > 0 ? `<p style="font-size:13px;color:var(--cafe-soft);margin:6px 0 0">🫘 ${pasillaTotal.toFixed(1)} kg de pasilla acumulada en pergamino — se tuesta y se vende aparte (lote "Pasilla" en Tueste y Ventas).</p>` : ''}
 
     <h4 style="margin:16px 0 6px">🌤️ Clima — ${UBICACION_FINCA.nombre}</h4>
     <div id="clima-finca"><p class="empty">Cargando clima…</p></div>
@@ -4226,11 +4236,11 @@ function vistaCerezaComprada() {
             ${nPesajes > 1 ? `<div class="details" style="opacity:.75">Pesajes: ${c.pesajes.map(pj => fechaCorta(pj.fecha) + ' (' + Number(pj.kilos).toFixed(1) + ' kg)').join(' · ')}</div>` : ''}
           </div>
           <div class="acciones">
-            <button onclick="abrirPesajes(${c.id})" title="Ver y corregir pesajes">📏</button>
-            ${!pagado ? `<button onclick="abrirCompletarPagoCereza(${c.id})" title="Calcular y completar el pago">💰</button>` : ''}
-            <button onclick="abrirEdicionCerezaComprada(${c.id})" title="Editar">✎</button>
-            <button onclick="abrirPesarConjunto('cerezaComprada', ${c.id})" title="Anotar pergamino real">⚖️</button>
-            <button onclick="eliminarCerezaComprada(${c.id})" title="Eliminar">✕</button>
+            <button onclick="abrirPesajes(${c.id})" title="Ver y corregir pesajes">📏<span class="accion-texto">Pesajes</span></button>
+            ${!pagado ? `<button onclick="abrirCompletarPagoCereza(${c.id})" title="Calcular y completar el pago">💰<span class="accion-texto">Pagar</span></button>` : ''}
+            <button onclick="abrirEdicionCerezaComprada(${c.id})" title="Editar">✎<span class="accion-texto">Editar</span></button>
+            <button onclick="abrirPesarConjunto('cerezaComprada', ${c.id})" title="Anotar pergamino real">⚖️<span class="accion-texto">Pesar</span></button>
+            <button onclick="eliminarCerezaComprada(${c.id})" title="Eliminar">✕<span class="accion-texto">Eliminar</span></button>
           </div>
         </div>`;
       }, 'Todavía no hay compras de cereza.')}
@@ -4621,7 +4631,19 @@ function eliminarEntradaPergamino(tipo, id) {
 }
 
 function vistaPergamino() {
-  const entradas = entradasPergamino().sort((a, b) => b.fecha - a.fecha);
+  // Pendientes primero (todavía no se trilló nada de esa entrada), y
+  // ya trilladas después — así lo que de verdad hace falta atender
+  // queda arriba, en vez de mezclado con historial ya resuelto.
+  const entradas = entradasPergamino().sort((a, b) => {
+    const aTrillada = a.kilosVerdeReal > 0, bTrillada = b.kilosVerdeReal > 0;
+    if (aTrillada !== bTrillada) return aTrillada ? 1 : -1;
+    return b.fecha - a.fecha;
+  });
+  // Mismo total que la tarjeta "Pergamino disponible" de la pestaña
+  // Café verde (state.inventarioPergamino) — para que este número
+  // SIEMPRE coincida con ese, en vez de sumar el kilaje de cada entrada
+  // (que no baja al trillar, ver auditoría 2026-09-24).
+  const pergaminoDisponibleReal = state.inventarioPergamino.reduce((s, p) => s + Number(p.kilos || 0), 0);
   return `
     <div class="card">
       <h3 class="section-title" style="margin-top:0">Registrar compra de pergamino</h3>
@@ -4643,22 +4665,23 @@ function vistaPergamino() {
     </div>
 
     <h3 class="section-title">Pergamino disponible</h3>
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">De cosecha propia, cereza comprada y comprado directo — todo junto, listo para trillar (🌾).</p>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">De cosecha propia, cereza comprada y comprado directo — todo junto, listo para trillar (🌾). <b>${pergaminoDisponibleReal.toFixed(1)} kg pendientes por trillar</b> ahora mismo (lo ya trillado de la lista de abajo queda marcado ✅ y no cuenta acá).</p>
     <div class="ledger">
       ${paginar(entradas, 'pergamino', e => {
         const pr = proyectarDesdePergamino(e.kilos);
+        const yaTrillada = e.kilosVerdeReal > 0;
         return `
-        <div class="ledger-row">
+        <div class="ledger-row" style="${yaTrillada ? 'opacity:.6' : ''}">
           <div class="main">
-            <div class="title">${Number(e.kilos).toFixed(1)} kg <span class="badge-origen ${e.esComprado ? 'comprado' : 'casa'}" title="${e.esComprado ? 'Comprado a terceros' : 'De la finca propia'}">${e.esComprado ? '🚚' : '🏠'}</span> · ${escapeHtml(e.origenLabel)}</div>
+            <div class="title">${Number(e.kilos).toFixed(1)} kg <span class="badge-origen ${e.esComprado ? 'comprado' : 'casa'}" title="${e.esComprado ? 'Comprado a terceros' : 'De la finca propia'}">${e.esComprado ? '🚚' : '🏠'}</span> · ${escapeHtml(e.origenLabel)}${yaTrillada ? ' <span class="badge-web" style="background:var(--verde-bg);color:var(--verde)">✅ Ya trillado</span>' : ''}</div>
             <div class="meta">${fechaCorta(e.fecha)} · ${escapeHtml(e.proceso)}${e.costo ? ' · ' + fmt(e.costo) : ''}</div>
-            <div class="details">${e.kilosVerdeReal > 0
+            <div class="details">${yaTrillada
               ? `Verde real tras trillar: <b>${Number(e.kilosVerdeReal).toFixed(1)} kg</b>`
               : `≈ ${pr.verde.toFixed(1)} kg verde → ${Math.round(pr.libras)} libras tostadas`}</div>
           </div>
           <div class="acciones">
-            <button onclick="abrirTrilla('${e.tipo}', ${e.id})" title="Anotar verde tras trillar">🌾</button>
-            <button onclick="eliminarEntradaPergamino('${e.tipo}', ${e.id})" title="Eliminar">✕</button>
+            <button onclick="abrirTrilla('${e.tipo}', ${e.id})" title="Anotar verde tras trillar">🌾<span class="accion-texto">Trillar</span></button>
+            <button onclick="eliminarEntradaPergamino('${e.tipo}', ${e.id})" title="Eliminar">✕<span class="accion-texto">Eliminar</span></button>
           </div>
         </div>`;
       }, 'Todavía no hay pergamino disponible — pesa una cosecha (⚖️) o compra pergamino arriba.')}
@@ -5218,10 +5241,15 @@ function renderResumen() {
       <div class="stat"><div class="n">${librasVendidas.toFixed(1)}</div><div class="l">Libras de café vendidas este mes (todas las presentaciones)</div></div>
     </div>
 
-    <h3 class="section-title">Precio de referencia del café (Federación)</h3>
-    ${bloquePrecioFnc()}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
+      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-comportamiento').scrollIntoView({behavior:'smooth'})">↓ Comportamiento</button>
+      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-margen').scrollIntoView({behavior:'smooth'})">↓ Margen por lote</button>
+      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-clientes').scrollIntoView({behavior:'smooth'})">↓ Mejores clientes</button>
+      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-balance').scrollIntoView({behavior:'smooth'})">↓ Balance de cuentas</button>
+      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-detalle').scrollIntoView({behavior:'smooth'})">↓ Detalle del mes</button>
+    </div>
 
-    <h3 class="section-title">Comportamiento en el tiempo</h3>
+    <h3 class="section-title" id="res-comportamiento" style="margin-top:0">Comportamiento en el tiempo</h3>
     <div class="rangos">
       ${[[1,'1 mes'],[3,'3 meses'],[6,'6 meses'],[12,'1 año']].map(([n,l]) =>
         `<button class="${rangoMeses===n?'active':''}" onclick="cambiarRango(${n})">${l}</button>`).join('')}
@@ -5238,6 +5266,12 @@ function renderResumen() {
       <h4>Ventas por lote de café</h4>
       <div class="chart-box"><canvas id="chartLotes"></canvas></div>
     </div>
+
+    <h3 class="section-title">Precio de referencia del café (Federación)</h3>
+    ${bloquePrecioFnc()}
+
+    <h3 class="section-title">Rendimiento de producción, mes a mes</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Qué tan bien viene rindiendo la cosecha (no es plata, es % cereza→pergamino/pergamino→verde) — aparte de las gráficas de arriba porque es un dato de producción, no financiero.</p>
     <div class="chart-card">
       <h4>Rendimiento de cosecha, mes a mes</h4>
       <div class="chart-box"><canvas id="chartRendimiento"></canvas></div>
@@ -5256,7 +5290,7 @@ function renderResumen() {
       ${comparacionAnual().length < 2 ? '<p style="font-size:12px;color:var(--cafe-soft);margin:8px 0 0">Con un solo año todavía no hay con qué comparar — esto se va a poner más útil a medida que pase el tiempo.</p>' : ''}
     </div>
 
-    <h3 class="section-title">Margen estimado por lote</h3>
+    <h3 class="section-title" id="res-margen">Margen estimado por lote</h3>
     <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Todo el histórico, no solo este mes. Ingreso: lo vendido de cada lote. Costo: café comprado a terceros + tu propia cosecha valorada como si la hubieras comprado (precio promedio de la Federación) + una parte de los gastos de finca (según kilos cosechados) + tostión + bolsa — es un <b>estimado</b>. Ajusta el costo de tostión/bolsa en Configuración → Precios.</p>
     <div class="tabla-clientes">
       <div class="fila-cliente encabezado"><span>Lote</span><span>Ingreso</span><span>Costo est.</span><span>Margen</span></div>
@@ -5269,7 +5303,7 @@ function renderResumen() {
         </div>`).join('') || '<div class="empty">Sin datos suficientes todavía.</div>'}
     </div>
 
-    <h3 class="section-title">Mejores clientes</h3>
+    <h3 class="section-title" id="res-clientes">Mejores clientes</h3>
     <div class="rangos">
       ${[['semana','Semanal'],['mes','Mensual'],['ano','Anual']].map(([k,l]) =>
         `<button class="${periodoClientes===k?'active':''}" onclick="cambiarPeriodoClientes('${k}')">${l}</button>`).join('')}
@@ -5289,11 +5323,11 @@ function renderResumen() {
         </div>`).join('') || '<div class="empty">Ningún cliente frecuente lleva tanto tiempo sin comprar. 🎉</div>'}
     </div>
 
-    <h3 class="section-title">Balance de cuentas</h3>
+    <h3 class="section-title" id="res-balance">Balance de cuentas</h3>
     <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Lo que cada uno ha recibido (ventas + maquila ya pagadas) menos lo que ha pagado (gastos, finca, café comprado) — todo el tiempo, no solo este mes. Positivo: tiene plata del negocio en la mano. Negativo: el negocio le debe.</p>
     <div id="bloqueBalance"></div>
 
-    <h3 class="section-title">Detalle de ${mes}</h3>
+    <h3 class="section-title" id="res-detalle">Detalle de ${mes}</h3>
     <div class="subtabs">
       <button class="${resumenSubTab==='pagadas'?'active':''}" onclick="cambiarResumenSubTab('pagadas')">Pagadas (${pagadas.length})</button>
       <button class="${resumenSubTab==='pendientes'?'active':''}" onclick="cambiarResumenSubTab('pendientes')">Por pagar (${pendientes.length})</button>
