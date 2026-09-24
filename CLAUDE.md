@@ -2330,20 +2330,69 @@ correo de la cuenta compartida de siempre para todo el mundo (degrada
 con gracia, no rompe nada) — se vuelve realmente útil apenas Juan cree
 las cuentas individuales.
 
+## `sincronizar()` ya no corta todo si un endpoint falla (2026-09-24)
+
+**Incidente real**: al sumar `creadoPor:creado_por` al `SELECT` de 9
+endpoints a la vez (ver "Atribución real por sesión" arriba) sin haber
+corrido todavía `migracion_atribucion_usuarios.sql`, Juan reportó que la
+app "dejó de funcionar" — no exageraba: literal, TODA la app quedó sin
+datos frescos, no solo las 9 pantallas nuevas. Causa de fondo (no la de
+esta vez puntual, sino la que ya venía de antes, documentada como
+limitación conocida en el gotcha del `requireAuth()` de 2026-09-21):
+`sincronizar()` pedía los 21 endpoints en paralelo con `Promise.all()`,
+y si UNO SOLO devolvía `!r.ok`, la función cortaba ahí mismo — ningún
+`state.x` se actualizaba, así que las otras 12 pantallas que sí habían
+contestado bien igual se quedaban con datos viejos (o vacíos, si era la
+primera carga) y un error genérico arriba. Antes esto se había sentido
+como un problema aislado cada vez (un endpoint nuevo, recién agregado,
+sin su migración) — esta vez, como el mismo cambio tocó 9 endpoints
+EXISTENTES y muy usados a la vez, el impacto fue mucho más grande y
+evidente: se sintió como que la app entera se rompió.
+
+**Arreglo real, no un parche para esta vez**: `sincronizar()` ahora
+resuelve cada endpoint por separado (`CLAVES_SINCRONIZAR`, mismo orden
+que el array `endpoints`) — si uno falla, se guarda en una lista de
+`fallos` y se sigue con los demás; los que sí contestaron bien
+actualizan su parte de `state` y su caché local normalmente. Al final,
+`renderTodo()` se llama SIEMPRE (con lo que sí llegó fresco + lo viejo
+en caché para lo que falló) y el indicador de sincronización muestra
+cuál endpoint falló y por qué (`Error en /api/gastos (500): column
+"creado_por" does not exist`, con botón "Reintentar"), pero **ya no
+bloquea el resto de la app** — el usuario puede seguir vendiendo,
+registrando gastos, etc. con datos frescos mientras se corrige la
+migración que falta. Si fallan varios a la vez, se muestra el primero
++ un contador ("+2 más — revisa Configuración", el panel de salud del
+esquema ya lista todos).
+
+**Lo que SÍ se quedó igual, a propósito**: un 401 (sesión vencida) y un
+fallo del `fetch()` en sí (sin red de verdad) siguen cortando TODO de
+una — no tiene sentido intentar sincronizar endpoint por endpoint si la
+sesión ya no sirve o si no hay conexión, los 21 van a fallar por la
+misma razón.
+
+Probado en el preview simulando un 500 solo en `/api/gastos`
+(interceptando `window.fetch` temporalmente): `state.ventas` se
+actualizó normal, `state.gastos` se quedó con el valor anterior sin
+borrarse, el indicador mostró el error específico de gastos con
+"Reintentar", y Ventas siguió renderizando sin ningún problema — sin
+tocar el camino feliz (sincronizar sin fallos sigue mostrando
+"Sincronizado" exactamente igual que antes).
+
 ## Pendiente / a medias
 
-- **⚠️ Atribución de usuarios — falta correr la migración, y esta vez el
-  riesgo es más grande que de costumbre**: el código ya está (ver
-  sección "Atribución real por sesión" arriba), pero a diferencia de
-  migraciones anteriores (que afectaban 1-2 endpoints), esta vez el
-  `SELECT` de los 9 endpoints (ventas, maquila, gastos, finca, cosechas,
-  cereza comprada, pergamino, tuestes, cuentas de cobro) ya incluye
-  `creadoPor:creado_por` — mientras no se corra
-  `migracion_atribucion_usuarios.sql` en Supabase, **`sincronizar()` va
-  a fallar en los 9 a la vez** (columna inexistente), no solo en uno.
-  El panel de ⚠️ migraciones pendientes en Configuración ya lo detecta
-  (2 entradas nuevas en `CHEQUEOS`), pero corre esta migración cuanto
-  antes — es la de mayor impacto si se olvida.
+- **⚠️ Atribución de usuarios — falta correr la migración**: el código
+  ya está (ver sección "Atribución real por sesión" arriba), pero a
+  diferencia de migraciones anteriores (que afectaban 1-2 endpoints),
+  esta vez el `SELECT` de 9 endpoints (ventas, maquila, gastos, finca,
+  cosechas, cereza comprada, pergamino, tuestes, cuentas de cobro) ya
+  incluye `creadoPor:creado_por` — mientras no se corra
+  `migracion_atribucion_usuarios.sql` en Supabase, esos 9 van a fallar
+  (columna inexistente) hasta que se corra. Esto YA NO tumba el resto de
+  la app (ver "`sincronizar()` ya no corta todo si un endpoint falla" —
+  se corrigió justo por este incidente real, 2026-09-24), pero esas 9
+  pantallas igual se quedan con datos viejos hasta correrla — el panel
+  de ⚠️ migraciones pendientes en Configuración ya lo detecta (2
+  entradas nuevas en `CHEQUEOS`).
 - **Cuentas individuales — falta que Juan las cree en Supabase**: aunque
   se corra la migración de arriba, `creado_por` va a seguir mostrando el
   correo de la cuenta compartida para todo el mundo hasta que Juan cree
@@ -2456,6 +2505,10 @@ las cuentas individuales.
   CallMeBot, lo que sea) que pueda fallar de forma inesperada necesita su
   propio `try/catch` — un solo endpoint roto sin protección puede tumbar
   áreas de la app que no tienen nada que ver.
+  **⚠️ Actualización 2026-09-24**: el "un solo endpoint atascado bloquea
+  los otros 15" de arriba ya NO es cierto — ver "sincronizar() ya no
+  corta todo si un endpoint falla" más abajo, donde se corrigió esa
+  causa de fondo (no solo este síntoma puntual del reloj desfasado).
 
 - La tabla `.tabla-clientes` se reutiliza en varios lados (Mejores
   clientes, Balance por persona, Por modalidad/cuenta) con un único

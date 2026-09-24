@@ -1405,6 +1405,10 @@ function guardarCacheLocal(k) {
   try { localStorage.setItem(CACHE_KEYS[k], JSON.stringify(state[k])); } catch {}
 }
 
+// Mismo orden que `endpoints` de abajo — cada posición es a qué clave de
+// `state` (y de CACHE_KEYS, si aplica) corresponde esa URL.
+const CLAVES_SINCRONIZAR = ['ventas', 'gastos', 'clientes', 'inventario', 'maquila', 'finca', 'preciosCafe', 'cosechas', 'pergamino', 'tuestes', 'ordenesMaquila', 'pedidosWeb', 'cuentasCobro', 'cerezaComprada', 'saldosIniciales', 'precioFnc', 'costosMargen', 'saludEsquema', 'inventarioPergamino', 'inventarioVerde', 'movimientosInventario'];
+
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
@@ -1421,35 +1425,47 @@ async function sincronizar() {
   }
 
   // Un 401 (sesión vencida) no es "sin conexión" — el servidor sí
-  // respondió, solo que el token ya no sirve.
+  // respondió, solo que el token ya no sirve. Esto SÍ corta todo, porque
+  // si la sesión venció, los 21 endpoints van a fallar igual.
   if (respuestas.some(r => r.status === 401)) {
     ind.innerHTML = '<span class="sync-dot"></span> Tu sesión expiró <button class="sync-retry" onclick="sesionExpirada()">Iniciar sesión de nuevo</button>';
     return;
   }
 
-  // Cualquier otro error del servidor (ej. falta correr una migración y
-  // una columna no existe) — se muestra CUÁL endpoint falló y el mensaje
-  // real, en vez de un "sin conexión" genérico que no dice nada.
-  const falloIdx = respuestas.findIndex(r => !r.ok);
-  if (falloIdx !== -1) {
-    const detalle = await respuestas[falloIdx].text().catch(() => '');
-    ind.innerHTML = `<span class="sync-dot"></span> Error en ${endpoints[falloIdx]} (${respuestas[falloIdx].status}): ${escapeHtml(detalle).slice(0, 140)} <button class="sync-retry" onclick="sincronizar()">Reintentar</button>`;
-    return;
-  }
+  // Cualquier otro fallo (ej. falta correr una migración y una columna no
+  // existe) se aplica SOLO a ese endpoint — los demás igual actualizan su
+  // parte de `state` con datos frescos. Antes, un solo endpoint atascado
+  // (ej. la migración de creado_por sin correr) tumbaba TODA la
+  // sincronización — ninguna pestaña se actualizaba, aunque 20 de 21
+  // endpoints sí hubieran contestado bien. Real: Juan reportó "dejó de
+  // funcionar" después de sumar `creado_por` al SELECT de 9 endpoints a
+  // la vez sin haber corrido todavía la migración (2026-09-24) — ese es
+  // justo el caso que esto corrige de raíz, no solo para esta vez sino
+  // para cualquier migración futura que se olvide correr.
+  const fallos = [];
+  await Promise.all(respuestas.map(async (r, idx) => {
+    const clave = CLAVES_SINCRONIZAR[idx];
+    if (!r.ok) {
+      const detalle = await r.text().catch(() => '');
+      fallos.push({ endpoint: endpoints[idx], status: r.status, detalle });
+      return;
+    }
+    try {
+      state[clave] = await r.json();
+      if (CACHE_KEYS[clave]) guardarCacheLocal(clave);
+    } catch (err) {
+      fallos.push({ endpoint: endpoints[idx], status: r.status, detalle: 'respuesta inesperada del servidor' });
+    }
+  }));
 
-  try {
-    const [v, g, c, i, m, f, pc, co, pe, tu, om, pw, cc, cz, si, pf, cm, se, ip, iv, mi] = await Promise.all(respuestas.map(r => r.json()));
-    state.ventas = v; state.gastos = g; state.clientes = c;
-    state.inventario = i; state.maquila = m; state.finca = f; state.preciosCafe = pc;
-    state.cosechas = co; state.pergamino = pe; state.tuestes = tu; state.ordenesMaquila = om; state.pedidosWeb = pw;
-    state.cuentasCobro = cc; state.cerezaComprada = cz; state.saldosIniciales = si; state.precioFnc = pf; state.costosMargen = cm;
-    state.saludEsquema = se;
-    state.inventarioPergamino = ip; state.inventarioVerde = iv; state.movimientosInventario = mi;
-    Object.keys(CACHE_KEYS).forEach(guardarCacheLocal);
+  renderTodo();
+
+  if (fallos.length) {
+    const primero = fallos[0];
+    const resto = fallos.length > 1 ? ` (+${fallos.length - 1} más — revisa Configuración)` : '';
+    ind.innerHTML = `<span class="sync-dot"></span> Error en ${primero.endpoint} (${primero.status}): ${escapeHtml(primero.detalle).slice(0, 120)}${resto} <button class="sync-retry" onclick="sincronizar()">Reintentar</button>`;
+  } else {
     ind.innerHTML = '<span class="sync-dot"></span> Sincronizado';
-    renderTodo();
-  } catch (err) {
-    ind.innerHTML = '<span class="sync-dot"></span> Respuesta inesperada del servidor <button class="sync-retry" onclick="sincronizar()">Reintentar</button>';
   }
 }
 // Cierra la sesión vieja (ya inválida en el servidor) y recarga directo a
