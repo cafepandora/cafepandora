@@ -269,22 +269,22 @@
     font-family: 'Outfit', sans-serif; font-size: 15px; background: var(--blanco); cursor: pointer;
   }
 
-  /* flex-wrap + botones del ancho de su propio texto (2026-09-24) — antes
-     era flex:1 sin wrap, cada botón forzado al mismo ancho repartiendo la
-     fila: con 3-4 pestañas cortas se veía bien, pero al sumar una 5ª
-     pestaña ("Café verde", en Cosecha & Tueste) con textos largos al
-     lado ("Cereza comprada (1)"), flexbox no dejaba encoger los botones
-     más allá del ancho mínimo de su texto (mismo gotcha de flexbox ya
-     documentado para .ledger-row, min-width:auto por defecto) y el
-     último botón quedaba fuera de la pantalla en celular, imposible de
-     tocar. Con wrap, cuando no caben todos en una fila simplemente bajan
-     a la siguiente — y de paso quedan como pills en vez de rectángulos
-     estirados, más parejo con el resto del rediseño. */
-  .subtabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  /* Vuelve al look de rectángulos parejos de siempre (2026-09-24, Juan
+     lo prefería — la versión en pills se sentía "menos visual, más
+     perdida") pero CONSERVA flex-wrap: el bug real era que, sin wrap,
+     con 5 pestañas y textos largos ("Cereza comprada (1)") al lado de
+     uno corto ("Café verde"), flexbox no dejaba encoger los botones más
+     allá del ancho mínimo de su texto (min-width:auto por defecto en un
+     flex item, mismo gotcha ya documentado para .ledger-row) y el
+     último quedaba fuera de la pantalla en celular. Con flex-wrap
+     puesto, mientras quepan en una fila se siguen repartiendo parejo
+     (flex:1 sigue estirando los de cada línea) — solo cuando de verdad
+     no caben bajan a una segunda fila, en vez de desbordar. */
+  .subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .subtabs button {
-    flex: 0 1 auto; background: var(--crema-alt); border: 1px solid var(--linea); color: var(--cafe-soft);
-    font-family: 'Outfit', sans-serif; font-size: 13.5px; font-weight: 700; padding: 10px 16px;
-    border-radius: 20px; cursor: pointer; white-space: nowrap;
+    flex: 1; background: var(--crema-alt); border: 1px solid var(--linea); color: var(--cafe-soft);
+    font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700; padding: 12px 6px;
+    border-radius: 8px; cursor: pointer;
   }
   .subtabs button.active { background: var(--cafe); color: #fff; border-color: var(--cafe); }
 
