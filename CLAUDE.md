@@ -2243,7 +2243,31 @@ si conoce la clave. No se tocó nada de esto — cambiar a cuentas
 individuales es una decisión real de Juan (implica login individual,
 recuperación de contraseña, posiblemente permisos por rol) y no algo
 para decidir en silencio dentro de un pase de "mejoras de claridad".
-Queda anotado acá para cuando Juan quiera esa conversación.
+Juan preguntó cómo se podría mejorar esto — se le presentaron 2 niveles
+posibles y, por ahora, prefirió solo entender las opciones sin
+implementar nada todavía. Quedan anotadas acá para cuando las quiera
+retomar:
+
+- **Nivel 1 — Atribución real, sin restringir nada**: cada persona
+  entra con su PROPIA cuenta de Supabase Auth (mismo formulario de
+  login de siempre — nada nuevo que construir ahí), en vez de la clave
+  compartida de hoy. Juan crea cada cuenta desde el panel de Supabase
+  (unos minutos por persona, sin código). En la app: una columna nueva
+  tipo `creado_por`/`editado_por` en cada tabla (migración nueva) + un
+  cambio chico en cada endpoint de escritura para guardar
+  `context.user.id`/email de la sesión real (que `requireAuth()` YA
+  valida, solo no se usa todavía para nada más que autenticar) en vez
+  de confiar en lo que la persona escriba a mano en "quién pagó"/"quién
+  recibió" (esos dos campos se QUEDAN igual — son sobre de qué CUENTA
+  BANCARIA sale/entra la plata, no sobre quién usó la app; los dos
+  conceptos coexisten sin pisarse). Nadie pierde acceso a nada — es
+  pura trazabilidad, cero riesgo de bloquear a alguien sin querer.
+- **Nivel 2 — Restricciones de verdad, sobre la base del Nivel 1**:
+  decidir qué pantallas/acciones solo pueden tocar ciertas personas
+  (ej. ¿quién entra a Configuración? ¿quién puede eliminar un
+  registro?) — necesita que Juan defina esas reglas primero (no es algo
+  para inventar), y un campo `rol` nuevo + lógica de permisos en cada
+  pantalla sensible.
 
 ## Pendiente / a medias
 
