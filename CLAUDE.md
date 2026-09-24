@@ -1839,6 +1839,32 @@ que ya tenías" ganó un campo "De quién" (opcional, texto libre — ej.
 "cosecha 2025", "compra a Don Leo") que viaja como `referencia` en su
 movimiento.
 
+## `.subtabs` — flex-wrap, y por qué (2026-09-24)
+
+Sumar la 5ª pestaña "Café verde" a Cosecha & Tueste (ver sección de
+arriba) rompió el layout en celular: `.subtabs button` era `flex: 1`
+SIN `flex-wrap` en el contenedor — con 3-4 pestañas de texto corto
+repartía la fila pareja sin problema, pero con 5 pestañas y textos
+largos ("Cereza comprada (1)") al lado de uno corto ("Café verde"),
+flexbox no dejaba encoger los botones más allá del ancho mínimo de su
+propio texto (`min-width: auto` por defecto en un flex item — mismo
+tipo de gotcha ya documentado para `.ledger-row`, esta vez en
+`.subtabs`) y el último botón ("Tueste") quedaba literalmente fuera de
+la pantalla en celular — imposible de tocar, sin ningún error visible
+(porque `overflow-x: hidden` en `html`/`body`, agregado antes por otro
+motivo, lo recorta en vez de mostrar una barra de scroll que hubiera
+delatado el problema).
+
+Arreglo: `.subtabs { flex-wrap: wrap }` + botones `flex: 0 1 auto` (se
+ajustan a su propio texto, en vez de estirarse parejo) + `border-radius:
+20px` (quedan como pills, no rectángulos) — cuando no caben todos en una
+fila, bajan a la siguiente en vez de desbordar. Es un cambio en la clase
+COMPARTIDA por las 4 pantallas que usan `.subtabs` (Ventas, Cosecha &
+Tueste, Resumen, Configuración) — a propósito: el bug de fondo
+(`min-width:auto` sin wrap) podía repetirse en cualquiera de ellas si
+algún día suman una pestaña más, y las pills se ven mejor en las cuatro,
+no solo en la nueva.
+
 ## Pendiente / a medias
 
 - **Inventario de café verde/pergamino — falta correr la migración**: el
