@@ -1,6 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
-import { aplicarTrilla, revertirTrilla, registrarMovimiento } from '../../_lib/verde.js';
+import { aplicarTrilla, revertirTrilla, registrarMovimiento, ajustarStockPergamino } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, kilosCereza:kilos_cereza, proceso, kilosPergaminoReal:kilos_pergamino_real, kilosVerdeReal:kilos_verde_real, kilosPasilla:kilos_pasilla, verdeGrados:verde_grados, notas, usuario, ts, fermentacionInicio:fermentacion_inicio, fermentacionFin:fermentacion_fin, fermentacionAlertado:fermentacion_alertado';
 
@@ -36,35 +36,39 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
     updates.fermentacion_alertado = false;
   }
 
-  // Pesar pergamino real (⚖️) — suma (o corrige) el inventario de
-  // pergamino disponible por la diferencia con lo que ya tenía.
-  if (body.kilosPergaminoReal !== undefined) {
-    const antes = Number(actual.kilosPergaminoReal) || 0;
-    const ahora = body.kilosPergaminoReal == null ? 0 : Math.max(0, Number(body.kilosPergaminoReal) || 0);
-    const delta = ahora - antes;
-    if (delta !== 0 && actual.proceso) {
-      await supabase.rpc('ajustar_stock_pergamino', { p_lote: actual.proceso, p_delta: delta });
-      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: delta, origen: 'Cosecha propia', fecha: actual.fecha });
+  try {
+    // Pesar pergamino real (⚖️) — suma (o corrige) el inventario de
+    // pergamino disponible por la diferencia con lo que ya tenía.
+    if (body.kilosPergaminoReal !== undefined) {
+      const antes = Number(actual.kilosPergaminoReal) || 0;
+      const ahora = body.kilosPergaminoReal == null ? 0 : Math.max(0, Number(body.kilosPergaminoReal) || 0);
+      const delta = ahora - antes;
+      if (delta !== 0 && actual.proceso) {
+        await ajustarStockPergamino(supabase, actual.proceso, delta);
+        await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: delta, origen: 'Cosecha propia', fecha: actual.fecha });
+      }
     }
-  }
 
-  // Trillar (🌾) — body.verdeGrados = { 'Malla 18': kg, ... }. Si ya
-  // había un desglose de una trilla anterior, se revierte primero (para
-  // que corregirlo no duplique lo sumado).
-  if (body.verdeGrados !== undefined) {
-    const lote = (body.proceso as string) ?? actual.proceso;
-    if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cosecha propia');
-    if (body.verdeGrados) {
-      await aplicarTrilla(supabase, lote, body.verdeGrados, 'Cosecha propia');
-      updates.kilos_verde_real = Object.values(body.verdeGrados as Record<string, number>).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
-    } else {
-      updates.kilos_verde_real = null;
+    // Trillar (🌾) — body.verdeGrados = { 'Malla 18': kg, ... }. Si ya
+    // había un desglose de una trilla anterior, se revierte primero (para
+    // que corregirlo no duplique lo sumado).
+    if (body.verdeGrados !== undefined) {
+      const lote = (body.proceso as string) ?? actual.proceso;
+      if (actual.verdeGrados) await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cosecha propia');
+      if (body.verdeGrados) {
+        await aplicarTrilla(supabase, lote, body.verdeGrados, 'Cosecha propia');
+        updates.kilos_verde_real = Object.values(body.verdeGrados as Record<string, number>).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
+      } else {
+        updates.kilos_verde_real = null;
+      }
+      updates.verde_grados = body.verdeGrados;
+    } else if (body.kilosVerdeReal !== undefined) {
+      // Corrección manual del total sin desglose (dato viejo, o ajuste a
+      // mano) — no toca el inventario de verde, solo el número informativo.
+      updates.kilos_verde_real = body.kilosVerdeReal === null ? null : Math.max(0, Number(body.kilosVerdeReal) || 0);
     }
-    updates.verde_grados = body.verdeGrados;
-  } else if (body.kilosVerdeReal !== undefined) {
-    // Corrección manual del total sin desglose (dato viejo, o ajuste a
-    // mano) — no toca el inventario de verde, solo el número informativo.
-    updates.kilos_verde_real = body.kilosVerdeReal === null ? null : Math.max(0, Number(body.kilosVerdeReal) || 0);
+  } catch (err: any) {
+    return new Response(err.message || 'No se pudo ajustar el inventario', { status: 500 });
   }
 
   if (!Object.keys(updates).length) return new Response('Sin cambios', { status: 400 });
@@ -90,13 +94,19 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     // Las dos cosas son independientes: revertir la trilla (si la hubo)
     // deja el pergamino como estaba justo DESPUÉS de pesarlo — hace
     // falta además restar ESE pergamino, porque el registro entero
-    // desaparece, no solo su trilla.
-    if (actual.verdeGrados) {
-      await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cosecha propia (registro eliminado)');
-    }
-    if (Number(actual.kilosPergaminoReal) > 0) {
-      await supabase.rpc('ajustar_stock_pergamino', { p_lote: actual.proceso, p_delta: -Number(actual.kilosPergaminoReal) });
-      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: -Number(actual.kilosPergaminoReal), origen: 'Cosecha propia (registro eliminado)' });
+    // desaparece, no solo su trilla. El registro ya se borró arriba, así
+    // que si esto falla ya no hay vuelta atrás — se reporta igual (500)
+    // para que se note y se pueda corregir el inventario a mano.
+    try {
+      if (actual.verdeGrados) {
+        await revertirTrilla(supabase, actual.proceso, actual.verdeGrados as Record<string, number>, 'Cosecha propia (registro eliminado)');
+      }
+      if (Number(actual.kilosPergaminoReal) > 0) {
+        await ajustarStockPergamino(supabase, actual.proceso, -Number(actual.kilosPergaminoReal));
+        await registrarMovimiento(supabase, { etapa: 'pergamino', lote: actual.proceso, kilos: -Number(actual.kilosPergaminoReal), origen: 'Cosecha propia (registro eliminado)' });
+      }
+    } catch (err: any) {
+      return new Response('Se eliminó la cosecha, pero no se pudo corregir el inventario: ' + (err.message || ''), { status: 500 });
     }
   }
 

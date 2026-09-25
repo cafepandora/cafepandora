@@ -38,6 +38,11 @@ export function itemsCafeParaInventario(venta: any): ItemCafe[] {
 // Suma (signo=1) o resta (signo=-1) el stock de cada lote involucrado, en
 // una sola operación atómica por lote (vía la función SQL
 // ajustar_stock_inventario), para que dos ventas simultáneas nunca se pisen.
+// TIRA si Supabase devuelve error — antes esto no se revisaba (mismo
+// hueco encontrado y corregido en functions/_lib/verde.ts para
+// pergamino/verde, 2026-09-25): una llamada fallida se veía como
+// "la venta se registró bien" aunque el inventario nunca se hubiera
+// movido.
 export async function ajustarInventarioPorLote(supabase: any, itemsCafe: ItemCafe[], signo: 1 | -1) {
   const kgPorLote: Record<string, number> = {};
   for (const it of itemsCafe) {
@@ -46,7 +51,8 @@ export async function ajustarInventarioPorLote(supabase: any, itemsCafe: ItemCaf
   }
   for (const [lote, kg] of Object.entries(kgPorLote)) {
     if (kg > 0) {
-      await supabase.rpc('ajustar_stock_inventario', { p_lote: lote, p_delta: signo * kg });
+      const { error } = await supabase.rpc('ajustar_stock_inventario', { p_lote: lote, p_delta: signo * kg });
+      if (error) throw new Error(`ajustar_stock_inventario falló para ${lote}: ${error.message}`);
     }
   }
 }

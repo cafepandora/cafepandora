@@ -1,6 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
-import { registrarMovimiento } from '../../_lib/verde.js';
+import { registrarMovimiento, ajustarStockPergamino } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, proveedor, kilosPergamino:kilos_pergamino, proceso, costo, kilosVerdeReal:kilos_verde_real, notas, usuario, ts, creadoPor:creado_por';
 
@@ -38,8 +38,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   // propia / cereza comprada, acá no hay un paso de "pesar" aparte, así
   // que suma al inventario de pergamino disponible desde ya.
   if (kilosPergamino > 0 && body.proceso) {
-    await supabase.rpc('ajustar_stock_pergamino', { p_lote: body.proceso, p_delta: kilosPergamino });
-    await registrarMovimiento(supabase, { etapa: 'pergamino', lote: body.proceso, kilos: kilosPergamino, origen: 'Pergamino comprado', referencia: body.proveedor, fecha: body.fecha });
+    try {
+      await ajustarStockPergamino(supabase, body.proceso, kilosPergamino);
+      await registrarMovimiento(supabase, { etapa: 'pergamino', lote: body.proceso, kilos: kilosPergamino, origen: 'Pergamino comprado', referencia: body.proveedor, fecha: body.fecha });
+    } catch (err: any) {
+      return new Response('Se guardó la compra, pero no se pudo sumar al inventario de pergamino: ' + (err.message || ''), { status: 500 });
+    }
   }
 
   return Response.json(data, { status: 201 });

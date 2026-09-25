@@ -21,6 +21,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const verdeGrados: Record<string, number> = body.verdeGrados || {};
   if (!lote || !Object.keys(verdeGrados).length) return new Response('Falta el lote o el desglose de verde', { status: 400 });
 
-  await aplicarTrilla(supabase, lote, verdeGrados, 'Pergamino existente', body.nota || null);
+  try {
+    await aplicarTrilla(supabase, lote, verdeGrados, 'Pergamino existente', body.nota || null);
+  } catch (err: any) {
+    return new Response(err.message || 'No se pudo trillar', { status: 500 });
+  }
   return Response.json({ ok: true }, { status: 201 });
 };

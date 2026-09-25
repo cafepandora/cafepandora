@@ -54,13 +54,17 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   if (body.cliente !== undefined) await registrarCliente(supabase, row.cliente, row.tipoCliente);
 
-  const nuevosItems = Array.isArray(body.nuevosItems) ? body.nuevosItems : [];
-  if (nuevosItems.length) {
-    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: nuevosItems }), -1);
-  }
-  const itemsRemovidos = Array.isArray(body.itemsRemovidos) ? body.itemsRemovidos : [];
-  if (itemsRemovidos.length) {
-    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: itemsRemovidos }), 1);
+  try {
+    const nuevosItems = Array.isArray(body.nuevosItems) ? body.nuevosItems : [];
+    if (nuevosItems.length) {
+      await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: nuevosItems }), -1);
+    }
+    const itemsRemovidos = Array.isArray(body.itemsRemovidos) ? body.itemsRemovidos : [];
+    if (itemsRemovidos.length) {
+      await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: itemsRemovidos }), 1);
+    }
+  } catch (err: any) {
+    return new Response('Se guardó la edición, pero no se pudo ajustar el inventario: ' + (err.message || ''), { status: 500 });
   }
 
   return Response.json(row);
@@ -80,7 +84,11 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   if (error) return new Response(error.message, { status: 500 });
 
   if (venta) {
-    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(venta), 1);
+    try {
+      await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(venta), 1);
+    } catch (err: any) {
+      return new Response('Se eliminó la venta, pero no se pudo devolver el inventario: ' + (err.message || ''), { status: 500 });
+    }
   }
 
   return new Response(null, { status: 204 });

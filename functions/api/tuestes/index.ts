@@ -1,6 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
-import { registrarMovimiento } from '../../_lib/verde.js';
+import { registrarMovimiento, ajustarStockVerde } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts, grado, creadoPor:creado_por';
 
@@ -47,7 +47,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (error) return new Response(error.message, { status: 500 });
 
   if (tieneSalida && kilosTostado! > 0 && body.lote) {
-    await supabase.rpc('ajustar_stock_inventario', { p_lote: body.lote, p_delta: kilosTostado });
+    const { error: errorInv } = await supabase.rpc('ajustar_stock_inventario', { p_lote: body.lote, p_delta: kilosTostado });
+    if (errorInv) return new Response('Se registró el tueste, pero no se pudo sumar al inventario tostado: ' + errorInv.message, { status: 500 });
   }
 
   // "Retirar para tostión" desde el inventario de café verde por malla —
@@ -55,8 +56,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   // lo que sale). Solo cuando el registro trae grado (viene del
   // inventario); un tueste anotado "a mano" sin grado no toca nada.
   if (body.grado && kilosVerde > 0 && body.lote) {
-    await supabase.rpc('ajustar_stock_verde', { p_lote: body.lote, p_grado: body.grado, p_delta: -kilosVerde });
-    await registrarMovimiento(supabase, { etapa: 'verde', lote: body.lote, grado: body.grado, kilos: -kilosVerde, origen: 'Retiro para tostión', fecha: body.fecha });
+    try {
+      await ajustarStockVerde(supabase, body.lote, body.grado, -kilosVerde);
+      await registrarMovimiento(supabase, { etapa: 'verde', lote: body.lote, grado: body.grado, kilos: -kilosVerde, origen: 'Retiro para tostión', fecha: body.fecha });
+    } catch (err: any) {
+      return new Response('Se registró el tueste, pero no se pudo descontar del inventario de verde: ' + (err.message || ''), { status: 500 });
+    }
   }
 
   return Response.json(data, { status: 201 });

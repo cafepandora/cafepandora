@@ -2393,6 +2393,95 @@ borrarse, el indicador mostró el error específico de gastos con
 tocar el camino feliz (sincronizar sin fallos sigue mostrando
 "Sincronizado" exactamente igual que antes).
 
+## Auditoría completa: pergamino/verde/tostado que "desaparecía" (2026-09-25)
+
+Juan reportó: agregó pergamino con "+ Agregar pergamino que ya tenías",
+le dio "🌾 Trillar pergamino disponible", y el café desapareció — no
+bajó de pergamino de forma útil NI llegó a "Café verde disponible", así
+que tampoco quedaba disponible para tostión. Pidió auditar TODA la
+cadena cosecha→pergamino→trilla→verde→tueste.
+
+**Causa raíz encontrada**: `ajustar_stock_pergamino`/`ajustar_stock_verde`
+(las funciones SQL que mueven kilos entre las tablas de inventario) hacían
+un `UPDATE ... WHERE lote = p_lote [AND grado = p_grado]` puro. Si esa
+fila no existía todavía en la tabla (por la razón que sea — un lote que
+no se seedeó, una malla que faltó, lo que sea), el `UPDATE` actualiza
+CERO filas — Postgres no considera eso un error, simplemente no pasa
+nada. Y ningún lugar del código TypeScript revisaba si la llamada
+`supabase.rpc(...)` había devuelto un `error` — así que el código seguía
+como si todo hubiera salido bien: mostraba el toast de éxito, guardaba un
+movimiento en el historial (¡de un ajuste que en realidad nunca pasó en
+la tabla real!), y `sincronizar()` traía números que nunca se habían
+movido. Exactamente "desaparece" — ni error, ni rastro real, solo un
+historial que decía que sí pasó.
+
+**Arreglo, dos partes**:
+
+1. **`migracion_robustez_inventario_cafe.sql`** — las 3 funciones que
+   mueven inventario en esta app (`ajustar_stock_pergamino`,
+   `ajustar_stock_verde`, y de paso `ajustar_stock_inventario` — la más
+   vieja de todas, del café YA TOSTADO, mismo problema aunque nunca se
+   había reportado) pasan de `UPDATE` puro a `INSERT ... ON CONFLICT DO
+   UPDATE` (upsert): si la fila no existe, la CREA con el valor correcto,
+   en vez de no hacer nada. Esto es indiferente a si se sembraron o no
+   todas las combinaciones de lote×malla de antemano — funciona siempre.
+2. **`functions/_lib/verde.ts`**: nuevo helper interno `ajustarStock()`
+   que SÍ revisa `error` y TIRA si Supabase falla — `aplicarTrilla()` y
+   `revertirTrilla()` lo usan internamente. Se exportaron además
+   `ajustarStockPergamino(supabase, lote, delta)` y
+   `ajustarStockVerde(supabase, lote, grado, delta)`, para que CUALQUIER
+   otro lugar del código que toque estos dos inventarios directamente
+   (no solo trillar) tenga la misma protección. Se reemplazaron TODAS
+   las llamadas sueltas `supabase.rpc('ajustar_stock_pergamino'|
+   'ajustar_stock_verde', ...)` que no revisaban error, en:
+   `cosechas/[id].ts` (⚖️ pesar, PATCH y DELETE), `cereza-comprada/[id].ts`
+   (⚖️ pesar, PATCH y DELETE), `pergamino/[id].ts` (🌾 trillar, PATCH y
+   DELETE), `pergamino/index.ts` (comprar pergamino directo),
+   `inventario-pergamino/trillar.ts` (el botón nuevo de "🌾 Trillar
+   pergamino disponible"), y `tuestes/index.ts`/`tuestes/[id].ts`
+   (retirar para tostión y devolverlo al borrar). De paso se aplicó el
+   mismo criterio a `ajustar_stock_inventario` (café tostado) en
+   `functions/_lib/convert.ts` (usado por ventas) y en `tuestes/index.ts`/
+   `[id].ts` — mismo tipo de llamada, mismo hueco, aunque sin reporte
+   de que hubiera fallado. Cada endpoint ahora, si el ajuste de inventario
+   falla, responde 500 con un mensaje claro (`"Se guardó X, pero no se
+   pudo ajustar el inventario: <error real>"`) en vez de fingir que salió
+   bien — mismo criterio ya establecido en toda la app de mostrar el
+   error real de Postgres en vez de tragárselo.
+   `functions/api/inventario-pergamino/index.ts` e
+   `functions/api/inventario-verde/index.ts` (los POST de "+ Agregar
+   pergamino/verde que ya tenías") YA revisaban el error correctamente
+   desde que se construyeron — no se tocaron.
+
+**Qué hacer, en orden**:
+1. Correr `migracion_robustez_inventario_cafe.sql` en Supabase — a
+   diferencia de la migración de atribución de usuarios, esta NO agrega
+   ninguna columna/tabla nueva, solo redefine 3 funciones existentes
+   (`CREATE OR REPLACE FUNCTION`) — segura de correr en cualquier momento,
+   no hace falta coordinarla con el deploy del código.
+2. Una vez corrida, volver a intentar la operación que "desapareció"
+   (agregar el pergamino que haga falta y trillarlo) — ahora, si algo
+   vuelve a fallar, va a salir un error claro en vez de un silencio.
+3. Si Juan sospecha que ya se perdieron kilos de un intento anterior (el
+   caso real que reportó), lo más simple es corregir el número a mano con
+   "+ Agregar pergamino que ya tenías" o "+ Agregar café verde que ya
+   tenías" — las mismas herramientas que ya existían para sembrar stock
+   viejo sirven igual de bien para corregir un número que quedó mal por
+   este bug. "Historial de movimientos" puede tener una entrada de más de
+   ese intento fallido (un movimiento se alcanzó a registrar aunque el
+   ajuste real no pasó) — es la única cicatriz visible del bug viejo, no
+   afecta nada hacia adelante.
+
+Recorrido completo verificado leyendo TODO el código, extremo a extremo
+(no solo el síntoma reportado): cosecha/cereza comprada → pesar pergamino
+(⚖️) → pergamino disponible (pool) → trillar (🌾, tanto desde un registro
+como desde "Trillar pergamino disponible") → café verde disponible (por
+malla) → retirar para tostión → inventario tostado. Los 3 orígenes de
+pergamino (cosecha propia, cereza comprada, comprado directo) y los 2
+caminos de "ya tenía" (pergamino existente, verde existente) usan ahora
+exactamente el mismo mecanismo protegido — no quedó ningún lugar que
+toque estos inventarios sin revisar si de verdad funcionó.
+
 ## Pendiente / a medias
 
 - **⚠️ Atribución de usuarios — falta correr la migración**: el código

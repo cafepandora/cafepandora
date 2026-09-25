@@ -71,7 +71,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   // Descuenta el inventario de cada lote de café que traiga el pedido, de
   // forma atómica (no se pierde nada aunque otro celular venda al mismo tiempo).
-  await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(row), -1);
+  try {
+    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(row), -1);
+  } catch (err: any) {
+    return new Response('Se guardó la venta, pero no se pudo descontar del inventario: ' + (err.message || ''), { status: 500 });
+  }
 
   return Response.json(row, { status: 201 });
 };

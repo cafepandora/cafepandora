@@ -1,6 +1,6 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
-import { registrarMovimiento } from '../../_lib/verde.js';
+import { registrarMovimiento, ajustarStockVerde } from '../../_lib/verde.js';
 
 const SELECT = 'id, fecha, lote, kilosVerde:kilos_verde, kilosTostado:kilos_tostado, kilosTostadoMedia:kilos_tostado_media, kilosTostadoMediaAlta:kilos_tostado_media_alta, origen, notasCata:notas_cata, usuario, ts, grado';
 
@@ -42,7 +42,8 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   const anterior = Number(actual.kilosTostado) || 0;
   const delta = nuevoTotal - anterior;
   if (delta !== 0 && actual.lote) {
-    await supabase.rpc('ajustar_stock_inventario', { p_lote: actual.lote, p_delta: delta });
+    const { error: errorInv } = await supabase.rpc('ajustar_stock_inventario', { p_lote: actual.lote, p_delta: delta });
+    if (errorInv) return new Response('Se guardó la salida, pero no se pudo ajustar el inventario tostado: ' + errorInv.message, { status: 500 });
   }
 
   return Response.json(data);
@@ -63,14 +64,19 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   if (error) return new Response(error.message, { status: 500 });
 
   if (tueste && Number(tueste.kilosTostado) > 0 && tueste.lote) {
-    await supabase.rpc('ajustar_stock_inventario', { p_lote: tueste.lote, p_delta: -Number(tueste.kilosTostado) });
+    const { error: errorInv } = await supabase.rpc('ajustar_stock_inventario', { p_lote: tueste.lote, p_delta: -Number(tueste.kilosTostado) });
+    if (errorInv) return new Response('Se eliminó el tueste, pero no se pudo devolver el inventario tostado: ' + errorInv.message, { status: 500 });
   }
   // Si este tueste había salido del inventario de verde (traía grado),
   // borrar el registro le devuelve ese verde — igual que arriba con el
   // tostado.
   if (tueste && tueste.grado && Number(tueste.kilosVerde) > 0 && tueste.lote) {
-    await supabase.rpc('ajustar_stock_verde', { p_lote: tueste.lote, p_grado: tueste.grado, p_delta: Number(tueste.kilosVerde) });
-    await registrarMovimiento(supabase, { etapa: 'verde', lote: tueste.lote, grado: tueste.grado, kilos: Number(tueste.kilosVerde), origen: 'Retiro para tostión (registro eliminado)' });
+    try {
+      await ajustarStockVerde(supabase, tueste.lote, tueste.grado, Number(tueste.kilosVerde));
+      await registrarMovimiento(supabase, { etapa: 'verde', lote: tueste.lote, grado: tueste.grado, kilos: Number(tueste.kilosVerde), origen: 'Retiro para tostión (registro eliminado)' });
+    } catch (err: any) {
+      return new Response('Se eliminó el tueste, pero no se pudo devolver el café verde: ' + (err.message || ''), { status: 500 });
+    }
   }
 
   return new Response(null, { status: 204 });
