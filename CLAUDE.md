@@ -2524,6 +2524,27 @@ movimiento del Hero (en vez de `finca-flor.jpg`, la foto fija actual)
 pero no se implementó, a la espera de que confirme si le interesa esa
 idea o prefiere guardarlo para cuando tenga el resto del material.
 
+**Segunda foto real, el mismo día — "② Lavado y secado" resuelto**: Juan
+mandó un video más (WhatsApp, vertical, 464×832 — resolución nativa
+real del archivo, confirmada con `mdls`, no una limitación de cómo se
+extrajo) que sí muestra el paso que faltaba: las marquesinas/secaderos
+de la finca con pergamino secándose al sol. Mismo método que con el
+video de cereza (`qlmanage -t` para sacar un fotograma, ya que no hay
+`ffmpeg` instalado) — el fotograma en sí ya era una composición buena,
+no hizo falta pedir otro ángulo. Se guardó como
+`pedidos/img/proceso-secado.jpg` y se agregó al `<div>` del paso
+"② Lavado y secado", mismo patrón que Cereza. Única diferencia: como
+la foto es VERTICAL (a diferencia de la de cereza, que es horizontal) y
+`.proceso-foto` tiene `aspect-ratio: 3/2` (horizontal) para que las
+fotos del carrusel no salten de tamaño entre sí, el recorte automático
+(`object-fit: cover`, centrado por default) dejaba muy poco de las
+marquesinas y de más el cielo/la montaña de fondo — se corrigió con
+`style="object-position: center 40%"` inline en ESA imagen puntual (no
+en la clase, que sigue sirviendo tal cual para fotos horizontales como
+la de Cereza) para que el recorte se centre un poco más abajo, sobre el
+pergamino, en vez de a la mitad exacta del cuadro. Quedan "③ Trilla" y
+"④ Tueste" sin foto todavía.
+
 ## Pendiente / a medias
 
 - **⚠️ Atribución de usuarios — falta correr la migración**: el código
