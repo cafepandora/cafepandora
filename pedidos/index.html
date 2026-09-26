@@ -288,8 +288,15 @@
      esta, no encima ni tapada. */
   .nav-secciones { display: flex; justify-content: center; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 10px 12px; position: sticky; top: 0; z-index: 50; background: var(--crema); border-bottom: 1px solid var(--linea); }
   .nav-secciones::-webkit-scrollbar { display: none; }
-  .nav-secciones a { flex-shrink: 0; font-family: 'Outfit', sans-serif; font-size: 12.5px; font-weight: 700; text-decoration: none; padding: 7px 13px; border-radius: 20px; color: var(--cafe-soft); white-space: nowrap; transition: opacity .15s ease; }
+  .nav-secciones a { flex-shrink: 0; font-family: 'Outfit', sans-serif; font-size: 12.5px; font-weight: 700; text-decoration: none; padding: 7px 13px; border-radius: 20px; color: var(--cafe-soft); white-space: nowrap; transition: background .15s ease, color .15s ease, opacity .15s ease; }
   .nav-secciones a.destacado { background: var(--teal); color: #fff; }
+  /* Cuál sección se está viendo ahora mismo (scrollspy, ver
+     iniciarScrollspyNav()) — a propósito MÁS suave que .destacado
+     (fondo claro en vez de sólido) para no competir con "Pedir →", que
+     siempre se ve sólido porque es la acción, no solo una posición en
+     la página; :not(.destacado) evita que se vean pisadas cuando las
+     dos aplican a la vez (estando ya en el catálogo). */
+  .nav-secciones a.activo:not(.destacado) { background: var(--crema-alt); color: var(--teal); }
   .nav-secciones a:active { opacity: .7; }
   @media (hover: hover) {
     .nav-secciones a:not(.destacado):hover { color: var(--teal); }
@@ -599,6 +606,41 @@ async function cargarCatalogo() {
 }
 pintarHeroArte();
 iniciarRevelado();
+iniciarScrollspyNav();
+
+// Resalta en la barra de arriba (.nav-secciones) la sección que se está
+// viendo ahora mismo, en vez de dejar "Pedir →" como la única señal fija
+// — Juan pidió esto para que la barra ayude a ubicarse en la página, no
+// solo a saltar. Los 4 destinos ya existen en el HTML desde el principio
+// (no se crean después como el catálogo), así que basta con un solo
+// IntersectionObserver montado una vez al cargar — no hace falta
+// re-llamarlo cuando cargarCatalogo() termine, a diferencia de
+// iniciarRevelado() con las tarjetas nuevas del catálogo.
+//
+// rootMargin con un margen negativo grande abajo (-70%) es el truco
+// clásico de "scrollspy": una sección solo cuenta como intersectando
+// mientras su borde superior está en el 30% de arriba de la pantalla
+// (justo debajo de la barra sticky) — así, aunque el catálogo sea mucho
+// más alto que "Tour", nunca hay dos secciones "activas" a la vez por
+// pura coincidencia de altura.
+function iniciarScrollspyNav() {
+  const nav = document.getElementById('navSecciones');
+  if (!nav || !('IntersectionObserver' in window)) return;
+  const enlaces = Array.from(nav.querySelectorAll('a[href^="#"]'));
+  const pares = enlaces
+    .map(a => ({ a, el: document.getElementById(a.getAttribute('href').slice(1)) }))
+    .filter(p => p.el);
+  if (!pares.length) return;
+  const alturaNav = nav.offsetHeight || 54;
+  const obs = new IntersectionObserver((entradas) => {
+    entradas.forEach(entrada => {
+      if (!entrada.isIntersecting) return;
+      const par = pares.find(p => p.el === entrada.target);
+      if (par) enlaces.forEach(a => a.classList.toggle('activo', a === par.a));
+    });
+  }, { rootMargin: `-${alturaNav}px 0px -70% 0px`, threshold: 0 });
+  pares.forEach(p => obs.observe(p.el));
+}
 
 // Fila de atajos pegada arriba (☕ Lavado · Honey · Natural · Exóticos) para
 // que en un catálogo largo el cliente no tenga que scrollear a ciegas.
