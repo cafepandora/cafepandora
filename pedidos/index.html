@@ -155,6 +155,13 @@
   .proceso-num { font-family: var(--serif); font-weight: 600; font-size: 34px; color: var(--dorado); line-height: 1; flex-shrink: 0; width: 52px; }
   .proceso-paso h3 { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 0 0 4px; color: var(--cafe); }
   .proceso-paso p { font-size: 14px; color: var(--cafe-soft); margin: 0; line-height: 1.55; }
+  /* Foto real por paso (2026-09-25, Juan mandó la primera) — a
+     propósito NO es un carrusel parejo de 4 fotos todavía, porque solo
+     hay una real (Cereza); los otros 3 pasos se quedan sin `<img>`
+     hasta que Juan consiga las suyas, en vez de rellenar con fotos
+     genéricas de la finca que no corresponden a esa etapa. Cuando
+     lleguen, se agregan igual (misma clase) a esos `<div>`. */
+  .proceso-foto { display: block; width: 100%; max-width: 280px; margin-top: 12px; border-radius: 12px; aspect-ratio: 3/2; object-fit: cover; }
 
   /* Tour de café en la finca — dato real que Juan compartió 2026-09-21,
      no estaba en ningún lado del sitio. Va justo después de Proceso
@@ -416,7 +423,8 @@
   <div class="proceso-pasos">
     <div class="proceso-paso revela">
       <span class="proceso-num">01</span>
-      <div><h3>Cereza</h3><p>Recolectamos a mano solo la cereza madura, en nuestra propia finca.</p></div>
+      <div><h3>Cereza</h3><p>Recolectamos a mano solo la cereza madura, en nuestra propia finca.</p>
+        <img class="proceso-foto" src="img/proceso-cereza.jpg" alt="Cerezas de café maduras y verdes en la rama, en la finca"></div>
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">02</span>

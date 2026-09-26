@@ -2482,6 +2482,48 @@ caminos de "ya tenía" (pergamino existente, verde existente) usan ahora
 exactamente el mismo mecanismo protegido — no quedó ningún lugar que
 toque estos inventarios sin revisar si de verdad funcionó.
 
+## Primera foto real en "Del cafeto a tu taza" (2026-09-25)
+
+Juan mandó 5 fotos + un video de la finca para usar en `.proceso-pasos`
+(ver "Rediseño de lujo" más arriba — esa sección ya tenía anotado que
+faltaba material real para esto). Revisado uno por uno (incluida una
+vista previa del video sacada con `qlmanage -t`, ya que no hay
+`ffmpeg`/`ffprobe` instalados para inspeccionarlo de otra forma): de las
+6 piezas, **solo una foto y el video correspondían de verdad a un paso
+específico** — ambos son cerezas de café maduras y verdes en la rama,
+que encajan con "① Cereza". Las otras 4 fotos (puente de guadua entre
+la maleza, una plántula con el perro y las botas de Juan, vista aérea
+del dosel del bosque, la quebrada con piedras) son fotografía de
+ambiente/sendero muy buena, pero no documentan específicamente
+"② Lavado y secado", "③ Trilla" ni "④ Tueste" — se guardaron sin usar
+en vez de forzarlas donde no corresponden (mismo criterio que ya se
+había aplicado a las fotos de bolsa: no rellenar con algo genérico).
+
+- **`pedidos/img/proceso-cereza.jpg`** (nueva, mismo patrón que
+  `finca-flor.jpg`/`finca-ladera.jpg`: archivo real aparte, NO base64
+  inline — son fotografías, no arte vectorial).
+- **`.proceso-foto`** (CSS nueva, junto a `.proceso-paso p`): imagen de
+  ancho completo hasta 280px, esquinas redondeadas, `aspect-ratio: 3/2`
+  (la proporción real de la foto, 1280×853) para que no salte el layout
+  mientras carga.
+- Solo el `<div>` del paso "① Cereza" en `.proceso-pasos` ganó el
+  `<img class="proceso-foto">` — los otros 3 pasos se quedan exactamente
+  como estaban (número + texto, sin imagen) hasta que Juan consiga fotos
+  reales de esos pasos. A propósito NO se rediseñó el bloque completo
+  para "4 fotos parejas" con 3 placeholders vacíos — un paso con foto y
+  tres sin ella se ve intencional (foto real cuando existe), un
+  placeholder vacío se vería como un error.
+- Probado en el preview local en desktop y en mobile (375px): la foto se
+  ve completa, sin recortes raros, y los pasos 2-4 conservan su
+  espaciado de siempre sin ningún hueco extra donde iría una imagen que
+  no existe.
+
+El video (el mismo tema, cereza con gotas de agua, cámara con
+rack-focus) quedó sin usar todavía — se le propuso a Juan como fondo en
+movimiento del Hero (en vez de `finca-flor.jpg`, la foto fija actual)
+pero no se implementó, a la espera de que confirme si le interesa esa
+idea o prefiere guardarlo para cuando tenga el resto del material.
+
 ## Pendiente / a medias
 
 - **⚠️ Atribución de usuarios — falta correr la migración**: el código
@@ -2561,6 +2603,21 @@ toque estos inventarios sin revisar si de verdad funcionó.
   por paso del Proceso (Cereza/Lavado y secado/Trilla/Tueste, para el
   carrusel que pidió) y más fotos de la finca/producto empacado en
   general — mismo bloqueo, falta que Juan mande el material real.
+  **Avance 2026-09-25**: Juan mandó 5 fotos + un video reales de la
+  finca — de eso, solo una foto (cerezas maduras y verdes en la rama) y
+  el video (mismo tema, más cinematográfico, con gotas de agua)
+  correspondían de verdad a un paso del Proceso — las otras 4 (puente
+  de guadua, una plántula con el perro y las botas, vista aérea del
+  dosel del bosque, la quebrada) son fotos de ambiente/sendero muy
+  buenas pero no documentan Lavado/Trilla/Tueste específicamente, así
+  que se guardaron sin usar por ahora en vez de forzarlas donde no
+  corresponden (`pedidos/img/proceso-cereza.jpg`, agregada SOLO al paso
+  "① Cereza" de `.proceso-pasos`, clase nueva `.proceso-foto` — ver
+  sección propia más abajo). Juan confirmó que va a conseguir fotos
+  reales de los otros 3 pasos más adelante — mientras tanto, esos 3
+  siguen sin foto a propósito (no es un descuido, es no tener nada
+  bueno todavía) en vez de rellenar con una foto de bosque genérica que
+  no sea la etapa real.
   La tarifa `web` en `precios_cafe` con los precios reales del 2026 ya
   está corrida en producción (ver `migracion_precios_carta_2026.sql` y
   `migracion_exoticos_web_inicial.sql`) — ojo que los valores que quedaron
