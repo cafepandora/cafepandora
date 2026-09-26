@@ -288,15 +288,17 @@
      esta, no encima ni tapada. */
   .nav-secciones { display: flex; justify-content: center; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 10px 12px; position: sticky; top: 0; z-index: 50; background: var(--crema); border-bottom: 1px solid var(--linea); }
   .nav-secciones::-webkit-scrollbar { display: none; }
-  .nav-secciones a { flex-shrink: 0; font-family: 'Outfit', sans-serif; font-size: 12.5px; font-weight: 700; text-decoration: none; padding: 7px 13px; border-radius: 20px; color: var(--cafe-soft); white-space: nowrap; transition: background .15s ease, color .15s ease, opacity .15s ease; }
+  .nav-secciones a { flex-shrink: 0; font-family: 'Outfit', sans-serif; font-size: 12.5px; font-weight: 700; text-decoration: none; padding: 7px 13px; border: 2px solid transparent; border-radius: 20px; color: var(--cafe-soft); white-space: nowrap; transition: background .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease; }
   .nav-secciones a.destacado { background: var(--teal); color: #fff; }
   /* Cuál sección se está viendo ahora mismo (scrollspy, ver
-     iniciarScrollspyNav()) — a propósito MÁS suave que .destacado
-     (fondo claro en vez de sólido) para no competir con "Pedir →", que
-     siempre se ve sólido porque es la acción, no solo una posición en
-     la página; :not(.destacado) evita que se vean pisadas cuando las
-     dos aplican a la vez (estando ya en el catálogo). */
-  .nav-secciones a.activo:not(.destacado) { background: var(--crema-alt); color: var(--teal); }
+     iniciarScrollspyNav()) — un marco sólido en vez de solo cambiar el
+     fondo, que Juan probó y le pareció demasiado sutil para notarlo de
+     reojo mientras hace scroll. El borde transparente en la regla base
+     de arriba reserva el espacio desde el principio, para que el marco
+     no empuje el texto ni salte el layout al aparecer/desaparecer.
+     :not(.destacado) evita que se vea raro sobre "Pedir →" (que ya es
+     sólido) cuando el catálogo es la sección activa. */
+  .nav-secciones a.activo:not(.destacado) { border-color: var(--teal); color: var(--teal); }
   .nav-secciones a:active { opacity: .7; }
   @media (hover: hover) {
     .nav-secciones a:not(.destacado):hover { color: var(--teal); }
