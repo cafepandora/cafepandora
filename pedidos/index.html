@@ -162,6 +162,16 @@
      genéricas de la finca que no corresponden a esa etapa. Cuando
      lleguen, se agregan igual (misma clase) a esos `<div>`. */
   .proceso-foto { display: block; width: 100%; max-width: 280px; margin-top: 12px; border-radius: 12px; aspect-ratio: 3/2; object-fit: cover; }
+  /* "Lavado y secado" en realidad son DOS secados distintos (el texto
+     del paso ya lo dice: Lavado es rápido, Honey/Natural fermentan más
+     tiempo) — Juan mandó fotos reales de las dos, así que en vez de
+     una sola foto genérica se muestran ambas, lado a lado. Los otros
+     pasos (Cereza, Trilla, Tueste) no tienen este par — solo aplica
+     donde de verdad hay dos procesos distintos que mostrar. */
+  .proceso-fotos-par { display: flex; gap: 10px; margin-top: 12px; max-width: 280px; }
+  .proceso-fotos-par > div { flex: 1 1 0; min-width: 0; }
+  .proceso-fotos-par .proceso-foto { margin-top: 0; max-width: none; }
+  .proceso-foto-etiqueta { display: block; margin-top: 6px; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--teal); text-align: center; }
 
   /* Tour de café en la finca — dato real que Juan compartió 2026-09-21,
      no estaba en ningún lado del sitio. Va justo después de Proceso
@@ -429,7 +439,10 @@
     <div class="proceso-paso revela">
       <span class="proceso-num">02</span>
       <div><h3>Lavado y secado</h3><p>Seleccionamos el café ya en el lavado, y secamos de 7 a 35 días según el proceso — Lavado es el más rápido; Honey y Natural fermentan mucho más tiempo en caneca.</p>
-        <img class="proceso-foto" src="img/proceso-secado.jpg" alt="Pergamino de café secándose al sol en las marquesinas de la finca" style="object-position: center 40%"></div>
+        <div class="proceso-fotos-par">
+          <div><img class="proceso-foto" src="img/proceso-secado.jpg" alt="Pergamino de Lavado secándose al sol en las marquesinas" style="object-position: center 40%"><span class="proceso-foto-etiqueta">Lavado</span></div>
+          <div><img class="proceso-foto" src="img/proceso-secado-honey.jpg" alt="Pergamino de Honey secándose en el invernadero"><span class="proceso-foto-etiqueta">Honey y Natural</span></div>
+        </div></div>
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">03</span>

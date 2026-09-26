@@ -2545,6 +2545,36 @@ la de Cereza) para que el recorte se centre un poco más abajo, sobre el
 pergamino, en vez de a la mitad exacta del cuadro. Quedan "③ Trilla" y
 "④ Tueste" sin foto todavía.
 
+**Tercera vuelta, mismo día — "Lavado y secado" en realidad son DOS
+fotos, no una**: Juan notó algo real — el secado de Lavado (marquesinas
+al aire libre, pergamino claro) y el de Honey/Natural (invernadero,
+pergamino oscuro por la miel del mucílago) se ven bien distintos, y el
+texto de este paso YA lo decía explícitamente ("Lavado es el más
+rápido; Honey y Natural fermentan mucho más tiempo en caneca") — una
+sola foto (la de Lavado) solo contaba la mitad de esa frase. Mandó 2
+fotos reales del secado de Honey en el invernadero; se eligió la de
+mejor perspectiva (misma composición "fila de secaderos en fuga" que ya
+tenía la foto de Lavado, para que las dos combinen visualmente) como
+`pedidos/img/proceso-secado-honey.jpg`.
+
+- **`.proceso-fotos-par`** (CSS nueva): las dos fotos van lado a lado
+  (flex, `gap:10px`, cada una a la mitad del ancho de `.proceso-foto`
+  normal) con una etiqueta chica debajo de cada una ("LAVADO" /
+  "HONEY Y NATURAL", `.proceso-foto-etiqueta`, mismo estilo de texto
+  pequeño-mayúscula-teal que ya usa `.proceso-titulo` en otra parte del
+  sitio) — sin esa etiqueta, dos fotos de secaderos una al lado de la
+  otra no dejarían claro que son procesos distintos, no la misma cosa
+  fotografiada dos veces.
+- Este par SOLO existe en el paso "② Lavado y secado" — los demás pasos
+  (Cereza, Trilla, Tueste) tienen un único `<img class="proceso-foto">`
+  normal (o ninguno todavía), porque no describen dos procesos distintos
+  en su texto. Si más adelante Trilla o Tueste también necesitaran
+  mostrar una variación por proceso, este mismo patrón `.proceso-fotos-par`
+  ya está listo para reusarse ahí, no hay que inventarlo de nuevo.
+- Probado en desktop y mobile (375px): las dos fotos quedan del mismo
+  tamaño, sin desbordar el ancho de la columna de texto (420px máximo de
+  `.proceso-pasos`), y las etiquetas se leen bien en las dos anchuras.
+
 ## Pendiente / a medias
 
 - **⚠️ Atribución de usuarios — falta correr la migración**: el código
