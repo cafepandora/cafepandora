@@ -3050,3 +3050,46 @@ contenedor interno (ej. `.app-shell`) es la opción más segura en teoría,
 pero necesita probarse en un teléfono real (Android e iOS) antes de darla
 por buena, porque el comportamiento de rebote lateral que resuelve es
 específico de cada motor de navegador móvil.
+
+## Serif en toda la app + modal de "ventas pendientes de envío" (2026-09-26)
+
+Dos pedidos más de Juan, seguidos del pase de Resumen de arriba.
+
+**Tipografía pareja en toda la app**: lo que se había probado solo en
+Resumen (Fraunces en títulos de sección y números grandes) se llevó a
+TODA la app interna — "que toda la app luzca igual en letra y colores".
+Resultó ser un cambio chico: `h3.section-title` YA era teal en todos
+lados desde 2026-09-21, así que solo hizo falta sumarle
+`font-family: var(--serif)` a esa regla compartida (antes solo aplicaba
+dentro de `#view-resumen`) y lo mismo a `.stat .n` — como las dos son
+clases YA compartidas por las 8 pantallas, el cambio salió parejo sin
+tocar Ventas/Maquila/Gastos/Cosecha & Tueste/etc. una por una. No se
+tocó nada más (ni `.subtabs`, ni colores de botones, ni el resto de
+tipografía de párrafos/controles) — mismo criterio de "solo momentos
+grandes" que ya regía en pedidos/index.html y en Resumen.
+
+**"Ventas pendientes de envío" abre un modal, no navega a otro lado**:
+antes, tocar el aviso `#envioAlert` ("📦 X ventas pendientes de envío",
+visible desde cualquier pestaña) te sacaba de donde estuvieras parado y
+saltaba a Ventas → "Por enviar". Juan pidió que fuera "como cuando se
+hace una búsqueda de cliente, que se abra la ventana ahí" — mismo
+patrón que el modal de búsqueda: `abrirVentasPendientesEnvio()` reusa
+`filaVenta()` tal cual (mismos botones ✎/✕/📋/🧾, mismo tag de estado de
+envío) en vez de inventar una fila nueva.
+
+`toggleEstadoEnvio()` ganó una llamada extra a
+`renderVentasPendientesEnvioModal()` (no-op si ese modal no está
+abierto, vía el `if (!cont) return` de siempre) — así que marcar una
+venta como "Enviada" DESDE DENTRO del modal la saca de la lista al
+instante, sin cerrar y reabrir el modal para verlo reflejado. Sin esto,
+el modal se hubiera quedado mostrando datos viejos hasta cerrarlo (sí le
+pasa esto al modal de búsqueda con otras acciones, pero ahí el flujo
+normal es ir a editar en otro lado, no togglear en el sitio — acá SÍ
+tiene sentido poder marcarla enviada de una, así que valía la pena el
+refresco).
+
+Probado en el preview (simulando 2 ventas pendientes a mano, ya que el
+mock no trae ninguna): el modal abre con las 2, tocar "📦 Pendiente de
+envío" en una la saca de la lista al instante y el aviso de fondo baja
+de "2" a "1"; togglear la última muestra "Nada pendiente de envío. 🎉"
+y el aviso de fondo desaparece. Sin errores nuevos de consola.

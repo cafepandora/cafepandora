@@ -446,7 +446,10 @@
 
   .empty { text-align: center; color: var(--cafe-soft); font-size: 15px; padding: 32px 12px; }
 
-  h3.section-title { font-size: 18px; font-weight: 700; margin: 22px 0 10px; color: var(--teal); }
+  /* Serif en títulos de sección (2026-09-26) — probado primero solo en
+     Resumen, extendido a toda la app a pedido de Juan ("que toda la app
+     luzca igual en letra y colores") — mismo --serif de siempre. */
+  h3.section-title { font-size: 18px; font-weight: 700; margin: 22px 0 10px; color: var(--teal); font-family: var(--serif); font-weight: 600; }
 
   /* ---------- Inventario ---------- */
   .lote-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
@@ -479,14 +482,9 @@
   /* ---------- Resumen ---------- */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
   .stat { background: var(--blanco); border: 1px solid var(--linea); border-radius: 14px; padding: 16px 18px; box-shadow: 0 3px 14px rgba(62,39,35,.05); }
-  .stat .n { font-weight: 800; font-size: 23px; }
+  .stat .n { font-weight: 600; font-size: 23px; font-family: var(--serif); }
   .stat .n.pos { color: var(--verde); } .stat .n.neg { color: var(--terracota); }
   .stat .l { font-size: 13px; color: var(--cafe-soft); margin-top: 4px; }
-  /* Serif solo en Resumen (2026-09-26, ver --serif arriba) — .stat/.stat-grid
-     se reusa en Cosecha & Tueste y en calculadoras de precio, así que el
-     cambio va con el selector #view-resumen, no en la regla compartida. */
-  #view-resumen h3.section-title { font-family: var(--serif); font-weight: 600; }
-  #view-resumen .stat .n { font-family: var(--serif); font-weight: 600; }
   .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-bottom: 6px; }
   .bar-row .lbl { flex: 0 0 90px; }
   .bar-track { flex: 1; background: var(--crema-alt); border-radius: 6px; height: 14px; overflow: hidden; }
@@ -1700,11 +1698,38 @@ function renderAlertaEnvios() {
   const pendientes = state.ventas.filter(v => v.estadoEnvio !== 'Enviado');
   if (pendientes.length) {
     el.style.display = 'block';
-    el.onclick = () => { ventasSubTab = 'porEnviar'; document.querySelector('.sidebar-links button[data-tab="ventas"]').click(); };
+    el.onclick = () => abrirVentasPendientesEnvio();
     el.textContent = `📦 ${pendientes.length} venta${pendientes.length === 1 ? '' : 's'} pendiente${pendientes.length === 1 ? '' : 's'} de envío`;
   } else {
     el.style.display = 'none';
   }
+}
+
+// Antes, tocar el aviso de "X ventas pendientes de envío" te sacaba de
+// donde estuvieras parado y te mandaba a Ventas → "Por enviar" — Juan
+// pidió que, como con el buscador de cliente, se abriera "la ventana ahí
+// mismo" en vez de navegar a otro lado (2026-09-26). Reusa filaVenta()
+// tal cual (mismo patrón que ya usa el modal de búsqueda) — así los
+// botones de cada fila (✎ editar, 📦 marcar enviado, etc.) funcionan
+// exactamente igual que en Ventas, sin plomería aparte.
+function abrirVentasPendientesEnvio() {
+  abrirModal(`
+    <h3>Ventas pendientes de envío</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Toca 📦 para marcarla como enviada, o ✎ para editar cualquier otro dato.</p>
+    <div class="ledger" id="modal-pendientes-envio"></div>
+    <div class="modal-actions"><button class="sec-btn" onclick="cerrarModal()">Cerrar</button></div>
+  `);
+  renderVentasPendientesEnvioModal();
+}
+// Aparte de abrirVentasPendientesEnvio() para poder refrescar SOLO la
+// lista del modal después de marcar una como enviada desde ahí mismo —
+// si no, el modal se quedaba mostrando la venta ya enviada hasta cerrarlo
+// y volver a abrirlo (toggleEstadoEnvio() ya llama a esto, ver más abajo).
+function renderVentasPendientesEnvioModal() {
+  const cont = document.getElementById('modal-pendientes-envio');
+  if (!cont) return;
+  const pendientes = state.ventas.filter(v => v.estadoEnvio !== 'Enviado').sort((a, b) => b.ts - a.ts);
+  cont.innerHTML = pendientes.map(v => filaVenta(v)).join('') || '<div class="empty">Nada pendiente de envío. 🎉</div>';
 }
 
 // No es un respaldo automático real (eso necesita infraestructura aparte) —
@@ -2503,6 +2528,7 @@ async function toggleEstadoEnvio(id) {
   const v = state.ventas.find(x => x.id === id); if (!v) return;
   const nuevo = v.estadoEnvio === 'Enviado' ? 'Pendiente' : 'Enviado';
   v.estadoEnvio = nuevo; guardarCacheLocal('ventas'); renderTodo();
+  renderVentasPendientesEnvioModal(); // no-op si ese modal no está abierto — lo refresca si sí
   await apiFetch('/api/ventas/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estadoEnvio: nuevo }) });
 }
 
