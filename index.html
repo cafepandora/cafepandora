@@ -6568,11 +6568,25 @@ function renderConfig() {
           <input type="number" id="pc-${p.id}" value="${p.precio}">
           <button class="sec-btn" onclick="guardarPrecioCafe(${p.id})">Guardar</button>
         </div>`).join('')}`;
+    // Mayorista/Interno/Distribuidor: si el lote SÍ tiene "Precio normal"
+    // pero todavía no tiene esta tarifa (falta correr la migración, o un
+    // lote nuevo que se sembró después) — antes esto se veía como si la
+    // tarifa no existiera, sin ningún aviso de "acá falta algo" (bug real
+    // reportado por Juan, 2026-09-26: "no me apareció dónde podía editar
+    // Mayorista/Interno"). Ahora, en vez de desaparecer en silencio,
+    // ofrece copiar de "Precio normal" con un clic — mismo número que ya
+    // se estaba cobrando, como punto de partida editable.
+    const filaTierOCopiar = (label, filas, tierKey) => filas.length ? filaTier(label, filas) : (!tiers.normal.length ? '' : `
+      <div style="padding-top:4px"><div class="nombre" style="font-weight:600;font-size:12.5px;color:var(--cafe-soft)">${label}</div></div>
+      <div class="tarifa-row" style="padding-left:16px">
+        <div class="nombre" style="font-weight:400;font-size:13px;color:var(--cafe-soft)">Sin configurar todavía para ${escapeHtml(lote)}</div>
+        <button class="sec-btn" onclick="copiarPreciosTierCafe('${escapeAttr(lote)}','${tierKey}',this)">Copiar de Precio normal</button>
+      </div>`);
     return `<div style="padding-top:10px"><div class="nombre" style="font-weight:700;font-size:14.5px">${lote}</div>
       ${filaTier('Precio normal', tiers.normal)}
-      ${filaTier('Precio mayorista', tiers.mayorista)}
-      ${filaTier('Precio distribuidor', tiers.distribuidor)}
-      ${filaTier('Precio interno', tiers.interno)}
+      ${filaTierOCopiar('Precio mayorista', tiers.mayorista, 'mayorista')}
+      ${filaTierOCopiar('Precio distribuidor', tiers.distribuidor, 'distribuidor')}
+      ${filaTierOCopiar('Precio interno', tiers.interno, 'interno')}
     </div>`;
   }).join('');
 
@@ -6849,6 +6863,34 @@ async function agregarPrecioCafe(btn) {
   } catch (err) {
     toast('No se pudo agregar: ' + err.message, 'error');
   } finally { btn.disabled = false; }
+}
+// Botón "Copiar de Precio normal" (2026-09-26) — para cuando un lote SÍ
+// tiene "Precio normal" pero le falta una tarifa nueva (Mayorista/Interno/
+// Distribuidor) — antes de esto, esa tarifa simplemente no aparecía en
+// Configuración, sin ningún aviso de "acá falta algo" (reportado por
+// Juan: "no me apareció dónde podía editar Mayorista/Interno"). Crea una
+// fila por cada presentación que ya tenga "Precio normal", con el MISMO
+// valor como punto de partida — mismo criterio que
+// migracion_precios_mayorista_interno.sql, pero disponible desde la UI
+// sin depender de que la migración ya se haya corrido.
+async function copiarPreciosTierCafe(lote, tierDestino, btn) {
+  const filasNormal = state.preciosCafe.filter(p => p.lote === lote && p.tipoCliente === 'normal');
+  if (!filasNormal.length) return toast('No hay "Precio normal" configurado para este lote todavía.', 'error');
+  if (btn) btn.disabled = true;
+  try {
+    for (const fila of filasNormal) {
+      if (state.preciosCafe.some(p => p.lote === lote && p.presentacion === fila.presentacion && p.tipoCliente === tierDestino)) continue;
+      const res = await apiFetch('/api/precios-cafe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lote, presentacion: fila.presentacion, tipoCliente: tierDestino, precio: fila.precio }) });
+      if (!res.ok) throw new Error(await res.text());
+      state.preciosCafe.push(await res.json());
+    }
+    guardarCacheLocal('preciosCafe');
+    toast(`Precio ${tierDestino} creado para ${lote} — ajústalo si hace falta`);
+    conservarScroll(() => renderConfig());
+  } catch (err) {
+    toast('No se pudo copiar: ' + err.message, 'error');
+    if (btn) btn.disabled = false;
+  }
 }
 // Mismo mecanismo que agregarPrecioCafe() pero para maquila_tarifas — un
 // servicio nuevo (ej. uno que Juan empiece a ofrecer) ya no necesita una
