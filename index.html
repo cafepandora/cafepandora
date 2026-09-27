@@ -297,15 +297,28 @@
      antes había revertido las pills en .subtabs (compartida por Ventas/
      Cosecha & Tueste/Configuración) porque "se sentía menos visual y un
      poco más perdido" ahí. Con una clase propia, este cambio no toca esas
-     otras 3 pantallas. Dorado = pestaña activa, mismo lenguaje que ya usan
-     los pills de peso/molienda en pedidos/index.html; teal-bg = inactiva. */
-  .resumen-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+     otras 3 pantallas. Activa = teal sólido (Juan pidió el mismo color de
+     pedidos/index.html en vez de dorado — dorado ahí es para "elegiste
+     este producto/opción", mientras que esto es navegación, más parecido
+     al teal sólido del botón "Pedir →" en la barra de secciones de
+     pedidos); inactiva = teal-bg, igual que antes.
+     Sin `position: sticky` acá a propósito — `html, body {overflow-x:
+     hidden}` (el arreglo del rebote lateral en celular, no se toca) hace
+     que `sticky` no funcione de verdad en esta app (ver el bug igual de
+     preexistente en `.mobile-menu-btn`); el anclado real lo hace
+     `actualizarPestanasFijasResumen()` en JS, alternando a
+     `position: fixed` a mano. `background` propio para que el contenido
+     no se transparente detrás cuando queda fija. */
+  .resumen-tabs {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px;
+    z-index: 5; background: var(--crema); padding: 10px 0 12px;
+  }
   .resumen-tabs button {
     background: var(--teal-bg); border: 1px solid transparent; color: var(--teal);
     font-family: 'Outfit', sans-serif; font-size: 13.5px; font-weight: 600; padding: 9px 18px;
     border-radius: 20px; cursor: pointer;
   }
-  .resumen-tabs button.active { background: var(--dorado); color: #fff; }
+  .resumen-tabs button.active { background: var(--teal); color: #fff; }
 
   section.view { display: none; }
   section.view.active { display: block; }
@@ -5569,10 +5582,59 @@ function renderResumen() {
   `;
   if (resumenTab === 'tendencias') dibujarGraficos(mes);
   if (resumenTab === 'clientes') { renderMejoresClientes(); renderBalancePersonas(); }
+  iniciarPestanasFijasResumen();
 }
 let resumenTab = 'mes';
 function cambiarResumenTab(tab) { conservarScroll(() => { resumenTab = tab; renderResumen(); }); }
 function cambiarResumenSubTab(tab) { conservarScroll(() => { resumenSubTab = tab; paginas.resumen = 1; renderResumen(); }); }
+
+// `.resumen-tabs` se ancla arriba con JS, no con `position: sticky` puro
+// (2026-09-26) — `html, body { overflow-x: hidden }` (el arreglo real del
+// rebote lateral en celular, probado en el teléfono de Juan, no se toca)
+// hace que, por la regla de CSS de "un eje visible + uno no-visible → el
+// visible se computa como auto", `body` se vuelva su propio contenedor de
+// scroll — uno que en la práctica nunca se mueve, porque el scroll real
+// pasa en `<html>`. Cualquier `position: sticky` dentro de `body` se pega
+// respecto a ESE scroll inerte, así que nunca se ve pegado de verdad. Ya
+// le pasaba de antes a `.mobile-menu-btn` (bug preexistente, no
+// introducido acá — no se tocó, queda fuera de este cambio). En vez de
+// arriesgar tocar esa regla global sin poder volver a probarla en un
+// teléfono real, esto se resuelve a mano con un listener de scroll.
+let resumenTabsFijo = false;
+function iniciarPestanasFijasResumen() {
+  const barra = document.querySelector('.resumen-tabs');
+  if (!barra) return;
+  if (!document.getElementById('resumen-tabs-marcador')) {
+    const marcador = document.createElement('div');
+    marcador.id = 'resumen-tabs-marcador';
+    barra.parentNode.insertBefore(marcador, barra);
+  }
+  resumenTabsFijo = false; // cada render arranca la barra en su lugar normal
+  barra.style.position = ''; barra.style.top = ''; barra.style.left = ''; barra.style.width = '';
+  actualizarPestanasFijasResumen();
+}
+function actualizarPestanasFijasResumen() {
+  const barra = document.querySelector('.resumen-tabs');
+  const marcador = document.getElementById('resumen-tabs-marcador');
+  if (!barra || !marcador || !document.getElementById('view-resumen')?.classList.contains('active')) return;
+  const offsetTop = window.innerWidth <= 860 ? 66 : 0; // misma barra fija de celular que .mobile-menu-btn
+  const yaFijo = resumenTabsFijo;
+  if (yaFijo) { barra.style.position = ''; barra.style.top = ''; barra.style.left = ''; barra.style.width = ''; } // medir su posición normal
+  const rect = (yaFijo ? marcador : barra).getBoundingClientRect();
+  const debeFijarse = rect.top <= offsetTop;
+  if (debeFijarse) {
+    marcador.style.height = rect.height + 'px';
+    barra.style.position = 'fixed'; barra.style.top = offsetTop + 'px';
+    barra.style.left = rect.left + 'px'; barra.style.width = rect.width + 'px';
+    resumenTabsFijo = true;
+  } else {
+    barra.style.position = ''; barra.style.top = ''; barra.style.left = ''; barra.style.width = '';
+    marcador.style.height = '0';
+    resumenTabsFijo = false;
+  }
+}
+window.addEventListener('scroll', actualizarPestanasFijasResumen);
+window.addEventListener('resize', actualizarPestanasFijasResumen);
 
 /* ================================================================
    GRÁFICOS DEL RESUMEN (Chart.js)

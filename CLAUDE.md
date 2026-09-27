@@ -2966,9 +2966,9 @@ después revirtió porque "se sentía menos visual y un poco más perdido"
 en esa pantalla compartida por Ventas/Cosecha & Tueste/Configuración.
 Esta vez SÍ quería pill, pero solo para Resumen — así que se creó
 `.resumen-tabs` (clase nueva, no toca `.subtabs`) en vez de cambiar la
-clase compartida: dorado sólido = pestaña activa (mismo lenguaje que los
-pills de peso/molienda en pedidos/index.html), fondo `--teal-bg` =
-inactiva. Las otras 3 pantallas con `.subtabs` no cambiaron en nada.
+clase compartida. Las otras 3 pantallas con `.subtabs` no cambiaron en
+nada. (El color de la pestaña activa cambió de dorado a teal sólido el
+mismo día — ver la sección siguiente.)
 
 **Tipografía**: `--teal`/`--dorado`/`--serif` YA existían en `index.html`
 desde el 2026-09-21 (se habían traído de pedidos para los títulos de
@@ -2989,3 +2989,64 @@ dibujar sin error al volver a "Tendencias y mercado" varias veces
 seguidas); en celular las pills bajan de línea limpiamente cuando no
 caben las 3 en una fila; Ventas/Cosecha & Tueste/Configuración
 (`.subtabs`) no se tocaron. Sin errores nuevos de consola.
+
+## Pestañas de Resumen ancladas al hacer scroll + color teal (2026-09-26, mismo día)
+
+Dos pedidos más de Juan sobre lo de arriba: que "Este mes / Clientes y
+balance / Tendencias y mercado" se quedara ancladas arriba al bajar por
+el contenido de una pestaña larga (para cambiar de pestaña sin tener que
+volver a subir), y que la pestaña activa no resaltara en dorado sino en
+"el mismo color que hay en la página de pedidos" — en pedidos, dorado ya
+significa "elegiste este producto/opción" (peso-pill, molienda-btn); esto
+es navegación (dónde estás parado), más parecido al teal sólido del botón
+"Pedir →" en la barra de secciones de pedidos. Cambio simple:
+`.resumen-tabs button.active` pasó de `background: var(--dorado)` a
+`background: var(--teal)`.
+
+**Anclarla NO se pudo resolver con `position: sticky` — y el motivo es un
+bug real, preexistente, que no se había notado antes.** `html, body {
+overflow-x: hidden }` (el arreglo del rebote lateral en celular,
+2026-09-23, ya probado en el teléfono real de Juan) hace, por una regla
+del spec de CSS ("si un eje es visible y el otro no, el visible se
+computa como `auto`"), que `body` se vuelva su PROPIO contenedor de
+scroll — uno que en la práctica nunca se mueve, porque el scroll real de
+la página pasa en `<html>`. Cualquier `position: sticky` dentro de `body`
+se ancla respecto a ESE scroll inerte de `body`, así que nunca se ve
+pegado de verdad — simplemente se desliza fuera de la pantalla con el
+resto del contenido. Se confirmó con `getBoundingClientRect()` en vivo
+que esto **ya le pasaba de antes a `.mobile-menu-btn`** (el botón ☰ que
+abre el sidebar en celular, también declarado `position: sticky` con un
+`top` calculado) — un bug preexistente, no introducido en este cambio, y
+que se deja sin tocar (fuera de alcance de este pedido).
+
+No se tocó `html, body { overflow-x: hidden }` para arreglar esto —
+es una regla ya validada en el teléfono real de Juan y no hay forma de
+volver a probarla ahí desde acá; tocarla a ciegas es más riesgo del que
+vale este ajuste. En vez de eso, `.resumen-tabs` se ancla a mano con JS
+(`iniciarPestanasFijasResumen()`/`actualizarPestanasFijasResumen()`,
+junto a `cambiarResumenTab()`): un `<div>` marcador invisible justo antes
+de la barra mide dónde iría en flujo normal; un listener de `scroll` en
+`window` (que sí refleja el scroll real, a diferencia del de `body`)
+calcula si esa posición ya pasó el borde superior visible y alterna la
+barra entre su lugar normal y `position: fixed` (capturando su propio
+`left`/`width` en el momento del cambio, para que no salte de tamaño ni
+se monte sobre el sidebar en escritorio). El offset superior es 66px en
+celular (para no quedar detrás de `.bottom-nav-movil`, la barra fija de
+arriba en celular pese al nombre) y 0 en escritorio — mismo cálculo que
+ya usa `.mobile-menu-btn` para su propio `top`, solo que aplicado a mano
+en vez de con CSS puro.
+
+Probado en el preview: en celular (375px) la barra se ancla correctamente
+debajo de la barra fija de arriba al bajar, y cambiar de pestaña estando
+anclada sigue funcionando; en escritorio (1280px, con sidebar) se ancla
+en `top: 0` sin montarse sobre el sidebar, respetando su ancho/posición
+real. Sin errores nuevos de consola.
+
+**Si en algún momento se quiere arreglar el bug de fondo (`.mobile-menu-btn`
+y cualquier futuro `position: sticky` dentro de `body`)**: la única forma
+real es que `html, body { overflow-x: hidden }` deje de tener el
+`overflow-x` en AMBOS elementos a la vez — mover esa regla a un
+contenedor interno (ej. `.app-shell`) es la opción más segura en teoría,
+pero necesita probarse en un teléfono real (Android e iOS) antes de darla
+por buena, porque el comportamiento de rebote lateral que resuelve es
+específico de cada motor de navegador móvil.
