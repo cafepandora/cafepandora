@@ -3274,3 +3274,22 @@ con `===` exacto (sensible a mayúsculas/espacios) — alguien podría crear
 mayoría de los campos de texto libre en esta app, no hay normalización.
 No se tocó porque cambiar ese comportamiento es una decisión de producto,
 no un bug de por sí.
+
+**🔴 Bug real de visibilidad, reportado por Juan usándolo de verdad**:
+"no me apareció dónde podía editar Mayorista/Interno" en Configuración.
+Causa: `filaTier()` (la función que pinta cada tarifa en "Precios de
+café") devolvía `''` cuando un lote no tenía NINGUNA fila para esa
+tarifa — pensado originalmente para Pasilla (que a propósito no tiene
+tarifa normal/web), pero el mismo código también escondía Mayorista/
+Interno para CUALQUIER lote mientras no se hubiera corrido
+`migracion_precios_mayorista_interno.sql` (o si un lote se siembra
+después sin esas filas) — sin dejar ningún rastro de que la tarifa
+existe como concepto. Arreglado con `filaTierOCopiar()`: si el lote SÍ
+tiene "Precio normal" pero le falta Mayorista/Distribuidor/Interno,
+muestra "Sin configurar todavía para <lote>" + botón "Copiar de Precio
+normal" (`copiarPreciosTierCafe()`, crea una fila por presentación via
+`POST /api/precios-cafe`, mismo valor que Precio normal como punto de
+partida) — funciona sin depender de si la migración ya corrió. Pasilla
+sigue sin mostrar nada (no tiene "Precio normal" tampoco, así que
+`filaTierOCopiar` se queda callada igual que antes — comportamiento
+intencional sin cambios).
