@@ -69,12 +69,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   await registrarCliente(supabase, body.cliente, body.tipoCliente);
 
-  // Descuenta el inventario de cada lote de café que traiga el pedido, de
-  // forma atómica (no se pierde nada aunque otro celular venda al mismo tiempo).
-  try {
-    await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(row), -1);
-  } catch (err: any) {
-    return new Response('Se guardó la venta, pero no se pudo descontar del inventario: ' + (err.message || ''), { status: 500 });
+  // El inventario YA NO se descuenta al registrar el pedido (2026-09-27,
+  // pedido de Juan: "si hacen la orden no es que ya se despacha, solo se
+  // descarga del stock al enviarse") — se descuenta cuando el pedido se
+  // marca "Enviado" de verdad (ver toggleEstadoEnvio en [id].ts). Un
+  // pedido siempre arranca en "Pendiente" desde la UI, así que en la
+  // práctica esto no descuenta nada acá — la única excepción real es si
+  // alguna vez se crea un pedido YA marcado "Enviado" directamente (no
+  // pasa hoy desde ningún formulario, pero se cubre por si acaso).
+  if (row.estadoEnvio === 'Enviado') {
+    try {
+      await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(row), -1);
+    } catch (err: any) {
+      return new Response('Se guardó la venta, pero no se pudo descontar del inventario: ' + (err.message || ''), { status: 500 });
+    }
   }
 
   return Response.json(row, { status: 201 });

@@ -16,10 +16,22 @@ async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre
   } catch {}
 }
 
-// Si el body trae "nuevosItems" (líneas que se le agregaron a un pedido ya
-// existente) se descuenta inventario por esas. Si trae "itemsRemovidos"
-// (líneas originales que se quitaron al editar) se le devuelve el
-// inventario correspondiente. Ambos ajustes son atómicos por lote.
+// El inventario se mueve en DOS casos distintos acá, y solo uno a la vez
+// en la práctica (el frontend nunca los combina en la misma llamada):
+// 1) toggleEstadoEnvio() manda SOLO { estadoEnvio } — si pasa de
+//    Pendiente a Enviado, ahí es cuando de verdad se descuenta el café
+//    (2026-09-27: "solo se descarga del stock al enviarse", no al
+//    registrar el pedido); si pasa de Enviado de vuelta a Pendiente
+//    (corrigiendo un error), se devuelve.
+// 2) guardarEdicionVenta() manda "nuevosItems"/"itemsRemovidos" (líneas
+//    que se agregaron/quitaron al editar) — pero SOLO tiene sentido
+//    tocar el inventario por esto si el pedido YA estaba "Enviado"
+//    ANTES de esta edición (si todavía no se había enviado, nunca se
+//    descontó nada por él, así que editar sus líneas tampoco debe
+//    tocar el inventario — se descontará lo que corresponda, completo,
+//    el día que de verdad se envíe).
+// Por eso hace falta el registro ANTES del update (para saber si ya
+// estaba Enviado), igual que ya hacían cosechas/cereza-comprada/pergamino.
 export const onRequestPatch: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
   if (authError) return authError;
@@ -27,6 +39,9 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
   const id = context.params.id as string;
   const body: any = await context.request.json();
+
+  const { data: actual } = await supabase.from('ventas').select(SELECT_VENTA).eq('id', id).single();
+  if (!actual) return new Response('Venta no encontrada', { status: 404 });
 
   const updates: Record<string, unknown> = {};
   if (body.usuario !== undefined) updates.usuario = body.usuario;
@@ -54,14 +69,29 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   if (body.cliente !== undefined) await registrarCliente(supabase, row.cliente, row.tipoCliente);
 
+  const yaEnviadoAntes = actual.estadoEnvio === 'Enviado';
   try {
-    const nuevosItems = Array.isArray(body.nuevosItems) ? body.nuevosItems : [];
-    if (nuevosItems.length) {
-      await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: nuevosItems }), -1);
-    }
-    const itemsRemovidos = Array.isArray(body.itemsRemovidos) ? body.itemsRemovidos : [];
-    if (itemsRemovidos.length) {
-      await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: itemsRemovidos }), 1);
+    if (body.estadoEnvio !== undefined) {
+      // Caso 1: toggleEstadoEnvio() — mueve el inventario completo del
+      // pedido, en el sentido que corresponda según hacia dónde cambió.
+      const yaEnviadoDespues = row.estadoEnvio === 'Enviado';
+      if (!yaEnviadoAntes && yaEnviadoDespues) {
+        await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(row), -1);
+      } else if (yaEnviadoAntes && !yaEnviadoDespues) {
+        await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(row), 1);
+      }
+    } else if (yaEnviadoAntes) {
+      // Caso 2: edición de líneas (guardarEdicionVenta) — solo ajusta si
+      // el pedido YA estaba enviado; si seguía pendiente, no había nada
+      // descontado todavía y no hay nada que corregir acá.
+      const nuevosItems = Array.isArray(body.nuevosItems) ? body.nuevosItems : [];
+      if (nuevosItems.length) {
+        await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: nuevosItems }), -1);
+      }
+      const itemsRemovidos = Array.isArray(body.itemsRemovidos) ? body.itemsRemovidos : [];
+      if (itemsRemovidos.length) {
+        await ajustarInventarioPorLote(supabase, itemsCafeParaInventario({ items: itemsRemovidos }), 1);
+      }
     }
   } catch (err: any) {
     return new Response('Se guardó la edición, pero no se pudo ajustar el inventario: ' + (err.message || ''), { status: 500 });
@@ -77,13 +107,16 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);
   const id = context.params.id as string;
 
-  // Antes de borrar, revisa qué café traía esta venta, para devolverlo al inventario.
+  // Antes de borrar, revisa qué café traía esta venta, para devolverlo al
+  // inventario — SOLO si de verdad se había descontado (ya estaba
+  // "Enviado"; un pedido borrado antes de enviarse nunca tocó el
+  // inventario, así que no hay nada que devolver).
   const { data: venta } = await supabase.from('ventas').select(SELECT_VENTA).eq('id', id).single();
 
   const { error } = await supabase.from('ventas').delete().eq('id', id);
   if (error) return new Response(error.message, { status: 500 });
 
-  if (venta) {
+  if (venta && venta.estadoEnvio === 'Enviado') {
     try {
       await ajustarInventarioPorLote(supabase, itemsCafeParaInventario(venta), 1);
     } catch (err: any) {

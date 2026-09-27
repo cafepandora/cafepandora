@@ -3321,3 +3321,102 @@ de barras manual que en algún momento se reemplazó por la gráfica de
 Chart.js "Ventas por lote de café", sin borrar el cálculo viejo. Se
 confirmó con `grep` en toda la función que de verdad no se usaban en
 ningún lado antes de quitarlos.
+
+## El inventario se descuenta al ENVIAR, no al registrar la venta (2026-09-27)
+
+Cambio de fondo pedido por Juan: "si hacen la orden no es que ya se
+despacha, solo se descarga del stock al enviarse". Antes,
+`POST /api/ventas` descontaba el inventario tostado de una, al
+registrar el pedido — sin importar si de verdad había salido de la
+bodega. Ahora el descuento pasa a `PATCH /api/ventas/:id` cuando
+`estadoEnvio` cambia de "Pendiente" a "Enviado" (el mismo `toggleEstadoEnvio()`
+de siempre) — registrar un pedido nuevo YA NO toca el inventario.
+
+**`functions/api/ventas/index.ts` (POST)**: solo descuenta si el pedido
+se crea YA marcado "Enviado" (no pasa hoy desde ningún formulario —
+siempre arranca "Pendiente" — pero queda cubierto por si acaso).
+
+**`functions/api/ventas/[id].ts` (PATCH)**: ahora hace `SELECT` del
+registro ANTES del update (mismo patrón que ya usaban cosechas/cereza-
+comprada/pergamino) para saber si YA estaba "Enviado". Dos casos, que el
+frontend nunca combina en la misma llamada:
+1. `toggleEstadoEnvio()` manda solo `{ estadoEnvio }` — Pendiente→Enviado
+   descuenta TODO lo que trae el pedido; Enviado→Pendiente (corrigiendo
+   un error) lo devuelve.
+2. `guardarEdicionVenta()` manda `nuevosItems`/`itemsRemovidos` (líneas
+   agregadas/quitadas al editar) — esto SOLO toca el inventario si el
+   pedido YA estaba "Enviado" antes de la edición. Si seguía pendiente,
+   no había nada descontado todavía, así que editar sus líneas tampoco
+   debe tocar el inventario — se descontará completo, con los datos
+   finales, el día que de verdad se envíe.
+
+**`onRequestDelete`**: solo devuelve inventario si la venta que se borra
+YA estaba "Enviado" (antes devolvía siempre). Un pedido borrado antes de
+enviarse nunca llegó a descontar nada.
+
+**Maquila no se toca** — nunca tocó inventario (es un servicio, no un
+producto del inventario propio), sigue igual.
+
+### 🔴 El problema real de la transición — pedidos que YA estaban pendientes
+
+Se pensó con cuidado antes de escribir código: cualquier venta que en
+producción esté HOY "Pendiente" de envío ya había descontado su café al
+registrarse, bajo la regla VIEJA. Si no se corrige nada y ese pedido se
+marca "Enviado" más adelante, el código NUEVO lo va a descontar OTRA
+VEZ — inventario descontado dos veces por el mismo café, un problema
+real de datos, no solo de código.
+
+**Herramienta de corrección, en Configuración → Precios** (arriba de
+"Saldo inicial", junto al aviso de migraciones pendientes, `calcularCorreccionInventarioPendientes()`
++ `aplicarCorreccionInventarioEnvio()`): suma, por lote, los kilos de
+café de TODAS las ventas con `estadoEnvio !== 'Enviado'` ahora mismo —
+reusando `kilosDeVentaPorLote()`, la MISMA conversión ya probada que usa
+"Proyección de inventario" en Inventario Tostado, no una fórmula nueva.
+Muestra los números exactos por lote y un botón "Aplicar corrección (una
+sola vez)" que los suma de vuelta al stock (mismo `PATCH /api/inventario/:id`
+que ya usa "Editar stock" a mano) — deliberadamente NO es una migración
+SQL a ciegas: Juan ve los kilos reales antes de confirmar, calculados con
+sus propios datos cargados en el navegador.
+
+⚠️ **Gotcha real, encontrado probándolo antes de darlo por bueno**: el
+bloque se calcula a partir de `state.ventas` (cuáles siguen sin
+"Enviado"), pero aplicar la corrección NO cambia esas ventas — solo el
+inventario. Sin nada más, el mismo botón con los MISMOS números iba a
+seguir apareciendo cada vez que se entrara a Configuración (esas ventas
+pueden tardar días en enviarse de verdad), con riesgo real de aplicarlo
+dos veces por accidente y duplicar el ajuste. Arreglado con una marca en
+`localStorage` (`cp_correccion_inventario_envio`) — una vez aplicada,
+el bloque se queda oculto para siempre en ese navegador, sin importar
+qué digan las ventas.
+
+**Qué hacer**: entrar a Configuración → Precios UNA vez después de este
+deploy, revisar los kilos que propone devolver (deberían coincidir con
+lo que ya tenías pendiente de envío) y tocar "Aplicar corrección". Si el
+bloque no aparece, es porque no había nada pendiente de envío con café
+en ese momento — no hace falta hacer nada.
+
+## Aviso de stock bajo lleva a Inventario Tostado (2026-09-27)
+
+Pedido chico de Juan, junto con lo de arriba: tocar el aviso "⚠️ Stock
+bajo de Lavado" ahora navega a Inventario Tostado (`irATab('inventario')`),
+donde ya existía "Editar stock" por lote (`abrirEdicionInventario()`) —
+no hizo falta ningún botón nuevo, ese ya era el lugar para corregir el
+número si hacía falta (casi siempre ya hay tostado nuevo, pero cuando no,
+ahora es un clic llegar ahí en vez de tener que buscar la pestaña).
+
+## `.mobile-menu-btn` en `fixed` tapaba los avisos de arriba (2026-09-27)
+
+Efecto colateral real del arreglo de `.mobile-menu-btn` (sticky→fixed,
+ver más arriba) que solo se notó al probarlo en ancho de celular: con
+`sticky` roto, el botón ☰ se scrolleaba fuera de la vista casi de
+inmediato, así que casi nunca se lo veía tapando nada por más de un
+instante. Con `fixed` de verdad, se queda flotando SIEMPRE en el mismo
+lugar (`top: 66px+12px, left:12px`) — y `.app-main` (el contenido) solo
+reservaba 66px de espacio arriba, no los 66+56px que el botón (12px de
+margen + 44px de alto) en realidad ocupa. El aviso de stock bajo (lo
+primero que pinta cada pestaña) quedaba con su borde izquierdo tapado
+por el botón. Arreglado sumándole 64px más al padding-top de `.app-main`
+en celular — no se movió el botón (arriesgaba chocar con los toasts, que
+son casi de ancho completo y aparecen centrados abajo) sino que se le
+dio a todo el contenido el espacio real que necesita para no toparse con
+él, sin importar qué aviso sea el primero en pintarse en cada pestaña.
