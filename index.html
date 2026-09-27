@@ -5485,12 +5485,6 @@ function renderResumen() {
   // Kilo/Cuarterón se convierten todas a la misma unidad para sumarlas.
   const librasVendidas = ventasMes.reduce((s, v) => s + kilosDeVenta(v), 0) / KG_POR_LIBRA_VENTA;
 
-  const porLote = {};
-  ventasMes.forEach(v => {
-    lotesDeVenta(v).forEach(([lote, val]) => { porLote[lote] = (porLote[lote] || 0) + (Number(val) || 0); });
-  });
-  const maxLote = Math.max(1, ...Object.values(porLote));
-
   const filaResumenVenta = v => `
     <div class="ledger-row">
       <div class="main">
