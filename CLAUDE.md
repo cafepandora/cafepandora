@@ -2577,6 +2577,15 @@ tenía la foto de Lavado, para que las dos combinen visualmente) como
 
 ## Pendiente / a medias
 
+- **⚠️ Precios de Mayorista/Interno — falta correr la migración**: el
+  código ya está (ver sección "Auditoría de claridad de precios" arriba),
+  pero hasta que no se corra `migracion_precios_mayorista_interno.sql` en
+  Supabase, elegir "Mayorista" o "Interno" en Ventas va a sugerir $0 (no
+  hay fila todavía para esos tiers) — el panel de ⚠️ migraciones
+  pendientes en Configuración ya lo detecta. Una vez corrida, revisar que
+  el valor clonado de "Precio normal" sea el que Juan de verdad quiere
+  cobrar en cada una — arranca igual al normal a propósito, como punto de
+  partida editable, no como la tarifa final.
 - **⚠️ Atribución de usuarios — falta correr la migración**: el código
   ya está (ver sección "Atribución real por sesión" arriba), pero a
   diferencia de migraciones anteriores (que afectaban 1-2 endpoints),
@@ -2791,3 +2800,122 @@ tenía la foto de Lavado, para que las dos combinen visualmente) como
   initialization` (temporal dead zone) y la app no carga nada, sin avisar
   por qué. Ya pasó una vez armando `TITULARES_CUENTA_COBRO` cerca de los
   demás `EMISOR_*` (que están antes de los blobs) en vez de después.
+
+## Auditoría de claridad de precios — "prueba" de Juan (2026-09-26)
+
+Juan pidió, sin decir cuál era el detalle concreto ("si te digo, ya no
+tendría sentido la prueba"), auditar a fondo que "nada se pise con nada,
+que todo tenga sentido, que haya forma de modular los precios que se
+pueden elegir". Encontrado revisando `tipoCliente` de punta a punta: el
+selector "Tipo de cliente" en Ventas ofrece 4 opciones (Cliente normal,
+Mayorista, Distribuidor, Interno), pero `tierDeCliente()` solo distinguía
+2 tarifas reales — cualquier cosa que no fuera 'Distribuidor' caía en
+'normal'. Mayorista e Interno se veían como opciones reales pero cobraban
+exactamente lo mismo que Cliente normal, sin ningún aviso. Confirmado
+Juan: **"Mayorista podría tener otro valor e interno otro, hagamos que
+esto se pueda y pongámoslo en configuración también"**.
+
+**Arreglo — cada tipo de cliente con su propia tarifa**:
+`TIER_POR_TIPO_CLIENTE` (junto a `tierDeCliente`, `index.html`) mapea los
+4 tipos a 4 tiers reales en `precios_cafe.tipo_cliente`: normal,
+mayorista, distribuidor, interno (más 'web', que ya existía aparte para
+la página pública). `renderConfig()` → "Precios de café" ahora muestra 4
+secciones por lote (antes 2: normal/distribuidor) —
+`migracion_precios_mayorista_interno.sql` siembra las filas de mayorista
+e interno clonando el valor que hoy tiene 'normal' en cada lote/
+presentación (punto de partida editable, no invent[a] ningún precio
+nuevo) — segura de correr más de una vez (`WHERE NOT EXISTS`). El panel
+de ⚠️ migraciones pendientes de Configuración la detecta con un
+mecanismo nuevo (`CHEQUEOS_FILAS` en `functions/api/salud-esquema/
+index.ts`) — a diferencia de los chequeos de siempre (columna/tabla que
+no existe, Postgres tira error), esta migración no cambia el esquema,
+solo siembra filas, así que el chequeo es "¿ya hay al menos una fila con
+tipo_cliente='mayorista'/'interno'?" en vez de "¿la columna existe?".
+
+**Segundo hallazgo, relacionado — "modular los precios" no era posible**:
+ni `precios_cafe` ni `maquila_tarifas` tenían `POST`, solo `GET`+`PATCH`
+— una fila nueva (un lote nuevo en una tarifa que no la tenía, como
+Pasilla; un tier nuevo como mayorista/interno antes de la migración; un
+servicio de maquila nuevo) solo se podía crear con una migración SQL a
+mano. Juan: **"el cambio que dices con respecto a modular los precios me
+parece excelente, hagámoslo"**. Se agregó `onRequestPost` a
+`functions/api/precios-cafe/index.ts` y `functions/api/maquila/
+index.ts` — cada uno valida los campos, revisa que la combinación no
+exista ya (`maybeSingle()`, mismo patrón que ya usa `cuentas-cobro` para
+`clientes`) y devuelve 409 si ya existe, o inserta y devuelve la fila
+nueva. En `index.html`, Configuración → Precios ganó dos bloques nuevos:
+
+- **"Agregar un precio nuevo"** (después de "Precios de la página web"):
+  Lote (`LOTES_VENTA`, incluye Pasilla), Tarifa (los 4 tiers +
+  'Página web'), Presentación (`presentacionesDeLote(lote)`, se
+  actualiza sola al cambiar el lote — respeta que Pasilla solo vende en
+  Libra), Precio. `agregarPrecioCafe()` revisa duplicados en el frontend
+  ANTES de llamar al backend (mismo dato, doble red de seguridad) y
+  agrega la fila devuelta a `state.preciosCafe` sin necesitar un
+  `sincronizar()` completo.
+- **"Agregar una tarifa de maquila nueva"** (después de "Tarifas de
+  maquila"): Servicio (texto libre — puede ser un servicio que Juan
+  empiece a ofrecer, no está atado a `ORDEN_SERVICIOS_MAQUILA`),
+  Presentación (`— (se cobra por kg)` = `null`, o una de `PRESENTACIONES`),
+  Precio. `agregarTarifaMaquila()`, mismo patrón.
+
+La hoja "Precios de café" del Excel (`hojaPrecios` en la exportación)
+ganó las columnas de Mayorista e Interno junto a Normal/Distribuidor,
+para que el respaldo siga reflejando las 4 tarifas reales.
+
+**Qué hacer**: correr `migracion_precios_mayorista_interno.sql` en
+Supabase, y luego revisar en Configuración → Precios que el valor
+clonado de "Precio mayorista"/"Precio interno" de cada lote sea el que
+Juan de verdad quiere cobrar (hoy arranca igual a "Precio normal" — es
+un punto de partida, no la tarifa final).
+
+Probado en el preview local (mock con datos de precios para Lavado en
+los 5 tiers y Honey solo en normal, para confirmar que un lote sin
+alguna tarifa sigue sin romper el render): Ventas → Tipo de cliente
+"Mayorista"/"Interno" ya sugieren un precio propio (no el de "Cliente
+normal"); Configuración → "Agregar un precio nuevo" creó Honey/Libra/
+Mayorista=$40.000 y apareció de inmediato como una fila editable nueva;
+"Agregar una tarifa de maquila nueva" creó un servicio "Empaque al
+vacío" nuevo; intentar agregar una tarifa ya existente ("Trilla") no
+disparó ninguna llamada de red (bloqueado en el frontend antes de
+llegar al backend). Sin errores nuevos de consola.
+
+## El detalle real de la "prueba" — "Quién recibió" ofrecía "Efectivo" (2026-09-26)
+
+Después de la auditoría de precios de arriba (que resultó útil pero NO
+era el detalle que Juan había notado), lo dijo directo: **"quien recibe
+tiene la opcion efectivo, pero efectivo no es una persona, asi que no
+podria recibir ningun pedido"**. Exactamente eso — simple una vez que se
+ve, y por eso costó encontrarlo con una auditoría de lógica de negocio en
+vez de con sentido común de quien conoce el flujo real.
+
+**La causa**: `CUENTAS_BALANCE` (`= [...PERSONAS_EQUIPO, 'Efectivo']`) se
+reusaba para DOS preguntas con semántica distinta — "Quién pagó" (Gastos/
+Finca/Cereza comprada, donde SÍ tiene sentido pagar directo de la caja
+física) y "Quién recibió" (Ventas/Maquila, que solo se pregunta cuando el
+método de pago es "Efectivo" — ver el comentario junto a
+`METODO_A_PERSONA`: *"solo 'Efectivo' es ambiguo... y de verdad necesita
+que se elija quién lo recibió [en mano]"*). Preguntar "¿quién lo recibió
+en mano?" y ofrecer "Efectivo" como respuesta es circular — no identifica
+ninguna persona, que es justo el propósito del campo. El código no se
+rompía (`calcularBalancePersonas()` sumaría igual esa venta a la "cuenta"
+Efectivo sin tirar ningún error), así que nunca se manifestó como un bug
+técnico — era puramente una opción sin sentido en un desplegable.
+
+**Arreglo**: los 4 `<select>` de "Quién recibió" (`v-recibio`/`m-recibio`
+en Ventas, registrar y editar; `mq-recibio`/`m-recibio` en Maquila,
+registrar y editar) pasaron de iterar `CUENTAS_BALANCE` a iterar
+`PERSONAS_EQUIPO` (solo Juan/Inés/Joaquín, sin Efectivo). Los de "Quién
+pagó" (Gastos, Finca, Cereza comprada — `g-pago`, `f-pago`, `cz-pago`,
+`ecz-pago`, `cp-pago`, y los `m-pago` de edición) se quedaron con
+`CUENTAS_BALANCE` intactos, porque ahí "Efectivo" sí es una respuesta
+válida y ya está bien modelado en `calcularBalancePersonas()`. No hizo
+falta ninguna migración — es puro JS, y cualquier venta vieja que ya
+tenga `recibido_por = 'Efectivo'` (si la hay) se sigue sumando igual al
+balance de esa "cuenta", solo que ya no se puede volver a elegir para una
+venta nueva.
+
+Probado en el preview local: con "Efectivo" como método de pago, el
+desplegable "Quién recibió" de Ventas y de Maquila ya solo lista Juan/
+Inés/Joaquín (confirmado leyendo las `options` reales del `<select>`);
+"Quién pagó" en Gastos no se tocó. Sin errores nuevos de consola.

@@ -23,6 +23,16 @@ const CHEQUEOS = [
   { tabla: 'cuentas_cobro', columna: 'creado_por', migracion: 'migracion_atribucion_usuarios.sql', descripcion: 'Atribución real de quién creó cada registro (creado_por)' },
 ];
 
+// A diferencia de CHEQUEOS de arriba (columna/tabla que no existe todavía —
+// Postgres responde error), esto es para una migración que no cambia el
+// esquema, solo SIEMBRA filas (migracion_precios_mayorista_interno.sql) —
+// la columna/tabla ya existe, así que un SELECT normal nunca falla; lo que
+// hay que comprobar es si ya hay al menos una fila con ese filtro.
+const CHEQUEOS_FILAS = [
+  { tabla: 'precios_cafe', filtro: { tipo_cliente: 'mayorista' }, migracion: 'migracion_precios_mayorista_interno.sql', descripcion: 'Precios propios para "Mayorista" (hoy usaría $0 en vez de la tarifa normal)' },
+  { tabla: 'precios_cafe', filtro: { tipo_cliente: 'interno' }, migracion: 'migracion_precios_mayorista_interno.sql', descripcion: 'Precios propios para "Interno" (hoy usaría $0 en vez de la tarifa normal)' },
+];
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
   if (authError) return authError;
@@ -32,5 +42,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const { error } = await supabase.from(c.tabla).select(c.columna).limit(1);
     return { tabla: c.tabla, migracion: c.migracion, descripcion: c.descripcion, ok: !error };
   }));
-  return Response.json(resultados);
+  const resultadosFilas = await Promise.all(CHEQUEOS_FILAS.map(async (c) => {
+    let q = supabase.from(c.tabla).select('id');
+    for (const [columna, valor] of Object.entries(c.filtro)) q = q.eq(columna, valor);
+    const { data, error } = await q.limit(1);
+    return { tabla: c.tabla, migracion: c.migracion, descripcion: c.descripcion, ok: !error && !!(data && data.length) };
+  }));
+  return Response.json([...resultados, ...resultadosFilas]);
 };

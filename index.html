@@ -1315,10 +1315,15 @@ const mesDe = ts => { const d = new Date(Number(ts)); return d.getFullYear() + '
 const coincide = (texto, q) => !q || String(texto || '').toLowerCase().includes(q.toLowerCase());
 const hoyMes = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 
-// El tipo de cliente decide qué tarifa aplica: 'Distribuidor' usa precios de
-// distribuidor; cualquier otro tipo (Cliente normal, Mayorista, Interno) usa
-// la tarifa normal.
-const tierDeCliente = tipoCliente => tipoCliente === 'Distribuidor' ? 'distribuidor' : 'normal';
+// Cada tipo de cliente tiene su PROPIA tarifa en precios_cafe — antes
+// 'Mayorista' e 'Interno' caían silenciosamente en la tarifa normal (mismo
+// precio que 'Cliente normal', sin ningún aviso), aunque el selector
+// aparentaba que las 4 opciones eran distintas. Corregido 2026-09-26: los 4
+// tipos tienen tier propio, configurables por separado en Configuración →
+// Precios → "Precio mayorista"/"Precio interno" (ver
+// migracion_precios_mayorista_interno.sql).
+const TIER_POR_TIPO_CLIENTE = { 'Cliente normal': 'normal', 'Mayorista': 'mayorista', 'Distribuidor': 'distribuidor', 'Interno': 'interno' };
+const tierDeCliente = tipoCliente => TIER_POR_TIPO_CLIENTE[tipoCliente] || 'normal';
 
 function precioSugerido(lote, presentacion, tipoCliente) {
   const tier = tierDeCliente(tipoCliente);
@@ -2304,7 +2309,7 @@ function renderVentas() {
         <p class="campo-ayuda">Se suma solo con lo que agregaste arriba — puedes corregirlo si el cliente pagó distinto.</p>
         <div class="row" id="v-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}">
           <div class="field"><label>Quién recibió</label>
-            <select id="v-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
+            <select id="v-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
           </div>
         </div>
         <button class="add-btn" onclick="registrarVenta(this)">Registrar venta</button>
@@ -2715,7 +2720,7 @@ function abrirEdicionVenta(id) {
       <div class="field"><label>Método de pago</label><select id="m-metodo" onchange="actualizarRecibioVisible('m')">${METODOS_PAGO.map(m => `<option ${m===v.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
     </div>
     <div class="row" id="m-recibio-fila" style="display:${personaDeMetodo(v.metodo) ? 'none' : 'flex'}">
-      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p===v.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
+      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===v.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
     </div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionVenta(${id}, this)">Guardar</button>
@@ -3001,7 +3006,7 @@ function renderMaquila() {
         <p class="campo-ayuda">Es de la orden completa, no de la última línea que agregaste — el total ya se suma solo arriba.</p>
         <div class="row" id="mq-recibio-fila" style="display:${personaDeMetodo(orden.metodo) ? 'none' : 'flex'}">
           <div class="field"><label>Quién recibió</label>
-            <select id="mq-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
+            <select id="mq-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p === orden.recibidoPor ? 'selected' : ''}>${p}</option>`).join('')}</select>
           </div>
         </div>
         <button class="add-btn" onclick="registrarOrdenMaquila(this)">Registrar orden</button>
@@ -3249,7 +3254,7 @@ function abrirEdicionMaquila(id) {
       <div class="field"><label>Método de pago</label><select id="m-metodo" onchange="actualizarRecibioVisible('m')"><option value="">—</option>${METODOS_PAGO.map(m => `<option ${m===o.metodo?'selected':''}>${m}</option>`).join('')}</select></div>
     </div>
     <div class="row" id="m-recibio-fila" style="display:${personaDeMetodo(o.metodo) ? 'none' : 'flex'}">
-      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${CUENTAS_BALANCE.map(p => `<option ${p===o.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
+      <div class="field"><label>Quién recibió</label><select id="m-recibio"><option value="">—</option>${PERSONAS_EQUIPO.map(p => `<option ${p===o.recibidoPor?'selected':''}>${p}</option>`).join('')}</select></div>
     </div>
     <div class="modal-actions">
       <button class="add-btn" onclick="guardarEdicionMaquila(${id}, this)">Guardar</button>
@@ -6336,7 +6341,7 @@ function renderConfig() {
   const orden = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
 
   const gruposCafe = {};
-  state.preciosCafe.forEach(p => { (gruposCafe[p.lote] ||= { normal: [], distribuidor: [], web: [] })[p.tipoCliente]?.push(p); });
+  state.preciosCafe.forEach(p => { (gruposCafe[p.lote] ||= { normal: [], mayorista: [], distribuidor: [], interno: [], web: [] })[p.tipoCliente]?.push(p); });
   const filasCafe = Object.entries(gruposCafe).map(([lote, tiers]) => {
     // Un lote nuevo (ej. Pasilla) puede no tener tarifa normal/web todavía
     // — sin este `if` se veía el encabezado "Precio normal" sin nada debajo.
@@ -6350,7 +6355,9 @@ function renderConfig() {
         </div>`).join('')}`;
     return `<div style="padding-top:10px"><div class="nombre" style="font-weight:700;font-size:14.5px">${lote}</div>
       ${filaTier('Precio normal', tiers.normal)}
+      ${filaTier('Precio mayorista', tiers.mayorista)}
       ${filaTier('Precio distribuidor', tiers.distribuidor)}
+      ${filaTier('Precio interno', tiers.interno)}
     </div>`;
   }).join('');
 
@@ -6426,15 +6433,51 @@ function renderConfig() {
 
     <h3 class="section-title">Precios de café</h3>
     ${filasCafe || '<div class="empty">Sin precios configurados.</div>'}
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:10px">Estos precios se usan para calcular el valor sugerido de cada línea de café, según el tipo de cliente del pedido (Distribuidor usa la tarifa de distribuidor; los demás, la normal). Siempre puedes corregir el valor a mano al registrar.</p>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:10px">Estos precios se usan para calcular el valor sugerido de cada línea de café, según el tipo de cliente del pedido — cada tipo (Cliente normal, Mayorista, Distribuidor, Interno) tiene su propia tarifa, independiente de las demás. Siempre puedes corregir el valor a mano al registrar.</p>
 
     <h3 class="section-title">Precios de la página web</h3>
     ${filasCafeWeb || '<div class="empty">Sin precios de página web configurados.</div>'}
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:10px">Independientes de los de arriba — son los que ve cualquiera que entre a hacer un pedido en tu página pública. Sirve para dar un precio distinto a clientes nuevos y ajustarlo con el tiempo, sin tocar lo que cobras a tus clientes de siempre.</p>
 
+    <h3 class="section-title">Agregar un precio nuevo</h3>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Para un lote, tarifa o presentación que todavía no tiene precio configurado arriba — ya no hace falta pedir una migración para esto. Si la combinación ya existe, corrígela arriba en vez de agregarla de nuevo.</p>
+    <div class="row">
+      <div class="field"><label>Lote</label><select id="np-lote" onchange="actualizarPresentacionesNuevoPrecio()">${LOTES_VENTA.map(l => `<option>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Tarifa</label>
+        <select id="np-tarifa">
+          <option value="normal">Cliente normal</option>
+          <option value="mayorista">Mayorista</option>
+          <option value="distribuidor">Distribuidor</option>
+          <option value="interno">Interno</option>
+          <option value="web">Página web</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Presentación</label><select id="np-presentacion">${presentacionesDeLote(LOTES_VENTA[0]).map(p => `<option>${p}</option>`).join('')}</select></div>
+      <div class="field"><label>Precio</label><input type="number" id="np-precio" value="0"></div>
+    </div>
+    <button class="sec-btn" onclick="agregarPrecioCafe(this)">+ Agregar precio</button>
+
     <h3 class="section-title">Tarifas de maquila</h3>
     ${filas || '<div class="empty">Sin tarifas configuradas.</div>'}
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación.</p>`;
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación.</p>
+
+    <h3 class="section-title">Agregar una tarifa de maquila nueva</h3>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Para un servicio que todavía no existe, o una presentación nueva de uno que ya tienes — sin necesitar una migración.</p>
+    <div class="row">
+      <div class="field"><label>Servicio</label><input type="text" id="nt-servicio" placeholder="ej. Empaque al vacío"></div>
+      <div class="field"><label>Presentación</label>
+        <select id="nt-presentacion">
+          <option value="">— (se cobra por kg)</option>
+          ${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Precio</label><input type="number" id="nt-precio" value="0"></div>
+    </div>
+    <button class="sec-btn" onclick="agregarTarifaMaquila(this)">+ Agregar tarifa</button>`;
 
   const q = document.getElementById('filtroBusqueda').value;
   const todosClientes = listaClientes();
@@ -6542,6 +6585,60 @@ async function guardarTarifa(id) {
   const m = state.maquila.find(x => x.id === id); m.precio = precio;
   guardarCacheLocal('maquila');
   await apiFetch('/api/maquila/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ precio }) });
+}
+function actualizarPresentacionesNuevoPrecio() {
+  const lote = document.getElementById('np-lote').value;
+  document.getElementById('np-presentacion').innerHTML = presentacionesDeLote(lote).map(p => `<option>${p}</option>`).join('');
+}
+// Crea una fila nueva en precios_cafe (POST, agregado 2026-09-26) — antes
+// esta tabla solo tenía PATCH, así que un lote/tarifa/presentación sin
+// precio todavía (ej. Pasilla en una tarifa nueva, o Mayorista/Interno
+// antes de correr su migración) solo se podía sembrar con una migración a
+// mano. Con esto, Configuración puede crear la fila directamente.
+async function agregarPrecioCafe(btn) {
+  const lote = document.getElementById('np-lote').value;
+  const presentacion = document.getElementById('np-presentacion').value;
+  const tipoCliente = document.getElementById('np-tarifa').value;
+  const precio = Number(document.getElementById('np-precio').value) || 0;
+  if (state.preciosCafe.some(p => p.lote === lote && p.presentacion === presentacion && p.tipoCliente === tipoCliente)) {
+    return toast('Ya existe un precio para esa combinación — corrígelo arriba.', 'error');
+  }
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/api/precios-cafe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lote, presentacion, tipoCliente, precio }) });
+    if (!res.ok) throw new Error(await res.text());
+    const nuevo = await res.json();
+    state.preciosCafe.push(nuevo);
+    guardarCacheLocal('preciosCafe');
+    toast('Precio agregado');
+    conservarScroll(() => renderConfig());
+  } catch (err) {
+    toast('No se pudo agregar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+// Mismo mecanismo que agregarPrecioCafe() pero para maquila_tarifas — un
+// servicio nuevo (ej. uno que Juan empiece a ofrecer) ya no necesita una
+// migración, solo escribirlo acá.
+async function agregarTarifaMaquila(btn) {
+  const servicio = document.getElementById('nt-servicio').value.trim();
+  const presentacion = document.getElementById('nt-presentacion').value || null;
+  const precio = Number(document.getElementById('nt-precio').value) || 0;
+  if (!servicio) return toast('Escribe el nombre del servicio', 'error');
+  if (state.maquila.some(t => t.servicio === servicio && (t.presentacion || null) === presentacion)) {
+    return toast('Ya existe esa tarifa — corrígela arriba.', 'error');
+  }
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/api/maquila', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ servicio, presentacion, precio }) });
+    if (!res.ok) throw new Error(await res.text());
+    const nuevo = await res.json();
+    state.maquila.push(nuevo);
+    guardarCacheLocal('maquila');
+    toast('Tarifa agregada');
+    conservarScroll(() => renderConfig());
+  } catch (err) {
+    toast('No se pudo agregar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
 }
 async function guardarSaldoInicial(persona) {
   const monto = Number(document.getElementById('si-' + idPersona(persona)).value) || 0;
@@ -6788,13 +6885,12 @@ function exportarExcel() {
   const ordenPres = ['Media lb', 'Libra', 'Kilo', 'Cuarterón'];
   const hojaPrecios = {
     name: 'Precios de café',
-    cols: [14, 16, 16, 16],
+    cols: [14, 16, 16, 16, 16, 16],
     rows: [
-      [HEAD('Lote'), HEAD('Presentación'), HEAD('Precio normal'), HEAD('Precio distribuidor')],
+      [HEAD('Lote'), HEAD('Presentación'), HEAD('Precio normal'), HEAD('Precio mayorista'), HEAD('Precio distribuidor'), HEAD('Precio interno')],
       ...LOTES_VENTA.map(lote => ordenPres.map(p => {
-        const n = state.preciosCafe.find(x => x.lote === lote && x.presentacion === p && x.tipoCliente === 'normal');
-        const d = state.preciosCafe.find(x => x.lote === lote && x.presentacion === p && x.tipoCliente === 'distribuidor');
-        return [lote, p, MONEY(n ? n.precio : 0), MONEY(d ? d.precio : 0)];
+        const precioTier = tier => state.preciosCafe.find(x => x.lote === lote && x.presentacion === p && x.tipoCliente === tier);
+        return [lote, p, MONEY(precioTier('normal')?.precio || 0), MONEY(precioTier('mayorista')?.precio || 0), MONEY(precioTier('distribuidor')?.precio || 0), MONEY(precioTier('interno')?.precio || 0)];
       })).flat(),
     ],
   };
