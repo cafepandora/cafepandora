@@ -2919,3 +2919,73 @@ Probado en el preview local: con "Efectivo" como método de pago, el
 desplegable "Quién recibió" de Ventas y de Maquila ya solo lista Juan/
 Inés/Joaquín (confirmado leyendo las `options` reales del `<select>`);
 "Quién pagó" en Gastos no se tocó. Sin errores nuevos de consola.
+
+## Resumen — pestañas nuevas + identidad visual de pedidos (2026-09-26)
+
+Pedido de Juan: "¿cómo podemos optimizar tanto visualmente como de
+navegación el área de resultados?" — Resumen había crecido a una sola
+página larga (7 tarjetas de stat, 6 gráficas de Chart.js, varias tablas)
+con 5 botones "↓ saltar a..." que ni siquiera cubrían todo lo que hay ahí
+(Precio FNC, Rendimiento de producción, Comparación anual y Riesgo de
+fuga se quedaban fuera de esos 5). Confirmado con Juan: reorganizar en
+pestañas de verdad, **solo en Resumen por ahora** (no en el resto de la
+app interna), con la tipografía/colores de `pedidos/index.html` y forma
+de pestaña redondeada/pill (no la rectangular de `.subtabs`).
+
+**3 pestañas nuevas** (`resumenTab`, `cambiarResumenTab()`), reemplazando
+los 5 botones de salto:
+- **"Este mes"** (por defecto): "Detalle de {mes}" — el ledger
+  transaccional (Pagadas/Por pagar/Gastos/Maquila) que ya existía.
+- **"Clientes y balance"**: Mejores clientes, Clientes en riesgo de fuga,
+  Balance de cuentas.
+- **"Tendencias y mercado"**: Comportamiento en el tiempo (3 gráficas),
+  Precio de referencia FNC, Rendimiento de producción, Comparación año
+  contra año, Margen estimado por lote.
+
+Los 7 stats de encabezado ("Resumen de {mes}") se quedan SIEMPRE
+visibles arriba de las pestañas — son el vistazo rápido de siempre, no
+tiene sentido esconderlos detrás de un clic.
+
+**Efecto colateral bueno, sin buscarlo**: `dibujarGraficos()` (las 6
+gráficas de Chart.js) y `renderMejoresClientes()`/`renderBalancePersonas()`
+ahora solo se llaman cuando su pestaña está activa (`if (resumenTab ===
+'tendencias') dibujarGraficos(mes);` etc.) — como el contenido de una
+pestaña no activa ni siquiera se pinta en el DOM (mismo patrón que
+`configSubTab`/`gastosSubTab`/`trazaSubTab`), esto es justo la
+optimización de "no cargar todo de una" que la auditoría de 2026-09-24
+había dejado pendiente a propósito por miedo a arriesgar una regresión —
+acá salió gratis, como consecuencia natural de la reorganización, sin
+tocar nada aparte. Cambiar de pestaña en "Tendencias" varias veces
+seguidas no rompe nada — `graficos.X?.destroy()` (patrón que ya existía
+en `dibujarGraficos()`) limpia la instancia vieja antes de crear la
+nueva en el canvas fresco.
+
+**Pestañas redondeadas, clase APARTE de `.subtabs`**: Juan había pedido
+pill para `.subtabs` una vez (la fusión de Cosechas/Cereza comprada) y
+después revirtió porque "se sentía menos visual y un poco más perdido"
+en esa pantalla compartida por Ventas/Cosecha & Tueste/Configuración.
+Esta vez SÍ quería pill, pero solo para Resumen — así que se creó
+`.resumen-tabs` (clase nueva, no toca `.subtabs`) en vez de cambiar la
+clase compartida: dorado sólido = pestaña activa (mismo lenguaje que los
+pills de peso/molienda en pedidos/index.html), fondo `--teal-bg` =
+inactiva. Las otras 3 pantallas con `.subtabs` no cambiaron en nada.
+
+**Tipografía**: `--teal`/`--dorado`/`--serif` YA existían en `index.html`
+desde el 2026-09-21 (se habían traído de pedidos para los títulos de
+sección — `h3.section-title` ya usaba `--teal` en TODA la app — y el
+login), pero `--serif` (Fraunces) estaba limitado a "solo el login" a
+propósito. Ahora también se usa en Resumen — `#view-resumen
+h3.section-title` y `#view-resumen .stat .n` (los números grandes de las
+tarjetas) — con selectores que empiezan en `#view-resumen` porque
+`.stat`/`.stat-grid` se reusan en Cosecha & Tueste y en las calculadoras
+de precio, y el pedido fue "solo Resumen por ahora". El comentario junto
+a `--serif` que decía "SOLO para el login" se actualizó para que no
+quede desactualizado.
+
+Probado en el preview local, desktop y celular (375px): los títulos y
+números de Resumen salen en Fraunces; las 3 pestañas cambian de
+contenido correctamente (incluyendo las gráficas, que se vuelven a
+dibujar sin error al volver a "Tendencias y mercado" varias veces
+seguidas); en celular las pills bajan de línea limpiamente cuando no
+caben las 3 en una fila; Ventas/Cosecha & Tueste/Configuración
+(`.subtabs`) no se tocaron. Sin errores nuevos de consola.

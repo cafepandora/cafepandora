@@ -46,8 +46,11 @@
     --teal-bg: #E7EDEE;
     --dorado: #D6A23A;
     --dorado-bg: #FBF0DA;
-    /* Serif de exhibición — SOLO para el login (una vez por sesión, no
-       texto denso) — igual disciplina que en pedidos/index.html. */
+    /* Serif de exhibición — antes solo en el login; desde 2026-09-26
+       también en los títulos de sección y los números grandes de Resumen
+       (a pedido de Juan, para que se sienta más a la marca de pedidos/
+       index.html) — misma disciplina de siempre: solo momentos grandes,
+       nunca párrafos ni controles de UI densos. */
     --serif: 'Fraunces', Georgia, serif;
   }
   * { box-sizing: border-box; }
@@ -288,6 +291,22 @@
   }
   .subtabs button.active { background: var(--cafe); color: #fff; border-color: var(--cafe); }
 
+  /* Pestañas SOLO de Resumen (2026-09-26), a propósito una clase aparte de
+     .subtabs — Juan pidió redondeadas/pill para Resumen específicamente
+     ("en el estilo que se ven las presentaciones en páginas"), pero ya
+     antes había revertido las pills en .subtabs (compartida por Ventas/
+     Cosecha & Tueste/Configuración) porque "se sentía menos visual y un
+     poco más perdido" ahí. Con una clase propia, este cambio no toca esas
+     otras 3 pantallas. Dorado = pestaña activa, mismo lenguaje que ya usan
+     los pills de peso/molienda en pedidos/index.html; teal-bg = inactiva. */
+  .resumen-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+  .resumen-tabs button {
+    background: var(--teal-bg); border: 1px solid transparent; color: var(--teal);
+    font-family: 'Outfit', sans-serif; font-size: 13.5px; font-weight: 600; padding: 9px 18px;
+    border-radius: 20px; cursor: pointer;
+  }
+  .resumen-tabs button.active { background: var(--dorado); color: #fff; }
+
   section.view { display: none; }
   section.view.active { display: block; }
 
@@ -450,6 +469,11 @@
   .stat .n { font-weight: 800; font-size: 23px; }
   .stat .n.pos { color: var(--verde); } .stat .n.neg { color: var(--terracota); }
   .stat .l { font-size: 13px; color: var(--cafe-soft); margin-top: 4px; }
+  /* Serif solo en Resumen (2026-09-26, ver --serif arriba) — .stat/.stat-grid
+     se reusa en Cosecha & Tueste y en calculadoras de precio, así que el
+     cambio va con el selector #view-resumen, no en la regla compartida. */
+  #view-resumen h3.section-title { font-family: var(--serif); font-weight: 600; }
+  #view-resumen .stat .n { font-family: var(--serif); font-weight: 600; }
   .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-bottom: 6px; }
   .bar-row .lbl { flex: 0 0 90px; }
   .bar-track { flex: 1; background: var(--crema-alt); border-radius: 6px; height: 14px; overflow: hidden; }
@@ -5411,6 +5435,20 @@ function renderResumen() {
       <div class="amount pos">${fmt(o.valor)}</div>
     </div>`;
 
+  // Pestañas de Resumen (2026-09-26) — antes esto era una sola página larga
+  // con 5 botones "↓ saltar a..." que ni siquiera cubrían todo lo que hay
+  // acá (Precio FNC, Rendimiento de producción, Comparación anual y
+  // Riesgo de fuga se quedaban fuera). Ahora son 3 pestañas reales:
+  // "Este mes" (lo transaccional del mes elegido arriba), "Clientes y
+  // balance" (a quién le vendiste y cómo quedan las cuentas) y
+  // "Tendencias y mercado" (todo lo que compara en el tiempo o mira hacia
+  // afuera del negocio). Los stats de encabezado se quedan SIEMPRE
+  // visibles, sin importar la pestaña — son el vistazo rápido de siempre.
+  // Efecto colateral bueno: las 6 gráficas de Chart.js y los bloques de
+  // Mejores clientes/Balance ya no se arman si su pestaña no está activa
+  // (ver las llamadas condicionadas al final) — la optimización de "no
+  // cargar todo de una" que se había dejado pendiente en la auditoría de
+  // 2026-09-24 sale gratis de este cambio, sin tocar nada aparte.
   document.getElementById('view-resumen').innerHTML = `
     <h3 class="section-title" style="margin-top:0">Resumen de ${mes}</h3>
     <div class="stat-grid">
@@ -5425,15 +5463,56 @@ function renderResumen() {
       <div class="stat"><div class="n">${librasVendidas.toFixed(1)}</div><div class="l">Libras de café vendidas este mes (todas las presentaciones)</div></div>
     </div>
 
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
-      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-comportamiento').scrollIntoView({behavior:'smooth'})">↓ Comportamiento</button>
-      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-margen').scrollIntoView({behavior:'smooth'})">↓ Margen por lote</button>
-      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-clientes').scrollIntoView({behavior:'smooth'})">↓ Mejores clientes</button>
-      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-balance').scrollIntoView({behavior:'smooth'})">↓ Balance de cuentas</button>
-      <button class="sec-btn" style="padding:7px 14px;font-size:12.5px" onclick="document.getElementById('res-detalle').scrollIntoView({behavior:'smooth'})">↓ Detalle del mes</button>
+    <div class="resumen-tabs">
+      <button class="${resumenTab==='mes'?'active':''}" onclick="cambiarResumenTab('mes')">Este mes</button>
+      <button class="${resumenTab==='clientes'?'active':''}" onclick="cambiarResumenTab('clientes')">Clientes y balance</button>
+      <button class="${resumenTab==='tendencias'?'active':''}" onclick="cambiarResumenTab('tendencias')">Tendencias y mercado</button>
     </div>
 
-    <h3 class="section-title" id="res-comportamiento" style="margin-top:0">Comportamiento en el tiempo</h3>
+    ${resumenTab === 'mes' ? `
+    <h3 class="section-title" style="margin-top:0">Detalle de ${mes}</h3>
+    <div class="subtabs">
+      <button class="${resumenSubTab==='pagadas'?'active':''}" onclick="cambiarResumenSubTab('pagadas')">Pagadas (${pagadas.length})</button>
+      <button class="${resumenSubTab==='pendientes'?'active':''}" onclick="cambiarResumenSubTab('pendientes')">Por pagar (${pendientes.length})</button>
+      <button class="${resumenSubTab==='gastos'?'active':''}" onclick="cambiarResumenSubTab('gastos')">Gastos (${gastosMes.length})</button>
+      <button class="${resumenSubTab==='maquila'?'active':''}" onclick="cambiarResumenSubTab('maquila')">Maquila (${maquilaMes.length})</button>
+    </div>
+    <div class="ledger">
+      ${resumenSubTab === 'pagadas' ? paginar(pagadas, 'resumen', filaResumenVenta, 'Sin ventas pagadas este mes.') : ''}
+      ${resumenSubTab === 'pendientes' ? paginar(pendientes, 'resumen', filaResumenVenta, 'Sin ventas pendientes este mes.') : ''}
+      ${resumenSubTab === 'gastos' ? paginar(gastosMes.slice().sort((a,b)=>b.ts-a.ts), 'resumen', filaResumenGasto, 'Sin gastos este mes.') : ''}
+      ${resumenSubTab === 'maquila' ? paginar(maquilaMes.slice().sort((a,b)=>b.ts-a.ts), 'resumen', filaResumenMaquila, 'Sin órdenes de maquila este mes.') : ''}
+    </div>
+    ` : ''}
+
+    ${resumenTab === 'clientes' ? `
+    <h3 class="section-title" style="margin-top:0">Mejores clientes</h3>
+    <div class="rangos">
+      ${[['semana','Semanal'],['mes','Mensual'],['ano','Anual']].map(([k,l]) =>
+        `<button class="${periodoClientes===k?'active':''}" onclick="cambiarPeriodoClientes('${k}')">${l}</button>`).join('')}
+    </div>
+    <div id="bloqueMejoresClientes"></div>
+
+    <h3 class="section-title">Clientes que podrían estar dejando de comprar</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Compraron 3 veces o más antes, pero llevan ${DIAS_RIESGO_FUGA}+ días sin volver — ordenados por cuánto le han comprado históricamente.</p>
+    <div class="tabla-clientes">
+      <div class="fila-cliente encabezado"><span>Cliente</span><span>Compras</span><span>Última compra</span><span>Total histórico</span></div>
+      ${clientesEnRiesgo().map(c => `
+        <div class="fila-cliente">
+          <span class="nombre">${escapeHtml(c.nombre)}</span>
+          <span>${c.compras}</span>
+          <span>Hace ${c.dias} días</span>
+          <span class="dinero">${fmt(c.total)}</span>
+        </div>`).join('') || '<div class="empty">Ningún cliente frecuente lleva tanto tiempo sin comprar. 🎉</div>'}
+    </div>
+
+    <h3 class="section-title">Balance de cuentas</h3>
+    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Lo que cada uno ha recibido (ventas + maquila ya pagadas) menos lo que ha pagado (gastos, finca, café comprado) — todo el tiempo, no solo este mes. Positivo: tiene plata del negocio en la mano. Negativo: el negocio le debe.</p>
+    <div id="bloqueBalance"></div>
+    ` : ''}
+
+    ${resumenTab === 'tendencias' ? `
+    <h3 class="section-title" style="margin-top:0">Comportamiento en el tiempo</h3>
     <div class="rangos">
       ${[[1,'1 mes'],[3,'3 meses'],[6,'6 meses'],[12,'1 año']].map(([n,l]) =>
         `<button class="${rangoMeses===n?'active':''}" onclick="cambiarRango(${n})">${l}</button>`).join('')}
@@ -5474,7 +5553,7 @@ function renderResumen() {
       ${comparacionAnual().length < 2 ? '<p style="font-size:12px;color:var(--cafe-soft);margin:8px 0 0">Con un solo año todavía no hay con qué comparar — esto se va a poner más útil a medida que pase el tiempo.</p>' : ''}
     </div>
 
-    <h3 class="section-title" id="res-margen">Margen estimado por lote</h3>
+    <h3 class="section-title">Margen estimado por lote</h3>
     <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Todo el histórico, no solo este mes. Ingreso: lo vendido de cada lote. Costo: café comprado a terceros + tu propia cosecha valorada como si la hubieras comprado (precio promedio de la Federación) + una parte de los gastos de finca (según kilos cosechados) + tostión + bolsa — es un <b>estimado</b>. Ajusta el costo de tostión/bolsa en Configuración → Precios.</p>
     <div class="tabla-clientes">
       <div class="fila-cliente encabezado"><span>Lote</span><span>Ingreso</span><span>Costo est.</span><span>Margen</span></div>
@@ -5486,49 +5565,13 @@ function renderResumen() {
           <span class="dinero" style="color:${m.margen >= 0 ? 'var(--verde)' : 'var(--terracota)'}">${fmt(m.margen)}${m.margenPct != null ? ` (${m.margenPct.toFixed(0)}%)` : ''}</span>
         </div>`).join('') || '<div class="empty">Sin datos suficientes todavía.</div>'}
     </div>
-
-    <h3 class="section-title" id="res-clientes">Mejores clientes</h3>
-    <div class="rangos">
-      ${[['semana','Semanal'],['mes','Mensual'],['ano','Anual']].map(([k,l]) =>
-        `<button class="${periodoClientes===k?'active':''}" onclick="cambiarPeriodoClientes('${k}')">${l}</button>`).join('')}
-    </div>
-    <div id="bloqueMejoresClientes"></div>
-
-    <h3 class="section-title">Clientes que podrían estar dejando de comprar</h3>
-    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Compraron 3 veces o más antes, pero llevan ${DIAS_RIESGO_FUGA}+ días sin volver — ordenados por cuánto le han comprado históricamente.</p>
-    <div class="tabla-clientes">
-      <div class="fila-cliente encabezado"><span>Cliente</span><span>Compras</span><span>Última compra</span><span>Total histórico</span></div>
-      ${clientesEnRiesgo().map(c => `
-        <div class="fila-cliente">
-          <span class="nombre">${escapeHtml(c.nombre)}</span>
-          <span>${c.compras}</span>
-          <span>Hace ${c.dias} días</span>
-          <span class="dinero">${fmt(c.total)}</span>
-        </div>`).join('') || '<div class="empty">Ningún cliente frecuente lleva tanto tiempo sin comprar. 🎉</div>'}
-    </div>
-
-    <h3 class="section-title" id="res-balance">Balance de cuentas</h3>
-    <p style="font-size:12.5px;color:var(--cafe-soft);margin-top:-6px">Lo que cada uno ha recibido (ventas + maquila ya pagadas) menos lo que ha pagado (gastos, finca, café comprado) — todo el tiempo, no solo este mes. Positivo: tiene plata del negocio en la mano. Negativo: el negocio le debe.</p>
-    <div id="bloqueBalance"></div>
-
-    <h3 class="section-title" id="res-detalle">Detalle de ${mes}</h3>
-    <div class="subtabs">
-      <button class="${resumenSubTab==='pagadas'?'active':''}" onclick="cambiarResumenSubTab('pagadas')">Pagadas (${pagadas.length})</button>
-      <button class="${resumenSubTab==='pendientes'?'active':''}" onclick="cambiarResumenSubTab('pendientes')">Por pagar (${pendientes.length})</button>
-      <button class="${resumenSubTab==='gastos'?'active':''}" onclick="cambiarResumenSubTab('gastos')">Gastos (${gastosMes.length})</button>
-      <button class="${resumenSubTab==='maquila'?'active':''}" onclick="cambiarResumenSubTab('maquila')">Maquila (${maquilaMes.length})</button>
-    </div>
-    <div class="ledger">
-      ${resumenSubTab === 'pagadas' ? paginar(pagadas, 'resumen', filaResumenVenta, 'Sin ventas pagadas este mes.') : ''}
-      ${resumenSubTab === 'pendientes' ? paginar(pendientes, 'resumen', filaResumenVenta, 'Sin ventas pendientes este mes.') : ''}
-      ${resumenSubTab === 'gastos' ? paginar(gastosMes.slice().sort((a,b)=>b.ts-a.ts), 'resumen', filaResumenGasto, 'Sin gastos este mes.') : ''}
-      ${resumenSubTab === 'maquila' ? paginar(maquilaMes.slice().sort((a,b)=>b.ts-a.ts), 'resumen', filaResumenMaquila, 'Sin órdenes de maquila este mes.') : ''}
-    </div>
+    ` : ''}
   `;
-  dibujarGraficos(mes);
-  renderMejoresClientes();
-  renderBalancePersonas();
+  if (resumenTab === 'tendencias') dibujarGraficos(mes);
+  if (resumenTab === 'clientes') { renderMejoresClientes(); renderBalancePersonas(); }
 }
+let resumenTab = 'mes';
+function cambiarResumenTab(tab) { conservarScroll(() => { resumenTab = tab; renderResumen(); }); }
 function cambiarResumenSubTab(tab) { conservarScroll(() => { resumenSubTab = tab; paginas.resumen = 1; renderResumen(); }); }
 
 /* ================================================================
