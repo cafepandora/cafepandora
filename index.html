@@ -2979,10 +2979,16 @@ let ordenMaquilaActiva = 0;
 // carritoMaquila siempre apunta a los items de la orden que estás viendo.
 let carritoMaquila = ordenesMaquilaAbiertas[0].items;
 const SERVICIO_TRANSPORTE = 'Transporte';
+const SERVICIO_PRUEBA_TAZA = 'Prueba de taza';
+// Servicios con un precio FIJO por vez — ni por kg (Trilla/Tostión) ni
+// por presentación (Molienda/Empaque/Bolsas) — un array para poder sumar
+// otros iguales más adelante sin tocar la lógica de nuevo.
+const SERVICIOS_FIJOS = [SERVICIO_PRUEBA_TAZA];
 // Orden en el que Juan quiere ver los servicios siempre (en vez del orden
 // alfabético que devuelve la base de datos) — cualquier servicio que no
-// esté en esta lista se va al final, sin romper nada.
-const ORDEN_SERVICIOS_MAQUILA = ['Trilla', 'Tostión', 'Molienda', 'Empaque', 'Bolsas Negras', 'Bolsas Ziploc', SERVICIO_TRANSPORTE];
+// esté en esta lista se va al final, sin romper nada. Prueba de taza va
+// justo antes de Transporte (2026-09-27, a pedido de Juan).
+const ORDEN_SERVICIOS_MAQUILA = ['Trilla', 'Tostión', 'Molienda', 'Empaque', 'Bolsas Negras', 'Bolsas Ziploc', SERVICIO_PRUEBA_TAZA, SERVICIO_TRANSPORTE];
 const ordenServicioMaquila = s => { const i = ORDEN_SERVICIOS_MAQUILA.indexOf(s); return i === -1 ? 999 : i; };
 const ordenarServiciosMaquila = lista => lista.slice().sort((a, b) => ordenServicioMaquila(a) - ordenServicioMaquila(b));
 
@@ -3112,6 +3118,13 @@ function renderMaquila() {
       <h3 class="section-title">Orden actual</h3>
       <div id="mq-carrito-lista"></div>
       <div style="text-align:right;font-weight:700;margin:6px 0 4px">Total: <span id="mq-carrito-total">$0</span></div>
+      <div class="row" style="align-items:flex-end">
+        <div class="field"><label>Descuento (%, opcional)</label>
+          <input id="mq-descuento-pct" type="number" min="0" max="100" step="1" placeholder="0" value="${descuentoPctActual(orden.items)}">
+        </div>
+        <button class="sec-btn" onclick="aplicarDescuentoMaquila('mq')">Aplicar descuento</button>
+      </div>
+      <p class="campo-ayuda">Para un caso puntual (ej. un vecino) — se resta del total ya sumado arriba. Aplicar de nuevo reemplaza el descuento anterior; deja el campo vacío y aplica para quitarlo.</p>
 
       <div class="subcard">
         <p class="subcard-titulo">② Cerrar la orden</p>
@@ -3150,7 +3163,9 @@ function renderMaquila() {
 
 function detalleOrdenMaquila(o) {
   return (o.items || []).map(it => {
+    if (it.esDescuento) return `Descuento${it.notaDescuento ? ' (' + it.notaDescuento + ')' : ''}`;
     if (it.servicio === SERVICIO_TRANSPORTE) return 'Transporte' + (it.nota ? ' (' + it.nota + ')' : '');
+    if (SERVICIOS_FIJOS.includes(it.servicio)) return it.servicio;
     return it.presentacion ? `${it.servicio} ${it.cantidad} ${it.presentacion}` : `${it.servicio} ${it.cantidad}kg`;
   }).join(' · ');
 }
@@ -3208,17 +3223,26 @@ function elegirClienteMaquila(nombre) {
 function onMaquilaServicioChange() {
   const servicio = document.getElementById('mq-servicio').value;
   const esTransporte = servicio === SERVICIO_TRANSPORTE;
-  const filas = esTransporte ? [] : gruposDeServicio(servicio);
-  const esKg = !esTransporte && filas.length === 1 && !filas[0].presentacion;
+  const esFijo = SERVICIOS_FIJOS.includes(servicio);
+  const filas = (esTransporte || esFijo) ? [] : gruposDeServicio(servicio);
+  const esKg = !esTransporte && !esFijo && filas.length === 1 && !filas[0].presentacion;
   document.getElementById('mq-campos-kg').style.display = esKg ? 'flex' : 'none';
-  document.getElementById('mq-campos-pres').style.display = (!esTransporte && !esKg && filas.length) ? 'flex' : 'none';
+  document.getElementById('mq-campos-pres').style.display = (!esTransporte && !esFijo && !esKg && filas.length) ? 'flex' : 'none';
   document.getElementById('mq-campos-transporte').style.display = esTransporte ? 'flex' : 'none';
-  if (esTransporte) document.getElementById('mq-valor').value = ''; // el transporte siempre se escribe a mano
-  else recalcularLineaMaquila();
+  if (esTransporte) {
+    document.getElementById('mq-valor').value = ''; // el transporte siempre se escribe a mano
+  } else if (esFijo) {
+    // Precio fijo por vez, sin kg ni presentación — solo se sugiere la
+    // tarifa configurada, editable como cualquier "Valor de esta línea".
+    const fila = gruposDeServicio(servicio)[0];
+    document.getElementById('mq-valor').value = fila ? fila.precio : 0;
+  } else {
+    recalcularLineaMaquila();
+  }
 }
 function recalcularLineaMaquila() {
   const servicio = document.getElementById('mq-servicio').value;
-  if (servicio === SERVICIO_TRANSPORTE) return; // valor manual, no se recalcula solo
+  if (servicio === SERVICIO_TRANSPORTE || SERVICIOS_FIJOS.includes(servicio)) return; // valor manual/fijo, no se recalcula por kg/cantidad
   const filas = gruposDeServicio(servicio);
   if (!filas.length) return;
   const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -3244,6 +3268,8 @@ function agregarLineaMaquila() {
     if (!valor) return toast('Escribe el valor del transporte.', 'error');
     const nota = document.getElementById('mq-nota-transporte').value.trim();
     item = { servicio: SERVICIO_TRANSPORTE, presentacion: null, cantidad: 1, valor, nota: nota || null };
+  } else if (SERVICIOS_FIJOS.includes(servicio)) {
+    item = { servicio, presentacion: null, cantidad: 1, valor };
   } else {
     const filas = gruposDeServicio(servicio);
     const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -3260,8 +3286,21 @@ function quitarDeCarritoMaquila(i) {
   pintarCarritoMaquila();
 }
 function tituloItemMaquila(it) {
+  if (it.esDescuento) return 'Descuento' + (it.notaDescuento ? ' · ' + escapeHtml(it.notaDescuento) : '');
   if (it.servicio === SERVICIO_TRANSPORTE) return 'Transporte' + (it.nota ? ' · ' + escapeHtml(it.nota) : '');
+  if (SERVICIOS_FIJOS.includes(it.servicio)) return escapeHtml(it.servicio);
   return it.presentacion ? `${escapeHtml(it.servicio)} · ${it.cantidad} ${escapeHtml(it.presentacion)}` : `${escapeHtml(it.servicio)} · ${it.cantidad}kg`;
+}
+function montoItemMaquilaHTML(it) {
+  return (Number(it.valor) || 0) < 0
+    ? `<div class="amount neg">-${fmt(Math.abs(it.valor))}</div>`
+    : `<div class="amount pos">${fmt(it.valor)}</div>`;
+}
+// Un descuento se reemplaza siempre entero (no se suman varios) — busca el
+// único item marcado esDescuento, si existe, para precargar el % en el campo.
+function descuentoPctActual(items) {
+  const it = (items || []).find(x => x.esDescuento);
+  return it && it.notaDescuento ? parseFloat(it.notaDescuento) || '' : '';
 }
 function pintarCarritoMaquila() {
   const lista = document.getElementById('mq-carrito-lista');
@@ -3270,11 +3309,30 @@ function pintarCarritoMaquila() {
     ? carritoMaquila.map((it, i) => `
       <div class="ledger-row">
         <div class="main"><div class="title">${tituloItemMaquila(it)}</div></div>
-        <div class="amount pos">${fmt(it.valor)}</div>
+        ${montoItemMaquilaHTML(it)}
         <div class="acciones"><button onclick="quitarDeCarritoMaquila(${i})" title="Quitar">✕</button></div>
       </div>`).join('')
     : '<div class="empty">Aún no has agregado nada.</div>';
   document.getElementById('mq-carrito-total').textContent = fmt(carritoMaquila.reduce((s, it) => s + (Number(it.valor) || 0), 0));
+}
+// Reemplaza (no suma) cualquier descuento anterior de esta orden — dejar el
+// campo vacío/en 0 y darle "Aplicar" quita el descuento sin dejar rastro.
+function aplicarDescuentoMaquila(prefijo = 'mq') {
+  const lista = prefijo === 'mq' ? carritoMaquila : editCarritoMaquila;
+  const pct = Number(document.getElementById(prefijo + '-descuento-pct').value) || 0;
+  for (let i = lista.length - 1; i >= 0; i--) if (lista[i].esDescuento) lista.splice(i, 1);
+  if (pct > 0) {
+    const subtotal = lista.reduce((s, it) => s + (Number(it.valor) || 0), 0);
+    if (subtotal <= 0) { toast('Agrega servicios antes de aplicar un descuento.', 'error'); }
+    else {
+      const monto = Math.round(subtotal * pct / 100);
+      lista.push({ servicio: 'Descuento', presentacion: null, cantidad: 1, valor: -monto, esDescuento: true, notaDescuento: pct + '%' });
+      toast('Descuento aplicado');
+    }
+  } else {
+    toast('Descuento quitado');
+  }
+  if (prefijo === 'mq') pintarCarritoMaquila(); else pintarEmqCarrito();
 }
 
 async function registrarOrdenMaquila(btn) {
@@ -3348,6 +3406,13 @@ function abrirEdicionMaquila(id) {
 
     <div id="emq-lista"></div>
     <div style="text-align:right;font-weight:700;margin:6px 0 10px">Total: <span id="emq-total">$0</span></div>
+    <div class="row" style="align-items:flex-end">
+      <div class="field"><label>Descuento (%, opcional)</label>
+        <input id="emq-descuento-pct" type="number" min="0" max="100" step="1" placeholder="0" value="${descuentoPctActual(editCarritoMaquila)}">
+      </div>
+      <button class="sec-btn" onclick="aplicarDescuentoMaquila('emq')">Aplicar descuento</button>
+    </div>
+    <p class="campo-ayuda" style="margin-bottom:10px">Aplicar de nuevo reemplaza el descuento anterior; deja el campo vacío y aplica para quitarlo.</p>
 
     <div class="row">
       <div class="field"><label>Servicio</label>
@@ -3388,17 +3453,24 @@ function abrirEdicionMaquila(id) {
 function onEmqServicioChange() {
   const servicio = document.getElementById('emq-servicio').value;
   const esTransporte = servicio === SERVICIO_TRANSPORTE;
-  const filas = esTransporte ? [] : gruposDeServicio(servicio);
-  const esKg = !esTransporte && filas.length === 1 && !filas[0].presentacion;
+  const esFijo = SERVICIOS_FIJOS.includes(servicio);
+  const filas = (esTransporte || esFijo) ? [] : gruposDeServicio(servicio);
+  const esKg = !esTransporte && !esFijo && filas.length === 1 && !filas[0].presentacion;
   document.getElementById('emq-campos-kg').style.display = esKg ? 'flex' : 'none';
-  document.getElementById('emq-campos-pres').style.display = (!esTransporte && !esKg && filas.length) ? 'flex' : 'none';
+  document.getElementById('emq-campos-pres').style.display = (!esTransporte && !esFijo && !esKg && filas.length) ? 'flex' : 'none';
   document.getElementById('emq-campos-transporte').style.display = esTransporte ? 'flex' : 'none';
-  if (esTransporte) document.getElementById('emq-valor').value = '';
-  else recalcularEmqLinea();
+  if (esTransporte) {
+    document.getElementById('emq-valor').value = '';
+  } else if (esFijo) {
+    const fila = gruposDeServicio(servicio)[0];
+    document.getElementById('emq-valor').value = fila ? fila.precio : 0;
+  } else {
+    recalcularEmqLinea();
+  }
 }
 function recalcularEmqLinea() {
   const servicio = document.getElementById('emq-servicio').value;
-  if (servicio === SERVICIO_TRANSPORTE) return;
+  if (servicio === SERVICIO_TRANSPORTE || SERVICIOS_FIJOS.includes(servicio)) return;
   const filas = gruposDeServicio(servicio);
   if (!filas.length) return;
   const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -3422,6 +3494,8 @@ function agregarLineaEmq() {
     if (!valor) return toast('Escribe el valor del transporte.', 'error');
     const nota = document.getElementById('emq-nota-transporte').value.trim();
     item = { servicio: SERVICIO_TRANSPORTE, presentacion: null, cantidad: 1, valor, nota: nota || null };
+  } else if (SERVICIOS_FIJOS.includes(servicio)) {
+    item = { servicio, presentacion: null, cantidad: 1, valor };
   } else {
     const filas = gruposDeServicio(servicio);
     const esKg = filas.length === 1 && !filas[0].presentacion;
@@ -3444,7 +3518,7 @@ function pintarEmqCarrito() {
     ? editCarritoMaquila.map((it, i) => `
       <div class="ledger-row">
         <div class="main"><div class="title">${tituloItemMaquila(it)}</div></div>
-        <div class="amount pos">${fmt(it.valor)}</div>
+        ${montoItemMaquilaHTML(it)}
         <div class="acciones"><button onclick="quitarDeEmqCarrito(${i})" title="Quitar">✕</button></div>
       </div>`).join('')
     : '<div class="empty">Sin líneas — agrega la primera abajo.</div>';
@@ -6660,8 +6734,9 @@ function renderConfig() {
     .map(([servicio, tarifas]) => {
     if (tarifas.length === 1 && !tarifas[0].presentacion) {
       const t = tarifas[0];
+      const etiqueta = SERVICIOS_FIJOS.includes(servicio) ? '(precio fijo)' : '(por kg)';
       return `<div class="tarifa-row">
-        <div class="nombre">${servicio} (por kg)</div>
+        <div class="nombre">${servicio} ${etiqueta}</div>
         <input type="number" id="tar-${t.id}" value="${t.precio}">
         <button class="sec-btn" onclick="guardarTarifa(${t.id})">Guardar</button>
       </div>`;
@@ -6778,7 +6853,7 @@ function renderConfig() {
 
     <h3 class="section-title">Tarifas de maquila</h3>
     ${filas || '<div class="empty">Sin tarifas configuradas.</div>'}
-    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación.</p>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:14px">Trilla y Tostión se cobran por kilo. Empaque, Molienda y Bolsas tienen un precio distinto según la presentación. Prueba de taza es un precio fijo por vez.</p>
 
     <h3 class="section-title">Agregar una tarifa de maquila nueva</h3>
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Para un servicio que todavía no existe, o una presentación nueva de uno que ya tienes — sin necesitar una migración.</p>
@@ -6786,7 +6861,7 @@ function renderConfig() {
       <div class="field"><label>Servicio</label><input type="text" id="nt-servicio" placeholder="ej. Empaque al vacío"></div>
       <div class="field"><label>Presentación</label>
         <select id="nt-presentacion">
-          <option value="">— (se cobra por kg)</option>
+          <option value="">— (se cobra por kg o precio fijo)</option>
           ${PRESENTACIONES.map(p => `<option>${p}</option>`).join('')}
         </select>
       </div>

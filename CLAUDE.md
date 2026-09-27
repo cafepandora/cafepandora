@@ -3420,3 +3420,124 @@ en celular — no se movió el botón (arriesgaba chocar con los toasts, que
 son casi de ancho completo y aparecen centrados abajo) sino que se le
 dio a todo el contenido el espacio real que necesita para no toparse con
 él, sin importar qué aviso sea el primero en pintarse en cada pestaña.
+
+## "Prueba de taza" (precio fijo) + descuento por porcentaje en Maquila (2026-09-27)
+
+Dos pedidos de Juan sobre Maquila: (1) un servicio nuevo, "Prueba de
+taza", $45.000, que debe ir en el orden fijo de servicios justo antes de
+Transporte; (2) un lugar para aplicar un descuento puntual por
+porcentaje al total de una orden ("por ser vecino o por alguna cosa").
+
+**Un cuarto modo de precio, además de por-kg/por-presentación/manual**:
+los servicios de maquila ya tenían 3 formas de cobrarse — por kilo
+(Trilla/Tostión, una sola tarifa sin presentación), por presentación
+(Molienda/Empaque/Bolsas, una tarifa por cada una) y manual (Transporte,
+siempre se escribe a mano, nunca sugiere nada). "Prueba de taza" no
+encaja en ninguna: es un precio FIJO por vez, sin kilos ni presentación
+de por medio. `SERVICIOS_FIJOS` (`index.html`, junto a
+`SERVICIO_TRANSPORTE`) es un array nuevo para esto — hoy solo trae
+`SERVICIO_PRUEBA_TAZA`, pensado para poder sumar otro servicio de precio
+fijo más adelante sin tocar la lógica de nuevo. `ORDEN_SERVICIOS_MAQUILA`
+ganó `SERVICIO_PRUEBA_TAZA` justo antes de `SERVICIO_TRANSPORTE`, tal
+como pidió Juan.
+
+Los 4 puntos que ya distinguían "es Transporte" (`onMaquilaServicioChange`,
+`recalcularLineaMaquila`, `agregarLineaMaquila`, y sus mellizos del modal
+de editar — `onEmqServicioChange`, `recalcularEmqLinea`, `agregarLineaEmq`)
+ganaron el mismo `if` para "es fijo": ocultan los campos de Kilos Y de
+Presentación/Cantidad (a diferencia de Transporte, que sí muestra su
+campo de nota), y el "Valor de esta línea" se autocompleta directo con
+`gruposDeServicio(servicio)[0].precio` — sin ninguna multiplicación,
+porque no hay cantidad que multiplicar. Sigue siendo editable a mano
+como cualquier otro valor sugerido. `tituloItemMaquila()` y
+`detalleOrdenMaquila()` (usadas en el carrito, el historial de órdenes, y
+al prellenar una cuenta de cobro desde una orden) también ganaron su
+propio caso — sin él, se hubiera visto "Prueba de taza · 1kg" (heredando
+el fallback que asume "sin presentación = por kg"), que no tiene sentido
+para un precio fijo.
+
+**El precio queda editable en Configuración sin ningún código nuevo**:
+la tabla `maquila_tarifas` (y su UI en Configuración → Tarifas de
+maquila) ya es genérica — cualquier servicio con una sola tarifa sin
+presentación se lista con un campo editable + botón "Guardar" (el mismo
+mecanismo que ya usan Trilla/Tostión). Lo único que hacía falta era que
+la etiqueta ya no dijera siempre "(por kg)", que sería engañoso para un
+precio fijo — ahora dice "(precio fijo)" si el servicio está en
+`SERVICIOS_FIJOS`, "(por kg)" si no. La opción "— (se cobra por kg)" del
+desplegable de "Agregar una tarifa de maquila nueva" (para cuando Juan
+mismo siembre la tarifa la primera vez) se renombró a "— (se cobra por
+kg o precio fijo)" por la misma razón.
+
+**No hizo falta ninguna migración ni sembrar nada por código**: agregar
+una tarifa nueva a `maquila_tarifas` ya tiene su propio POST
+(`functions/api/maquila/index.ts`, construido en una sesión anterior
+específicamente para esto — "ya no hace falta pedir una migración para
+esto"), y el desplegable de servicios en Maquila (Registrar/Editar) SOLO
+lista servicios que YA tienen al menos una tarifa configurada (a
+diferencia de Transporte, que aparece siempre, fijo, sin depender de
+ninguna tarifa) — así que "Prueba de taza" no aparece en ningún
+formulario hasta que Juan la agregue él mismo una sola vez:
+Configuración → Precios → "Agregar una tarifa de maquila nueva" →
+Servicio "Prueba de taza", Presentación "— (se cobra por kg o precio
+fijo)", Precio 45000 → "+ Agregar tarifa". De ahí en adelante ya queda
+disponible en el desplegable de servicios y editable en la lista de
+arriba, exactamente como cualquier otra tarifa.
+
+**Descuento — un ítem más del carrito, negativo, no una columna nueva**:
+`items` de `ordenes_maquila` ya es un jsonb genérico y TODO el cálculo de
+totales en la app ya suma `it.valor` de cada ítem sin distinguir de qué
+tipo es — así que un descuento no necesitó ninguna columna ni lógica de
+suma aparte, solo un ítem más con `valor` NEGATIVO y
+`esDescuento: true` (para poder detectarlo al mostrarlo/reemplazarlo) y
+`notaDescuento` (el `%` tal cual, para mostrarlo y para precargar el
+campo si se reabre la orden). `aplicarDescuentoMaquila(prefijo)` (una
+sola función para los dos carritos — `carritoMaquila` en Registrar,
+`editCarritoMaquila` en Editar, seleccionados por el prefijo `'mq'`/`'emq'`
+que ya usan sus respectivos ids de DOM) SIEMPRE quita primero cualquier
+descuento anterior de la lista (`esDescuento`) antes de agregar el nuevo
+— un descuento REEMPLAZA al anterior, nunca se suman — y si el % queda
+en 0/vacío, simplemente lo deja quitado. El monto se calcula sobre el
+subtotal de los demás ítems en ESE momento (`Math.round(subtotal * pct /
+100)`), no se recalcula solo si se agregan más servicios después — es
+una acción puntual con un botón "Aplicar descuento", no un campo que
+reaccione en vivo, tal como lo pidió Juan ("un espacio... poner un
+porcentaje y que se aplique al total").
+
+⚠️ *Ojo si se vuelve a tocar `carritoMaquila`/`editCarritoMaquila`*: son
+referencias VIVAS a `ordenesMaquilaAbiertas[i].items` (Maquila SÍ
+conserva el sistema de varias órdenes abiertas en paralelo con pestañas
+— a diferencia de Ventas, donde se quitó el 2026-09-23, ver esa sección
+más arriba). `aplicarDescuentoMaquila()` por eso muta el array en el
+lugar (`splice`), nunca hace `carritoMaquila = carritoMaquila.filter(...)`
+— reasignar hubiera desconectado la variable del `items` real de la
+orden activa, el mismo tipo de bug que ya se evitó en
+`quitarDeCarritoMaquila()`/`quitarDeEmqCarrito()` (que también usan
+`splice`, nunca reasignación).
+
+**Los montos negativos se ven en terracota con signo, no con `$` pegado
+al `-`**: `fmt()` (el formateador de plata de toda la app) no maneja
+signo — `fmt(-14500)` da `"$-14.500"` (el `-` queda después del `$`, se
+ve raro). El patrón ya establecido en otras partes de la app (Gastos,
+Finca) es mostrar el valor absoluto con un `-` puesto a mano delante del
+`$fmt(...)` completo, en una clase `.amount.neg` (terracota) en vez de
+`.amount.pos` (verde) — `montoItemMaquilaHTML(it)` nueva (compartida por
+`pintarCarritoMaquila()` y `pintarEmqCarrito()`) aplica ese mismo patrón
+según el signo de `it.valor`. La cuenta de cobro que se prellena desde
+una orden de maquila con descuento (`prellenarCuentaCobroDesdeMaquila()`)
+SÍ hereda ese `valorTotal` negativo tal cual, sin este mismo arreglo de
+signo (`cc-lista`/`pintarCarritoCC()` no se tocó) — se ve "$-14.500" ahí
+si se prellena una orden con descuento, pero es un carrito totalmente
+editable antes de generar el PDF (Juan puede corregir o borrar esa línea
+ahí mismo), así que no se consideró necesario tocar ese formulario
+aparte para un caso tan puntual.
+
+Probado en el preview local (mock): "Prueba de taza" no muestra campos de
+Kilos ni Presentación, autocompleta $45.000, y aparece en el carrito
+como "Prueba de taza" sin ningún "1kg" colgando; un descuento del 10%
+sobre $145.000 (Prueba de taza + Trilla) da exactamente -$14.500 con
+total $130.500, reemplazar por 20% da -$29.000 sin dejar el ítem viejo, y
+vaciar el campo y aplicar lo quita del todo restaurando el total
+completo — los tres casos probados en el carrito de Registrar Y en el de
+Editar. En Configuración → Tarifas de maquila, "Prueba de taza (precio
+fijo)" aparece con su campo editable y botón Guardar, igual que
+Trilla/Tostión. Sin errores nuevos de consola en ningún recorrido.
