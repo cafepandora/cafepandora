@@ -3541,3 +3541,118 @@ completo — los tres casos probados en el carrito de Registrar Y en el de
 Editar. En Configuración → Tarifas de maquila, "Prueba de taza (precio
 fijo)" aparece con su campo editable y botón Guardar, igual que
 Trilla/Tostión. Sin errores nuevos de consola en ningún recorrido.
+
+## Sección "Maquila" en `pedidos/index.html` — una vista aparte, no un tramo más del scroll (2026-09-27)
+
+Juan: *"me gustaría que en la página de pedidos haya una sección de
+maquilas, pero que no esté dentro del scroll, podríamos organizar la
+página por secciones más parecida a la app y que la gente sepa que se
+presta el servicio"* — hasta ahora `pedidos/index.html` era un solo
+scroll largo (Hero → Dato duro → Proceso → Tour → Catálogo), y nada en
+la página mencionaba que Café Pandora también ofrece maquila (trillar/
+tostar/moler/empacar café que trae el cliente) — un cliente nuevo no
+tenía forma de enterarse de que ese servicio existe. Se le preguntó a
+Juan explícitamente cómo quería que funcionara (una pestaña que
+reemplaza el contenido, tipo la app / una sección ancla dentro del mismo
+scroll / una página aparte) y qué debía mostrar — confirmó **pestaña que
+reemplaza contenido** + descripción del servicio + lista de servicios
+(sin precios) + botón de WhatsApp para cotizar.
+
+**Cómo funciona**: `.nav-secciones` (la barra fija de arriba, ya
+`position: sticky; top: 0` desde antes) ganó un 5º link "Maquila", entre
+"Tour" y "Pedir →" — a diferencia de los otros 4 (que son anclas reales
+a secciones del scroll de café), este no navega a ningún ancla:
+`onclick="mostrarVista('maquila'); return false;"`. Todo el contenido de
+comprar café (Hero, Dato duro, Proceso, Tour, y el `.wrap` con el
+catálogo/carrito/checkout — TODO lo que ya existía) se envolvió en un
+`<div id="vistaCafe">` nuevo; la sección nueva
+(`<section id="vistaMaquila" style="display:none">`) vive JUSTO DESPUÉS,
+antes de `.carrito-barra`. `mostrarVista(vista)` simplemente alterna
+`style.display` entre los dos contenedores — cuando se oculta
+`#vistaCafe` (que mide miles de píxeles de alto), `#vistaMaquila` queda
+pintado inmediatamente debajo de la barra fija, sin nada de scroll de
+por medio — literalmente "no está dentro del scroll", tal como lo pidió
+Juan. Los 4 links de café (`La finca`/`Proceso`/`Tour`/`Pedir →`)
+ganaron `onclick="mostrarVista('cafe')"` (SIN `return false` — el salto
+de ancla normal del navegador sigue después) — así que si estás viendo
+Maquila y tocás "Tour", primero se vuelve a mostrar el contenido de café
+y LUEGO el navegador salta a esa sección, en el mismo clic.
+
+**Contenido de la sección** (todo texto/HTML nuevo, sin datos de la
+API): kicker "También ofrecemos" + título en serif + un párrafo
+explicando qué es maquila (a propósito dice **"el café sigue siendo
+tuyo, nosotros solo lo transformamos"**, la misma distinción producto-
+vs-servicio que ya documenta este archivo en "Qué es esto") + una
+cuadrícula de 6 tarjetas, una por servicio real de la app interna
+(Trilla, Tostión, Molienda, Empaque, Prueba de taza, Transporte — mismo
+set que `ORDEN_SERVICIOS_MAQUILA` en `index.html`, aunque "Bolsas
+Negras"/"Bolsas Ziploc" se combinaron en la descripción de "Empaque" en
+vez de 2 tarjetas separadas, para no saturar de detalle una vista que es
+solo informativa) + una nota de que el precio varía y hay que escribir
+para cotizar + un botón de WhatsApp (mismo número `573183926578`, mismo
+patrón `wa.me/...?text=...` que ya usan el Tour y el banner de
+Exóticos). **A propósito NO se muestran precios** — Juan lo confirmó
+así: las tarifas de maquila varían mucho según cantidad/presentación
+(y son las mismas que ya se configuran en la app interna, pensadas para
+cotizar caso a caso, no para un catálogo público de precios fijos).
+
+**Reusa CSS existente en vez de inventar**: el botón de WhatsApp usa
+literalmente la clase `.hero-cta-primaria` (el mismo botón sólido teal
+del Hero) — esa clase nunca estuvo escrita solo para `.hero`, así que
+reusarla en otra sección no rompe nada y evita duplicar la misma regla.
+Las 6 tarjetas de servicio son una cuadrícula CSS nueva
+(`.maquila-servicios`, 2 columnas → 1 columna bajo 420px), con el mismo
+lenguaje visual que el resto del sitio (kicker uppercase teal, título
+serif, tarjetas con fondo `--crema-alt`, igual que `.proceso-paso`/
+`.tour-incluye`) — nada de color ni tipografía nueva.
+
+**El carrito de café no se pierde al ir a ver Maquila**: si el cliente
+ya había armado un pedido de café (`carrito` con algo adentro) y toca
+"Maquila" para curiosear, `.carrito-barra` (la barra flotante de abajo
+con "Confirmar por WhatsApp") se oculta mientras se ve Maquila
+(`classList.remove('visible')`, no tiene sentido mostrar un botón de
+confirmar pedido de café encima del contenido de Maquila) pero el
+`carrito` en memoria NO se toca — al volver a "café" (cualquiera de los
+4 links), `actualizarBarra()` la vuelve a mostrar con el mismo contenido
+de siempre. Probado explícitamente: agregar 2 líneas de café al
+carrito, ir a Maquila (la barra desaparece con su transición normal de
+opacidad/transform, no queda flotando encima del CTA de WhatsApp de
+Maquila), volver a café (la barra reaparece con "2 productos $78.000"
+intacto).
+
+**`.revela` (animación de aparición al hacer scroll) en la sección
+nueva**: como `#vistaMaquila` empieza en `display:none`, sus bloques
+`.revela` nunca fueron observados por el `IntersectionObserver` que ya
+se monta una sola vez al cargar la página (los elementos con
+`display:none` no tienen tamaño, así que nunca "intersectan" nada) —
+mismo gotcha ya documentado para el catálogo async
+(`cargarCatalogo()` re-llama `iniciarRevelado()` después de pintar sus
+tarjetas). `mostrarVista('maquila')` hace lo mismo: llama
+`iniciarRevelado()` de nuevo justo después de mostrar la sección, para
+que esos bloques sí se animen la primera vez que aparecen.
+
+**No participa del scrollspy por posición** (el que resalta en la barra
+de arriba qué sección se está viendo al hacer scroll, comparando
+`getBoundingClientRect()` de cada sección contra el viewport) — "Maquila"
+se marca activa/inactiva A MANO dentro de `mostrarVista()`
+(`document.querySelectorAll('#navSecciones a').forEach(a =>
+a.classList.remove('activo'))` + agregarla solo al link de Maquila si
+corresponde), porque no tiene sentido que un IntersectionObserver la
+detecte por scroll — nunca se "scrollea hasta ella", aparece de golpe.
+El link de Maquila usa `href="#"` (no un ancla real), así que
+`iniciarScrollspyNav()` lo incluye en su lista de links pero
+`document.getElementById('')` da `null` y lo descarta antes de
+observarlo — no compite ni interfiere con el resto del scrollspy.
+
+Probado en el preview local (`mock_pedidos_server.py`), desktop y
+celular (375px): tocar "Maquila" oculta TODO el contenido de café
+(catálogo, hero, etc. — confirmado leyendo `style.display` real de
+`#vistaCafe`) y muestra las 6 tarjetas de servicio + el botón de
+WhatsApp, con el link "Maquila" resaltado y sin ningún link de café
+resaltado; tocar "Tour" desde ahí vuelve al contenido de café Y salta
+directo a la sección de Tour en el mismo clic (confirmado por el link
+"Maquila" perdiendo el resaltado y "Tour" ganándolo); en celular la
+cuadrícula de servicios baja a 1 columna sin desbordar. Sin errores
+nuevos de consola en ningún recorrido (los únicos 404 que aparecen son
+de imágenes que no existen en el preview local, no relacionados con
+este cambio).
