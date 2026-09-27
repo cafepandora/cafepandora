@@ -203,6 +203,12 @@
   .maquila-kicker { font-size: 12.5px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--teal); margin: 0 0 8px; }
   .maquila-titulo { font-family: var(--serif); font-weight: 600; font-size: clamp(24px, 6vw, 30px); color: var(--cafe); max-width: 480px; margin: 0 auto 12px; line-height: 1.2; }
   .maquila-intro { font-size: 14.5px; color: var(--cafe-soft); max-width: 420px; margin: 0 auto 32px; line-height: 1.6; }
+  /* Foto real de la tostadora PRISMA con el logo de Café Pandora — mismo
+     patrón que finca-flor.jpg/proceso-*.jpg: archivo aparte en img/, no
+     base64 inline (es una fotografía real, no arte vectorial). aspect-ratio
+     con las dimensiones reales del archivo evita que la página salte de
+     tamaño mientras carga. */
+  .maquila-foto { display: block; width: 100%; max-width: 340px; aspect-ratio: 1017 / 1300; object-fit: cover; border-radius: 16px; margin: 0 auto 32px; }
   .maquila-servicios { max-width: 480px; margin: 0 auto 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; }
   @media (max-width: 420px) { .maquila-servicios { grid-template-columns: 1fr; } }
   .maquila-servicio { background: var(--crema-alt); border-radius: 14px; padding: 14px 16px; }
@@ -539,7 +545,8 @@
 <section class="maquila-seccion" id="vistaMaquila" style="display:none">
   <p class="maquila-kicker revela">También ofrecemos</p>
   <h2 class="maquila-titulo revela">Maquila — trillamos, tostamos y empacamos TU café</h2>
-  <p class="maquila-intro revela">¿Ya tienes tu propio café en cereza, pergamino o verde? Te ayudamos a procesarlo — el café sigue siendo tuyo, nosotros solo lo transformamos con el mismo cuidado que le damos al nuestro.</p>
+  <p class="maquila-intro revela">¿Ya tienes tu propio café en pergamino o verde? Te ayudamos a procesarlo — el café sigue siendo tuyo, nosotros solo lo transformamos con el mismo cuidado que le damos al nuestro.</p>
+  <img class="maquila-foto revela" src="img/maquila-tostadora.jpg" alt="Tostadora PRISMA de Café Pandora">
   <div class="maquila-servicios">
     <div class="maquila-servicio revela"><h3>Trilla</h3><p>Retiramos el pergamino y dejamos tu café en verde, listo para tostar.</p></div>
     <div class="maquila-servicio revela"><h3>Tostión</h3><p>Tostamos tu café verde al punto que necesites.</p></div>

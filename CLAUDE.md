@@ -3656,3 +3656,44 @@ cuadrícula de servicios baja a 1 columna sin desbordar. Sin errores
 nuevos de consola en ningún recorrido (los únicos 404 que aparecen son
 de imágenes que no existen en el preview local, no relacionados con
 este cambio).
+
+**Corrección real, mismo día**: Juan aclaró **"corrijamos el tema de
+procesar la cereza, porque no se hace, solo si está en pergamino o en
+verde"** — la maquila NUNCA recibe cereza (café recién cosechado, sin
+secar/trillar); el cliente tiene que traerlo ya en pergamino o ya en
+verde. El párrafo de intro decía "¿Ya tienes tu propio café en cereza,
+pergamino o verde?" — se quitó "cereza", queda "¿Ya tienes tu propio
+café en pergamino o verde?". Las 6 tarjetas de servicio ya estaban bien
+(ninguna mencionaba cereza — "Trilla" ya asumía pergamino como entrada).
+
+**Foto real de la tostadora**: Juan mandó una foto de la tostadora
+PRISMA de la finca (con el logo "Café Pandora" grabado) y preguntó si se
+podía poner en la sección — sí, mismo patrón ya establecido para fotos
+reales (`pedidos/img/finca-flor.jpg`, `proceso-cereza.jpg`, etc.:
+archivo aparte, NO base64 inline, porque es una fotografía real, no arte
+vectorial). Procesada de HEIC a JPEG con `sips` (redimensionada a 1300px
+de alto, calidad 80 — mismo rango de peso que las otras fotos reales,
+~320 KB), guardada como `pedidos/img/maquila-tostadora.jpg`.
+`.maquila-foto` (CSS nueva, entre la intro y la cuadrícula de servicios)
+usa `aspect-ratio: 1017 / 1300` (las dimensiones reales del archivo) +
+`object-fit: cover` + `border-radius: 16px` — mismo criterio que
+`.proceso-foto` para que la página no salte de tamaño mientras la
+imagen carga.
+
+**Gotcha real durante la prueba, no un bug**: al simular el clic con
+`javascript_tool` en vez de un clic real y sacar la screenshot de
+inmediato, el título/intro/foto de Maquila aparecieron muy
+desvanecidos — parecía que `.revela` no había funcionado. No era un bug:
+`iniciarRevelado()` crea un `IntersectionObserver` nuevo cada vez que se
+llama (ver "Sección Maquila..." más arriba), y su callback es asíncrono
+— tarda un frame en marcar `.visible`. Con un clic real de una persona
+(que siempre tarda más que un script) esto nunca se nota; se confirmó
+esperando ~1s y volviendo a capturar, con todo ya nítido. Mismo tipo de
+falso positivo ya documentado para el mock que usa `javascript_tool` con
+`confirm()`/`prompt()` — hay que dejar pasar un instante después de
+disparar algo con un observer async antes de dar por buena (o mala) una
+captura.
+
+Probado en el preview local, desktop y celular: la foto se ve completa
+con esquinas redondeadas, sin recorte raro ni salto de layout; el texto
+ya no menciona cereza. Sin errores nuevos de consola.
