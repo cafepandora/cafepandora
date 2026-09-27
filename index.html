@@ -5664,11 +5664,17 @@ function cambiarResumenSubTab(tab) { conservarScroll(() => { resumenSubTab = tab
 // scroll — uno que en la práctica nunca se mueve, porque el scroll real
 // pasa en `<html>`. Cualquier `position: sticky` dentro de `body` se pega
 // respecto a ESE scroll inerte, así que nunca se ve pegado de verdad. Ya
-// le pasaba de antes a `.mobile-menu-btn` (bug preexistente, no
-// introducido acá — no se tocó, queda fuera de este cambio). En vez de
-// arriesgar tocar esa regla global sin poder volver a probarla en un
-// teléfono real, esto se resuelve a mano con un listener de scroll.
+// le pasaba de antes a `.mobile-menu-btn` (bug preexistente, arreglado
+// aparte cambiándolo a `position: fixed` — ver su comentario en el CSS;
+// ese caso no necesitó JS porque nunca tuvo que "empezar en flujo y
+// pegarse", solo flotar fijo siempre). En vez de arriesgar tocar la regla
+// global de `overflow-x` sin poder volver a probarla en un teléfono real,
+// esto se resuelve a mano con un listener de scroll.
 let resumenTabsFijo = false;
+// Posición NATURAL de la barra medida contra el DOCUMENTO completo (no
+// contra el viewport, que cambia con cada scroll) — se captura UNA VEZ,
+// recién pintada, mientras todavía está en flujo normal.
+let resumenTabsTopDocumento = null;
 function iniciarPestanasFijasResumen() {
   const barra = document.querySelector('.resumen-tabs');
   if (!barra) return;
@@ -5679,30 +5685,62 @@ function iniciarPestanasFijasResumen() {
   }
   resumenTabsFijo = false; // cada render arranca la barra en su lugar normal
   barra.style.position = ''; barra.style.top = ''; barra.style.left = ''; barra.style.width = '';
+  document.getElementById('resumen-tabs-marcador').style.height = '0';
+  resumenTabsTopDocumento = barra.getBoundingClientRect().top + window.scrollY;
   actualizarPestanasFijasResumen();
 }
+// ⚠️ Gotcha real encontrado en la auditoría de 2026-09-26, dos capas:
+// 1) La primera versión medía `marcador` en vez de `barra` al decidir si
+//    ya no debía seguir fija — el borde superior del marcador no es lo
+//    mismo que el tope real de la barra una vez vuelta a flujo normal
+//    (quedaba corrido por toda su altura, ~59px), así que al scrollear
+//    hacia ARRIBA se despegaba antes de tiempo.
+// 2) Arreglar (1) sin arreglar esto todavía dejaba un bug peor: la altura
+//    del propio marcador (0 cuando no está fija, ~59px cuando sí) cambia
+//    la posición de TODO lo que viene después en el documento — así que
+//    "la posición natural de la barra ahora mismo" dependía de si la
+//    barra YA estaba fija o no en el momento de medir, y esa medición se
+//    retroalimentaba sola: en la prueba real, a igual scrollY (640px),
+//    la barra daba resultados distintos según si se llegaba ahí bajando
+//    o subiendo — se veía como parpadeo entre fija/no fija en una franja
+//    angosta de scroll. La solución real: dejar de medir la posición
+//    "ahora mismo" en cada scroll, y en su lugar comparar la posición
+//    ORIGINAL (capturada una sola vez, en coordenadas del documento
+//    completo) contra cuánto se ha scrolleado — ninguna de las dos cosas
+//    cambia por culpa del propio marcador.
 function actualizarPestanasFijasResumen() {
   const barra = document.querySelector('.resumen-tabs');
   const marcador = document.getElementById('resumen-tabs-marcador');
-  if (!barra || !marcador || !document.getElementById('view-resumen')?.classList.contains('active')) return;
+  if (!barra || !marcador || resumenTabsTopDocumento == null || !document.getElementById('view-resumen')?.classList.contains('active')) return;
   const offsetTop = window.innerWidth <= 860 ? 66 : 0; // misma barra fija de celular que .mobile-menu-btn
-  const yaFijo = resumenTabsFijo;
-  if (yaFijo) { barra.style.position = ''; barra.style.top = ''; barra.style.left = ''; barra.style.width = ''; } // medir su posición normal
-  const rect = (yaFijo ? marcador : barra).getBoundingClientRect();
-  const debeFijarse = rect.top <= offsetTop;
-  if (debeFijarse) {
+  const debeFijarse = (resumenTabsTopDocumento - window.scrollY) <= offsetTop;
+  if (debeFijarse && !resumenTabsFijo) {
+    const rect = barra.getBoundingClientRect(); // todavía en flujo normal acá
     marcador.style.height = rect.height + 'px';
     barra.style.position = 'fixed'; barra.style.top = offsetTop + 'px';
     barra.style.left = rect.left + 'px'; barra.style.width = rect.width + 'px';
     resumenTabsFijo = true;
-  } else {
+  } else if (!debeFijarse && resumenTabsFijo) {
     barra.style.position = ''; barra.style.top = ''; barra.style.left = ''; barra.style.width = '';
     marcador.style.height = '0';
     resumenTabsFijo = false;
   }
 }
 window.addEventListener('scroll', actualizarPestanasFijasResumen);
-window.addEventListener('resize', actualizarPestanasFijasResumen);
+// En resize, si no está fija todavía, se puede volver a medir su
+// posición natural tal cual (el ancho/layout pudo haber cambiado, ej.
+// pasar de celular a escritorio) — si ya está fija, se deja la
+// referencia vieja (recalcularla implicaría des-fijarla primero); caso
+// raro (redimensionar a media pantalla), no vale la pena la complejidad.
+window.addEventListener('resize', () => {
+  if (!resumenTabsFijo) {
+    const barra = document.querySelector('.resumen-tabs');
+    if (barra && document.getElementById('view-resumen')?.classList.contains('active')) {
+      resumenTabsTopDocumento = barra.getBoundingClientRect().top + window.scrollY;
+    }
+  }
+  actualizarPestanasFijasResumen();
+});
 
 /* ================================================================
    GRÁFICOS DEL RESUMEN (Chart.js)

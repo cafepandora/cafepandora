@@ -3208,3 +3208,69 @@ scroll); los íconos SVG en una fila de Ventas (recibo/editar/eliminar,
 y el tag de envío en sus dos estados Pendiente/Enviado) se ven nítidos,
 del tamaño esperado, centrados en el botón de 44×44px. Sin errores
 nuevos de consola.
+
+## Auditoría anti-bugs de lo construido hoy (2026-09-26)
+
+A pedido de Juan ("generá una auditoría interna de todo que quede sin
+bugs"), se revisó a fondo todo lo hecho en esta sesión — el hallazgo más
+serio fue en la barra de pestañas de Resumen, en dos capas.
+
+**🔴 Bug real, dos capas — `actualizarPestanasFijasResumen()` parpadeaba
+entre fija/no fija cerca del punto de anclaje.** La primera versión
+(commit de más arriba) medía `#resumen-tabs-marcador` en vez de la barra
+misma para decidir si debía despegarse — el borde superior del marcador
+no es lo mismo que el tope real de la barra una vez vuelta a flujo
+normal (quedaba corrido por su propia altura, ~59px), así que al
+scrollear hacia ARRIBA se despegaba antes de tiempo. Se corrigió para
+medir la barra directamente — pero probándolo con scroll simulado
+(`window.scrollTo` + evento `scroll` disparado a mano, en vez de solo
+mirar capturas de pantalla), apareció algo peor: a la MISMA posición de
+scroll (640px), la barra daba resultados distintos según si se llegaba
+ahí bajando o subiendo — parpadeaba entre fija y no fija en una franja
+angosta. Causa raíz: el marcador que reserva espacio en el layout
+mientras la barra está fija CAMBIA DE ALTURA (0 ↔ ~59px), y esa misma
+altura desplaza la posición de todo lo que viene después en el
+documento — incluida la propia barra que se estaba tratando de medir.
+Medir "la posición natural ahora mismo" en cada scroll era, sin darse
+cuenta, medir algo que la función misma acababa de alterar un instante
+antes.
+
+**Arreglo real**: en vez de re-medir la posición en cada evento de
+scroll, `resumenTabsTopDocumento` se captura UNA SOLA VEZ por render
+(`iniciarPestanasFijasResumen()`, recién pintada la barra, en
+coordenadas del DOCUMENTO completo — `rect.top + window.scrollY`, no
+del viewport) y cada verificación posterior solo compara ese número fijo
+contra cuánto se ha scrolleado (`resumenTabsTopDocumento - window.scrollY
+<= offsetTop`) — ninguna de las dos cantidades cambia por culpa del
+marcador, así que ya no hay ciclo que se retroalimente solo. Verificado
+con una simulación de scroll de ida y vuelta (0→900→0 en desktop,
+0→900→0 en celular, con paradas cada 10-30px cerca del punto de
+anclaje): la transición es simétrica y estable en las dos direcciones,
+sin ningún parpadeo — antes del arreglo, la misma prueba mostraba
+`fijo:true` en 633px, `fijo:false` en 640px y `fijo:true` de nuevo en
+660px (imposible de notar solo mirando capturas de pantalla, porque cada
+prueba manual anterior había scrolleado de un salto, sin pasar
+lentamente por la franja exacta donde ocurría). **Moraleja para la
+próxima vez que se implemente algo tipo "sticky a mano" con JS**: probar
+con scroll simulado punto por punto cerca del umbral, no solo con saltos
+grandes — un bug de retroalimentación como este solo se nota si se pasa
+lento por la zona exacta donde cambia de estado.
+
+**Otras revisiones de la auditoría, sin hallazgos**: se confirmó que
+`dibujarGraficos()`/`renderMejoresClientes()`/`renderBalancePersonas()`
+solo pueden dispararse cuando su pestaña ya está activa (los botones que
+los disparan viven DENTRO del HTML de esa misma pestaña, no hay forma de
+tocarlos desde otra); no quedaron identificadores viejos sueltos
+(`costoTostionKg`, `cmg-tostion`, los `id`s `res-*` de los botones de
+salto que se reemplazaron); `paginas.resumen` sigue predeclarado (evita el
+bug ya documentado de `paginar()` con una clave nueva sin declarar);
+`.mobile-menu-btn` en `position:fixed` no tiene el mismo riesgo de
+retroalimentación que `.resumen-tabs` porque nunca alterna entre estático
+y fijo, siempre está fijo. Hallazgo menor, no corregido (bajo impacto,
+cosmético): `agregarTarifaMaquila()`/el campo de nombre nuevo en
+"Costos para Margen estimado por lote" comparan nombres de servicio/costo
+con `===` exacto (sensible a mayúsculas/espacios) — alguien podría crear
+"Gas" y "gas" como dos filas distintas por error de tipeo; igual que la
+mayoría de los campos de texto libre en esta app, no hay normalización.
+No se tocó porque cambiar ese comportamiento es una decisión de producto,
+no un bug de por sí.
