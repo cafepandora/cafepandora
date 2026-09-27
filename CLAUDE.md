@@ -252,6 +252,8 @@ functions/api/saldos-iniciales/    # saldo inicial por persona, para el balance 
 functions/api/inventario-pergamino/ # pergamino disponible por lote, antes de trillar
 functions/api/inventario-verde/    # café verde disponible por lote × malla, después de trillar
 functions/api/movimientos-inventario/ # historial de entradas/salidas de pergamino/verde, con origen
+functions/api/blog/                # artículos del blog (todo, con login — pestaña "Blog")
+functions/api/blog-publico/        # GET público, solo estado = Publicado
 functions/_lib/verde.ts            # aplicarTrilla()/revertirTrilla() — pergamino disponible -> verde por malla
 migracion_*.sql, migration.sql     # ver "Pendiente / a medias" — no todas están corridas en producción
 ```
@@ -2577,6 +2579,13 @@ tenía la foto de Lavado, para que las dos combinen visualmente) como
 
 ## Pendiente / a medias
 
+- **⚠️ Blog — falta correr la migración**: el código ya está (ver sección
+  "Blog — pestaña nueva..." arriba), pero hasta que no se corra
+  `migracion_blog.sql` en Supabase, la pestaña "Blog" de la app interna
+  va a mostrar el error real de Postgres (tabla `blog_posts` inexistente)
+  y la sección "Blog" de la página de pedidos no va a poder cargar
+  artículos — el panel de ⚠️ migraciones pendientes en Configuración ya
+  lo detecta.
 - **⚠️ Costos por kg tostado (Gas, etc.) — falta correr la migración**: el
   código ya está (ver sección "Costos por kg tostado, ahora una lista"
   arriba), pero hasta que no se corra `migracion_costos_por_kg.sql` en
@@ -3697,3 +3706,127 @@ captura.
 Probado en el preview local, desktop y celular: la foto se ve completa
 con esquinas redondeadas, sin recorte raro ni salto de layout; el texto
 ya no menciona cereza. Sin errores nuevos de consola.
+
+## Blog — pestaña nueva en la app interna + sección "Blog" en pedidos (2026-09-28)
+
+Juan: *"podemos añadir una pequeña sección así como maquila pero que se
+llame blog y que pueda subir ahí artículos y que si alguien quiere subir
+uno pueda escribirme para someter a revisión"* — dos partes: (1) una
+sección "Blog" en `pedidos/index.html`, misma idea de vista-aparte que
+Maquila; (2) que Juan pueda subir artículos él mismo, sin pasar por
+código cada vez. Se le preguntó explícitamente si los artículos debían
+llevar foto de portada subida directo desde el formulario (self-serve,
+achicada en el navegador) — confirmó que sí.
+
+**Tabla nueva, mismo patrón interno/público que `precios_cafe`**:
+`blog_posts` (`migracion_blog.sql` — id, titulo, extracto, contenido,
+imagen, autor, estado, creado_por, ts). `estado` arranca en `'Borrador'`
+— la pestaña "Blog" de la app interna (nueva, entre "Cuentas de cobro" y
+"Configuración" en el sidebar) ve TODO (`GET /api/blog`, con login);
+`GET /api/blog-publico` (sin login, mismo espíritu que
+`catalogo-publico`) solo trae `estado = 'Publicado'` y deja afuera
+`creado_por` (dato interno de quién lo escribió desde la app, no la
+firma pública del artículo — para eso está "autor", un campo de texto
+libre aparte). `POST /api/blog` usa `requireAuthConUsuario()` para
+guardar `creado_por` real, igual que los otros 9 recursos de
+"Atribución real por sesión"; `PATCH`/`DELETE /api/blog/:id` con
+`requireAuth()` normal.
+
+**Foto de portada — achicada en el navegador, sin servicio externo**:
+`redimensionarImagenBlog(file)` (`index.html`, app interna) lee el
+archivo con `FileReader`, lo dibuja en un `<canvas>` reducido a máximo
+900px de ancho, y lo reexporta como JPEG calidad .75 con
+`canvas.toDataURL()` — el resultado (un data URL base64) es lo que se
+manda y se guarda tal cual en la columna `imagen`. Nada de esto pasa por
+el backend hasta que ya está achicado, así que un archivo de varios MB
+de la cámara del celular no infla la tabla sin control ni necesita
+ningún servicio de almacenamiento de imágenes — mismo espíritu simple
+que el resto de esta app (sin build, sin backend de archivos). Probado
+con una imagen sintética de 1600×1200/55 KB: salió en 900×675/~8 KB.
+Tanto el formulario de "Nuevo artículo" como el modal de "Editar
+artículo" (`abrirEdicionBlog()`) usan la misma función — cada uno con su
+propia variable de buffer (`imagenBlogNueva` / `imagenBlogEditando`) y
+su propio `<img>` de vista previa, para no pisarse si los dos llegaran a
+estar abiertos (no pasa en la práctica, pero mantiene el patrón limpio).
+El modal de editar también deja "Quitar foto" si el artículo ya tenía
+una y se quiere dejar sin portada.
+
+**Pestaña "Blog" en la app interna** (`renderBlog()`, `filaBlogPost()`):
+mismo patrón que Finca/Cuentas de cobro — un formulario arriba para
+crear ("Nuevo artículo": título, extracto opcional, contenido en
+textarea, autor opcional con el mismo `localStorage` que recuerda otros
+campos "quién", estado, foto) y el historial abajo, cada fila con una
+etiqueta-botón de estado (`toggleEstadoBlog()`, reusando las clases CSS
+`.tag.pagado`/`.tag.pendiente` — verde/mostaza ya significan
+genéricamente "resuelto/pendiente" en toda la app, igual que ya se
+reusaron para envío de Ventas y entrega de Maquila) más ✎ Editar / ✕
+Eliminar. Sumado a `sincronizar()` (`CLAVES_SINCRONIZAR`/`endpoints`,
+posición 22 de 22), a `TABS_CON_BUSQUEDA` (busca por título/autor/
+contenido) y al panel de ⚠️ migraciones pendientes de Configuración
+(`salud-esquema`) — mismos 3 lugares que cualquier recurso nuevo de esta
+app necesita tocar.
+
+**Sección "Blog" en `pedidos/index.html`**: `mostrarVista()` (la función
+que ya reemplazaba contenido para Maquila, ver esa sección más arriba)
+se generalizó de 2 a 3 estados (`'cafe'`/`'maquila'`/`'blog'`) en vez de
+un simple booleano `esMaquila` — mismo mecanismo, un 3er `<section
+id="vistaBlog" style="display:none">` más, y un 3er link en
+`.nav-secciones` (`Blog`, entre `Maquila` y `Pedir →`). A diferencia del
+catálogo de café (que se carga siempre, de entrada) y de Maquila (texto
+fijo, sin fetch), el Blog SÍ pide datos a un endpoint público
+(`/api/blog-publico`) pero **solo la primera vez que alguien toca
+"Blog"** (`cargarBlog()`, guardado con un flag `blogCargado` para no
+repetir el fetch después) — no tiene sentido pedirlo de entrada para la
+mayoría de visitantes que solo vienen a comprar café.
+
+Dentro de la sección hay DOS vistas que se turnan el mismo contenedor
+(`#blog-lista`, controladas por `articuloBlogAbierto`, `null` = lista):
+una cuadrícula de tarjetas (imagen 16:9 si tiene, fecha, título,
+extracto — el extracto usa el texto escrito a mano o, si Juan lo dejó
+vacío, `resumenTextoBlog()` arma uno cortando el contenido a ~140
+caracteres) y el artículo completo (imagen grande, título, fecha/autor,
+párrafos — `contenido` se parte por líneas en blanco dobles,
+`split(/\n{2,}/)`, cada trozo un `<p>`). Tocar una tarjeta abre el
+artículo y sube al inicio de la página; "← Volver a los artículos"
+regresa a la cuadrícula — todo sin ningún salto de página, ni back-
+button del navegador involucrado (mismo espíritu que el resto de
+`mostrarVista()`).
+
+**Primera vez que esta página necesita escapar HTML**: hasta ahora
+`pedidos/index.html` nunca había interpolado texto libre en `innerHTML`
+(nombres de lote/presentación son valores fijos, no texto que alguien
+escribió) — el blog es la primera excepción real (Juan escribe título y
+contenido desde la app interna). Se copiaron `escapeHtml()`/
+`escapeAttr()` de `index.html` tal cual (los dos archivos siguen sin
+compartir módulos, mismo criterio que toda constante duplicada de este
+proyecto) y se usan en título/extracto/contenido/autor del blog.
+
+⚠️ **Gotcha real encontrado probando esto — las tarjetas volvían
+invisibles para siempre después de ver un artículo y volver**:
+`pintarBlog()` reemplaza el `innerHTML` completo de `#blog-lista` cada
+vez que cambia entre lista y artículo — así que las tarjetas `.revela`
+que aparecen al volver a la lista (`cerrarArticuloBlog()`) son nodos
+DOM **nuevos**, no los mismos que ya había observado el
+`IntersectionObserver` de `iniciarRevelado()` la primera vez. La versión
+inicial solo llamaba `iniciarRevelado()` una vez, dentro de
+`cargarBlog()` — así que abrir un artículo y volver dejaba las tarjetas
+en `opacity:0` para siempre, sin ningún error visible (mismo tipo de bug
+ya documentado para `cargarCatalogo()`, que sí lo tenía resuelto desde
+el principio por la misma razón). Arreglado moviendo la llamada a
+`iniciarRevelado()` al FINAL de `pintarBlog()` mismo, así cualquier
+repintado (primera carga, abrir artículo, volver a la lista) siempre
+re-observa lo que de verdad esté en el DOM en ese momento — no hace
+falta acordarse de llamarla desde cada función que dispare un repintado.
+
+Probado en el preview local (mock, ambas apps — `mock_index_server.py` y
+`mock_pedidos_server.py` reescrito para servir `/api/blog-publico`,
+antes no manejaba ninguna ruta de API): en la app interna, crear un
+artículo, editarlo (con foto de portada de prueba, confirmando que se
+guarda), togglear Borrador↔Publicado, y buscar por título — los 4
+funcionan y el nuevo artículo aparece de inmediato en la lista sin
+recargar. En pedidos, la sección Blog carga los 2 artículos publicados
+del mock, muestra el resumen automático en el que no tiene extracto,
+abre/cierra el artículo completo correctamente (incluida la foto de
+portada, probada con la misma foto de la tostadora de Maquila), y se ve
+bien en celular (375px). Sin errores nuevos de consola en ningún
+recorrido, en ninguna de las dos apps.

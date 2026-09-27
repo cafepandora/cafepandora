@@ -216,6 +216,31 @@
   .maquila-servicio p { font-size: 12.5px; color: var(--cafe-soft); margin: 0; line-height: 1.45; }
   .maquila-nota { font-size: 13px; color: var(--cafe-soft); max-width: 380px; margin: 0 auto 20px; line-height: 1.55; }
 
+  /* Sección "Blog" — misma idea que "Maquila" arriba (vista aparte, no un
+     tramo más del scroll), pero el contenido adentro se alinea a la
+     izquierda (tarjetas + artículo largo) en vez de centrado. */
+  .blog-seccion { background: var(--crema); padding: 48px 20px 90px; }
+  .blog-header { text-align: center; margin-bottom: 32px; }
+  .blog-kicker { font-size: 12.5px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--teal); margin: 0 0 8px; }
+  .blog-titulo { font-family: var(--serif); font-weight: 600; font-size: clamp(24px, 6vw, 30px); color: var(--cafe); max-width: 480px; margin: 0 auto 12px; line-height: 1.2; }
+  .blog-intro { font-size: 14.5px; color: var(--cafe-soft); max-width: 420px; margin: 0 auto; line-height: 1.6; }
+  .blog-lista { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .blog-vacio { text-align: center; font-size: 13.5px; color: var(--cafe-soft); }
+  .blog-card { display: block; width: 100%; text-align: left; background: var(--blanco); border: 1px solid var(--linea); border-radius: 16px; padding: 0; overflow: hidden; cursor: pointer; font: inherit; color: inherit; }
+  .blog-card-foto { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+  .blog-card-texto { padding: 16px 18px; }
+  .blog-card-fecha { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--teal); margin: 0 0 4px; }
+  .blog-card-titulo { font-family: var(--serif); font-weight: 600; font-size: 19px; color: var(--cafe); margin: 0 0 6px; line-height: 1.25; }
+  .blog-card-extracto { font-size: 13.5px; color: var(--cafe-soft); margin: 0; line-height: 1.5; }
+  .blog-volver { display: inline-block; background: none; border: none; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 13.5px; color: var(--teal); cursor: pointer; padding: 0 0 18px; }
+  .blog-articulo { max-width: 560px; margin: 0 auto; }
+  .blog-articulo-foto { display: block; width: 100%; max-height: 320px; object-fit: cover; border-radius: 16px; margin: 0 0 20px; }
+  .blog-articulo-titulo { font-family: var(--serif); font-weight: 600; font-size: clamp(22px, 5vw, 28px); color: var(--cafe); margin: 0 0 8px; line-height: 1.25; }
+  .blog-articulo-meta { font-size: 12.5px; font-weight: 600; color: var(--teal); text-transform: uppercase; letter-spacing: .5px; margin: 0 0 20px; }
+  .blog-articulo-texto { font-size: 15px; color: var(--cafe); line-height: 1.7; margin: 0 0 16px; }
+  .blog-cta { max-width: 560px; margin: 40px auto 0; text-align: center; border-top: 1px solid var(--linea); padding-top: 32px; }
+  .blog-cta p { font-size: 13.5px; color: var(--cafe-soft); margin: 0 0 14px; }
+
   .card { background: var(--blanco); border: 1px solid var(--linea); border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 14px rgba(62,39,35,.05); }
   /* Resuelve, ANTES de pedir los datos, las 2 dudas que la auditoría CRO
      encontró sin respuesta en ningún paso del recorrido (envío y pago) y
@@ -432,6 +457,7 @@
   <a href="#procesoSeccion" onclick="mostrarVista('cafe')">Proceso</a>
   <a href="#tourFinca" onclick="mostrarVista('cafe')">Tour</a>
   <a href="#" onclick="mostrarVista('maquila'); return false;" id="navMaquilaLink">Maquila</a>
+  <a href="#" onclick="mostrarVista('blog'); return false;" id="navBlogLink">Blog</a>
   <a href="#catalogo" class="destacado" onclick="mostrarVista('cafe')">Pedir →</a>
 </nav>
 <div id="vistaCafe">
@@ -559,6 +585,21 @@
   <a class="hero-cta-primaria maquila-cta revela" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20cotizar%20un%20servicio%20de%20maquila%20para%20mi%20propio%20caf%C3%A9%20%28trilla%2C%20tueste%2C%20molienda%20y/o%20empaque%29." target="_blank" rel="noopener">💬 Cotizar maquila por WhatsApp</a>
 </section>
 
+<section class="blog-seccion" id="vistaBlog" style="display:none">
+  <div class="blog-header">
+    <p class="blog-kicker revela">Nuestro blog</p>
+    <h2 class="blog-titulo revela">Del cafetal a tu taza</h2>
+    <p class="blog-intro revela">Historias, novedades y aprendizajes de la finca — de primera mano.</p>
+  </div>
+  <div class="blog-lista" id="blog-lista">
+    <p class="blog-vacio">Cargando artículos…</p>
+  </div>
+  <div class="blog-cta revela">
+    <p>¿Quieres escribir para nuestro blog? Escríbenos y lo revisamos.</p>
+    <a class="tour-cta" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20proponer%20un%20art%C3%ADculo%20para%20el%20blog%20de%20Caf%C3%A9%20Pandora." target="_blank" rel="noopener">✍️ Proponer un artículo</a>
+  </div>
+</section>
+
 <div class="carrito-barra" id="barraCarrito">
   <div class="fila" id="filaCarrito" onclick="irAlResumen()">
     <div class="ver-carrito" id="verCarrito">
@@ -649,6 +690,15 @@ let moliendaSeleccionada = {}; // clave "Lote|Presentacion" -> 'Molido' | 'En gr
 let pesoSeleccionado = {}; // clave Lote -> presentación que se ve ahora mismo en la tarjeta-bolsa (ej. "Libra")
 const fmt = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO');
 const idSeguro = s => s.replace(/[^a-zA-Z0-9]/g, '_');
+// Hasta ahora esta página nunca había necesitado escapar HTML — todo lo
+// que se interpola en innerHTML son nombres de lote/presentación fijos,
+// no texto libre. El blog es la primera excepción (Juan escribe el
+// artículo desde la app interna) — mismo escapeHtml()/escapeAttr() de
+// index.html, copiado tal cual (los dos archivos son independientes, sin
+// módulos compartidos, mismo criterio que el resto de constantes
+// duplicadas de este proyecto).
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
 
 async function cargarCatalogo() {
   try {
@@ -717,18 +767,90 @@ function iniciarScrollspyNav() {
 // siempre), así que si estabas viendo Maquila y tocas "Tour", primero se
 // vuelve a mostrar el contenido de café y LUEGO el navegador salta ahí.
 function mostrarVista(vista) {
-  const esMaquila = vista === 'maquila';
-  document.getElementById('vistaCafe').style.display = esMaquila ? 'none' : '';
-  document.getElementById('vistaMaquila').style.display = esMaquila ? '' : 'none';
+  const esCafe = vista === 'cafe';
+  document.getElementById('vistaCafe').style.display = esCafe ? '' : 'none';
+  document.getElementById('vistaMaquila').style.display = vista === 'maquila' ? '' : 'none';
+  document.getElementById('vistaBlog').style.display = vista === 'blog' ? '' : 'none';
   document.querySelectorAll('#navSecciones a').forEach(a => a.classList.remove('activo'));
-  if (esMaquila) {
-    document.getElementById('navMaquilaLink').classList.add('activo');
+  if (!esCafe) {
+    const link = vista === 'maquila' ? document.getElementById('navMaquilaLink') : document.getElementById('navBlogLink');
+    link.classList.add('activo');
     document.getElementById('barraCarrito').classList.remove('visible');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    iniciarRevelado(); // las tarjetas de Maquila estaban en display:none, nadie las había observado todavía
+    if (vista === 'blog') cargarBlog(); // primera vez: trae los artículos; si ya se cargaron, no repite el fetch
+    iniciarRevelado(); // las tarjetas de Maquila/Blog estaban en display:none, nadie las había observado todavía
   } else {
     actualizarBarra(); // restaura la barra del carrito de café si ya tenía algo
   }
+}
+
+/* ---------- Blog — lista pública (solo Publicado), cargada la primera
+   vez que alguien toca "Blog", no de entrada como el catálogo ---------- */
+let blogPosts = [];
+let blogCargado = false;
+let articuloBlogAbierto = null; // null = lista; si no, el id del artículo abierto
+function resumenTextoBlog(texto, n = 140) {
+  const limpio = (texto || '').replace(/\s+/g, ' ').trim();
+  return limpio.length > n ? limpio.slice(0, n).trim() + '…' : limpio;
+}
+async function cargarBlog() {
+  if (blogCargado) return;
+  blogCargado = true;
+  try {
+    const res = await fetch('/api/blog-publico');
+    blogPosts = await res.json();
+  } catch {
+    blogPosts = [];
+  }
+  pintarBlog();
+}
+// pintarBlog() siempre reemplaza el innerHTML entero (lista ↔ artículo),
+// así que las tarjetas ".revela" son nodos NUEVOS cada vez — el
+// IntersectionObserver que ya vio la versión anterior no las conoce.
+// Por eso iniciarRevelado() se llama AQUÍ (al final de cada pintado), no
+// solo la primera vez en cargarBlog() — si no, volver de un artículo a la
+// lista (cerrarArticuloBlog) dejaba las tarjetas invisibles para siempre,
+// porque nadie las volvía a observar.
+function pintarBlog() {
+  const cont = document.getElementById('blog-lista');
+  if (!cont) return;
+
+  if (articuloBlogAbierto != null) {
+    const p = blogPosts.find(x => x.id === articuloBlogAbierto);
+    if (!p) { articuloBlogAbierto = null; return pintarBlog(); }
+    const parrafos = (p.contenido || '').split(/\n{2,}/).map(t => t.trim()).filter(Boolean);
+    cont.innerHTML = `
+      <button class="blog-volver" onclick="cerrarArticuloBlog()">← Volver a los artículos</button>
+      <article class="blog-articulo">
+        ${p.imagen ? `<img class="blog-articulo-foto" src="${escapeAttr(p.imagen)}" alt="${escapeAttr(p.titulo)}">` : ''}
+        <h3 class="blog-articulo-titulo">${escapeHtml(p.titulo)}</h3>
+        <p class="blog-articulo-meta">${new Date(Number(p.ts)).toLocaleDateString('es-CO')}${p.autor ? ' · ' + escapeHtml(p.autor) : ''}</p>
+        ${parrafos.map(t => `<p class="blog-articulo-texto">${escapeHtml(t)}</p>`).join('')}
+      </article>`;
+    return;
+  }
+
+  cont.innerHTML = blogPosts.length
+    ? blogPosts.map(p => `
+      <button class="blog-card revela" onclick="abrirArticuloBlog(${p.id})">
+        ${p.imagen ? `<img class="blog-card-foto" src="${escapeAttr(p.imagen)}" alt="">` : ''}
+        <div class="blog-card-texto">
+          <p class="blog-card-fecha">${new Date(Number(p.ts)).toLocaleDateString('es-CO')}</p>
+          <h3 class="blog-card-titulo">${escapeHtml(p.titulo)}</h3>
+          <p class="blog-card-extracto">${escapeHtml(p.extracto || resumenTextoBlog(p.contenido))}</p>
+        </div>
+      </button>`).join('')
+    : '<p class="blog-vacio">Todavía no hay artículos publicados — vuelve pronto.</p>';
+  iniciarRevelado();
+}
+function abrirArticuloBlog(id) {
+  articuloBlogAbierto = id;
+  pintarBlog();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function cerrarArticuloBlog() {
+  articuloBlogAbierto = null;
+  pintarBlog();
 }
 
 // Fila de atajos pegada arriba (☕ Lavado · Honey · Natural · Exóticos) para
