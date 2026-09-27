@@ -3023,8 +3023,9 @@ pegado de verdad — simplemente se desliza fuera de la pantalla con el
 resto del contenido. Se confirmó con `getBoundingClientRect()` en vivo
 que esto **ya le pasaba de antes a `.mobile-menu-btn`** (el botón ☰ que
 abre el sidebar en celular, también declarado `position: sticky` con un
-`top` calculado) — un bug preexistente, no introducido en este cambio, y
-que se deja sin tocar (fuera de alcance de este pedido).
+`top` calculado) — un bug preexistente, no introducido en este cambio.
+(Arreglado el mismo día, ver la sección de íconos más abajo — a
+diferencia de `.resumen-tabs`, ahí no hizo falta ningún workaround en JS.)
 
 No se tocó `html, body { overflow-x: hidden }` para arreglar esto —
 es una regla ya validada en el teléfono real de Juan y no hay forma de
@@ -3156,3 +3157,54 @@ la fila de Gas sin problema (y no se ofrece "✕" cuando solo queda una
 fila, para no dejar la lista vacía); `calcularMargenPorLote()` con
 Tostión+Gas dio un costo mayor que con solo Tostión, confirmando que la
 suma se está aplicando. Sin errores nuevos de consola.
+
+## Íconos reales (Lucide) — primer pase en Ventas + arregla el botón ☰ (2026-09-26)
+
+Juan pidió íconos "más lindos, no tan genéricos" en vez de emoji para
+los botones de acción. Se usó **Lucide** (lucide.dev, SVG, licencia ISC —
+básicamente MIT, gratis, sin marca de agua) — pero en vez de cargarlo por
+CDN con el patrón `data-lucide="x"` + `lucide.createIcons()`, se bajó el
+SVG crudo de cada ícono (`unpkg.com/lucide-static/icons/<nombre>.svg`) y
+se embebió directo como string en `index.html` (`ICONOS_SVG`, función
+`icono(nombre, tam)`, junto a `fmt`/`mesDe`). Razón: esta app arma TODA
+su HTML con `innerHTML` sobre template literals — el patrón
+`createIcons()` obligaría a llamarlo después de cada uno de los
+decenas de renders que usan estos botones, con riesgo real de que algún
+ícono se quede sin pintar si se olvida un solo sitio. Con el SVG ya
+adentro del string, sale pintado de una junto con el resto del HTML,
+igual que el emoji que reemplaza — `stroke="currentColor"` hereda el
+color de texto del botón, así que los estados hover/activo (que cambian
+`color`) lo siguen tiñendo solo, sin CSS aparte.
+
+**Alcance de este primer pase, a propósito acotado**: solo `filaVenta()`
+— los 3 botones de acción (🧾 recibo, ✎ editar, ✕ eliminar) y el tag de
+envío (📦 Pendiente / ✅ Enviado). Si a Juan le gusta el resultado, se
+extiende al resto de la app (Maquila, Cosecha & Tueste, Gastos, Cuentas
+de cobro — unos 15+ íconos más, repartidos en ~19 lugares) en un pase
+aparte, para no arriesgar 8 pantallas de una sola vez con una librería
+nueva. `ICONOS_SVG` ya queda listo para sumarle entradas nuevas sin
+tocar nada de lo que ya funciona.
+
+**De paso, arreglado el bug real de `.mobile-menu-btn`** (el botón ☰ que
+abre el sidebar en celular, encontrado mientras se armaba lo de
+`.resumen-tabs` de más arriba — declaraba `position: sticky` pero nunca
+se quedaba pegado de verdad, por el mismo motivo: `body` se vuelve su
+propio contenedor de scroll inerte). A diferencia de `.resumen-tabs`
+(que si necesitaba el workaround en JS, porque compite con contenido que
+sí fluye alrededor), este botón nunca tuvo que "empezar en flujo normal
+y luego pegarse" — su intención siempre fue flotar en el mismo lugar
+mientras se hace scroll, ni más ni menos que `position: fixed` ya hace
+de por sí. `fixed` no depende del contenedor de scroll de ningún
+ancestro (se posiciona contra el viewport, o contra un ancestro con
+`transform`, de los cuales no hay ninguno acá) — así que cambiar
+`sticky` → `fixed` lo arregló sin ningún JS adicional. El `top` absorbe
+los 12px que antes daba `margin-top` (un `margin` normal ya no aplica
+igual a un elemento `fixed`).
+
+Probado en el preview, ancho de celular (706px, bajo los 860px del
+breakpoint): el botón ☰ se queda fijo en su lugar al hacer scroll (antes
+se quedaba pintado en su posición de flujo original, sin seguir el
+scroll); los íconos SVG en una fila de Ventas (recibo/editar/eliminar,
+y el tag de envío en sus dos estados Pendiente/Enviado) se ven nítidos,
+del tamaño esperado, centrados en el botón de 44×44px. Sin errores
+nuevos de consola.

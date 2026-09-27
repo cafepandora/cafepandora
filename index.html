@@ -155,11 +155,25 @@
     .sidebar.collapsed .sidebar-links button { justify-content: flex-start; padding: 11px 12px; }
     .sidebar.collapsed .sidebar-quick-actions { flex-direction: row; justify-content: flex-end; }
     .sidebar-toggle { display: none; }
+    /* `position: fixed`, no `sticky` (2026-09-26) — este botón siempre
+       tenía que flotar en el mismo lugar mientras se hace scroll, nunca
+       "empezar en flujo normal y luego pegarse" (que es lo que sticky
+       realmente ofrece distinto a fixed) — por eso el bug real de
+       `sticky` en esta app (ver el comentario junto a
+       actualizarPestanasFijasResumen() en el script: html/body con
+       overflow-x:hidden hace que sticky se ancle contra un scroll de
+       `body` que nunca se mueve) nunca se notó tanto como en Resumen: acá
+       directamente pintaba SIEMPRE en su posición de flujo original, sin
+       seguir el scroll. `fixed` no tiene ese problema (se posiciona
+       contra el viewport, no contra un ancestro con scroll), así que no
+       hizo falta ningún workaround en JS para este caso, a diferencia de
+       `.resumen-tabs`. El `top` suma los 12px que antes daba
+       `margin-top` (ya no aplica un margin normal a un elemento fixed). */
     .mobile-menu-btn {
-      display: flex; align-items: center; justify-content: center; position: sticky;
-      top: calc(66px + env(safe-area-inset-top)); left: 12px;
+      display: flex; align-items: center; justify-content: center; position: fixed;
+      top: calc(66px + env(safe-area-inset-top) + 12px); left: 12px;
       width: 44px; height: 44px; border-radius: 10px; background: var(--blanco); border: 1px solid var(--linea);
-      font-size: 19px; cursor: pointer; z-index: 40; margin: 12px 0 0 12px;
+      font-size: 19px; cursor: pointer; z-index: 40;
     }
     .sidebar-overlay.show {
       display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 55;
@@ -1350,6 +1364,34 @@ const mesDe = ts => { const d = new Date(Number(ts)); return d.getFullYear() + '
 const coincide = (texto, q) => !q || String(texto || '').toLowerCase().includes(q.toLowerCase());
 const hoyMes = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 
+// Íconos de acción (2026-09-26) — Lucide (lucide.dev, ISC/ligera-MIT,
+// gratis y sin marca de agua), SVG crudo embebido acá en vez de cargarlo
+// por CDN: esta app arma toda su HTML con innerHTML sobre template
+// literals (renderVentas(), filaVenta(), etc.), así que un enfoque tipo
+// `data-lucide="x"` + `lucide.createIcons()` obligaría a llamar esa
+// función después de CADA render en decenas de sitios, con riesgo real
+// de que algún ícono se quede sin pintar si se olvida un solo lugar.
+// Con el SVG ya embebido en el string, sale pintado de una junto con el
+// resto del HTML, igual que el emoji que reemplaza. `stroke="currentColor"`
+// hereda el color de texto del botón, igual que hacía el emoji.
+// PRIMER PASE, a propósito acotado: solo los 3 botones de acción de
+// Ventas (🧾✎✕) y el tag de envío (📦/✅) — si a Juan le gusta el
+// resultado, se extiende al resto de la app (Maquila, Cosecha & Tueste,
+// etc.) en un pase aparte, para no arriesgar 8 pantallas de una sola vez.
+const ICONOS_SVG = {
+  editar: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  eliminar: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  recibo: '<path d="M12 17V7"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/>',
+  paquete: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+};
+function icono(nombre, tam) {
+  const inner = ICONOS_SVG[nombre];
+  if (!inner) return '';
+  const t = tam || 16;
+  return `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;flex:0 0 auto">${inner}</svg>`;
+}
+
 // Cada tipo de cliente tiene su PROPIA tarifa en precios_cafe — antes
 // 'Mayorista' e 'Interno' caían silenciosamente en la tarifa normal (mismo
 // precio que 'Cliente normal', sin ningún aviso), aunque el selector
@@ -2512,14 +2554,14 @@ function filaVenta(v, esDeuda) {
         <div class="meta">${new Date(Number(v.ts)).toLocaleDateString('es-CO')}${v.recibidoPor ? ' · recibió ' + escapeHtml(v.recibidoPor) : (v.usuario ? ' · ' + escapeHtml(v.usuario) : '')}${v.creadoPor ? ' · agregado por ' + escapeHtml(nombreDeCorreo(v.creadoPor)) : ''} ${esDeuda ? '· desde ' + mesDe(v.ts) : ''}</div>
         <div class="details">${escapeHtml(detalleVenta(v))}</div>
         ${paquetes ? `<div class="meta" style="color:var(--azul);font-weight:700">📦 ${paquetes.pagadas} de ${paquetes.total} paquetes pagados</div>` : ''}
-        <div style="margin-top:5px"><button class="tag ${envioPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEnvio(${v.id})">${envioPendiente ? '📦 Pendiente de envío' : '✅ Enviado'}</button></div>
+        <div style="margin-top:5px"><button class="tag ${envioPendiente ? 'envio-pendiente' : 'envio-enviado'}" onclick="toggleEstadoEnvio(${v.id})">${envioPendiente ? icono('paquete') + ' Pendiente de envío' : icono('check') + ' Enviado'}</button></div>
       </div>
       <button class="tag ${v.estado === 'Pagado' ? 'pagado' : 'pendiente'}" onclick="toggleEstadoVenta(${v.id})">${v.estado}</button>
       <div class="amount pos">${fmt(v.valor)}</div>
       <div class="acciones">
-        <button onclick="abrirRecibo(${v.id})" title="Recibo">🧾</button>
-        <button onclick="abrirEdicionVenta(${v.id})" title="Editar">✎</button>
-        <button onclick="eliminarVenta(${v.id})" title="Eliminar">✕</button>
+        <button onclick="abrirRecibo(${v.id})" title="Recibo">${icono('recibo')}</button>
+        <button onclick="abrirEdicionVenta(${v.id})" title="Editar">${icono('editar')}</button>
+        <button onclick="eliminarVenta(${v.id})" title="Eliminar">${icono('eliminar')}</button>
       </div>
     </div>`;
 }
