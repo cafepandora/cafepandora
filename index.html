@@ -1043,7 +1043,7 @@ const state = {
   cuentasCobro: [],
   saldosIniciales: [],
   precioFnc: [],
-  costosMargen: { costoTostionKg: 0, costoBolsaMediaLb: 0, costoBolsaLibra: 0, costoBolsaKilo: 0, costoBolsaCuarteron: 0 },
+  costosMargen: { costosPorKg: [], costoBolsaMediaLb: 0, costoBolsaLibra: 0, costoBolsaKilo: 0, costoBolsaCuarteron: 0 },
   saludEsquema: [],
   inventarioPergamino: [],
   inventarioVerde: [],
@@ -5749,6 +5749,10 @@ function precioPromedioPergaminoPropio() {
 const CLAVE_COSTO_BOLSA = { 'Media lb': 'costoBolsaMediaLb', 'Libra': 'costoBolsaLibra', 'Kilo': 'costoBolsaKilo', 'Cuarterón': 'costoBolsaCuarteron' };
 function calcularMargenPorLote() {
   const cm = state.costosMargen || {};
+  // Suma de TODOS los costos "por kg tostado" configurados (Tostión, y
+  // cualquier otro que se haya agregado, ej. Gas) — 2026-09-26, antes
+  // solo existía Tostión como columna fija. Ver migracion_costos_por_kg.sql.
+  const costoPorKgTostado = (cm.costosPorKg || []).reduce((s, c) => s + (Number(c.costoPorKg) || 0), 0);
   const ingresoPorLote = {};
   const bolsaPorLote = {};
   state.ventas.forEach(v => itemsNormalizados(v).filter(it => it.tipo === 'cafe' && it.lote).forEach(it => {
@@ -5786,7 +5790,7 @@ function calcularMargenPorLote() {
     const costo = (costoCerezaPorLote[lote] || 0)
       + (costoCosechaPropiaPorLote[lote] || 0)
       + totalFinca * propKilos
-      + (tostadoPorLote[lote] || 0) * (Number(cm.costoTostionKg) || 0)
+      + (tostadoPorLote[lote] || 0) * costoPorKgTostado
       + (bolsaPorLote[lote] || 0);
     const margen = ingreso - costo;
     return { lote, ingreso, costo, margen, margenPct: ingreso > 0 ? (margen / ingreso) * 100 : null };
@@ -6535,6 +6539,19 @@ function renderConfig() {
   }).join('');
 
   const cm = state.costosMargen || {};
+  // Buffer persistente (2026-09-26) — para que "+ Agregar costo"/"✕" (que
+  // llaman a renderConfig() de nuevo) no pierdan filas a medio escribir,
+  // igual que pesajesEdit en el modal de Pesajes: nada toca `state` hasta
+  // que se le da Guardar. ⚠️ Ojo: renderConfig() puede pintarse ANTES de
+  // que sincronizar() traiga los datos reales (ej. al cargar la app) — un
+  // simple "if (!costosPorKgEdit)" se queda pegado con ese primer valor
+  // vacío para siempre, aunque después sí lleguen los datos reales. Por
+  // eso se compara contra `cm.ts` (cambia cada vez que llega una versión
+  // nueva de verdad) y NO contra si el buffer ya existe o no.
+  if (!costosPorKgEdit || costosPorKgEditTs !== cm.ts) {
+    costosPorKgEdit = (cm.costosPorKg && cm.costosPorKg.length) ? cm.costosPorKg.map(c => ({ ...c })) : [{ nombre: 'Tostión', costoPorKg: 0 }];
+    costosPorKgEditTs = cm.ts;
+  }
   const migracionesFaltantes = (state.saludEsquema || []).filter(x => !x.ok);
   const bloquePrecios = `
     ${migracionesFaltantes.length ? `
@@ -6549,10 +6566,16 @@ function renderConfig() {
 
     <h3 class="section-title">Costos para "Margen estimado por lote"</h3>
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Costo INTERNO tuyo — no tiene que ser igual a lo que cobras por maquila (Configuración → Tarifas de maquila más abajo, para clientes). Se usa solo para calcular el margen en Resumen.</p>
-    <div class="row">
-      <div class="field"><label>Tostión (por kg tostado)</label><input type="number" id="cmg-tostion" value="${cm.costoTostionKg || 0}"></div>
-    </div>
-    <div class="row">
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Costos por kilo tostado — se multiplican por lo que tostó cada lote. Tostión ya viene puesto; agrega los que hagan falta (ej. Gas, Electricidad).</p>
+    ${costosPorKgEdit.map((c, i) => `
+      <div class="row" style="align-items:flex-end">
+        <div class="field"><label>Nombre</label><input type="text" id="cmg-nombre-${i}" value="${escapeAttr(c.nombre)}" placeholder="Ej. Gas"></div>
+        <div class="field"><label>Costo por kg tostado</label><input type="number" id="cmg-valor-${i}" value="${c.costoPorKg}"></div>
+        ${costosPorKgEdit.length > 1 ? `<button class="sec-btn" onclick="quitarFilaCostoPorKg(${i})">✕</button>` : ''}
+      </div>
+    `).join('')}
+    <button class="sec-btn" onclick="agregarFilaCostoPorKg()">+ Agregar costo</button>
+    <div class="row" style="margin-top:14px">
       <div class="field"><label>Bolsa Media lb</label><input type="number" id="cmg-bolsa-media" value="${cm.costoBolsaMediaLb || 0}"></div>
       <div class="field"><label>Bolsa Libra</label><input type="number" id="cmg-bolsa-libra" value="${cm.costoBolsaLibra || 0}"></div>
     </div>
@@ -6781,10 +6804,37 @@ async function guardarSaldoInicial(persona) {
   toast('Saldo inicial guardado');
 }
 
+// Buffer de "Costos para Margen estimado por lote" (2026-09-26) — ver el
+// comentario junto a su inicialización en renderConfig(). Nunca se lee
+// directo del DOM salvo en estos 3 puntos (agregar/quitar/guardar fila),
+// para no perder lo que ya se había escrito al repintar la lista.
+let costosPorKgEdit = null;
+let costosPorKgEditTs = null;
+function leerCostosPorKgDesdeDom() {
+  if (!costosPorKgEdit) return;
+  costosPorKgEdit.forEach((c, i) => {
+    const nombreEl = document.getElementById('cmg-nombre-' + i);
+    const valorEl = document.getElementById('cmg-valor-' + i);
+    if (nombreEl) c.nombre = nombreEl.value;
+    if (valorEl) c.costoPorKg = Number(valorEl.value) || 0;
+  });
+}
+function agregarFilaCostoPorKg() {
+  leerCostosPorKgDesdeDom();
+  costosPorKgEdit.push({ nombre: '', costoPorKg: 0 });
+  conservarScroll(() => renderConfig());
+}
+function quitarFilaCostoPorKg(i) {
+  leerCostosPorKgDesdeDom();
+  costosPorKgEdit.splice(i, 1);
+  if (!costosPorKgEdit.length) costosPorKgEdit.push({ nombre: 'Tostión', costoPorKg: 0 });
+  conservarScroll(() => renderConfig());
+}
 async function guardarCostosMargen(btn) {
   btn.disabled = true;
+  leerCostosPorKgDesdeDom();
   const payload = {
-    costoTostionKg: Number(document.getElementById('cmg-tostion').value) || 0,
+    costosPorKg: costosPorKgEdit.filter(c => c.nombre.trim()),
     costoBolsaMediaLb: Number(document.getElementById('cmg-bolsa-media').value) || 0,
     costoBolsaLibra: Number(document.getElementById('cmg-bolsa-libra').value) || 0,
     costoBolsaKilo: Number(document.getElementById('cmg-bolsa-kilo').value) || 0,
@@ -6794,8 +6844,11 @@ async function guardarCostosMargen(btn) {
     const res = await apiFetch('/api/costos-margen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) throw new Error(await res.text());
     state.costosMargen = await res.json();
+    costosPorKgEdit = (state.costosMargen.costosPorKg && state.costosMargen.costosPorKg.length) ? state.costosMargen.costosPorKg.map(c => ({ ...c })) : [{ nombre: 'Tostión', costoPorKg: 0 }];
+    costosPorKgEditTs = state.costosMargen.ts;
     guardarCacheLocal('costosMargen');
     toast('Costos de margen guardados');
+    conservarScroll(() => renderConfig());
   } catch (err) {
     toast('No se pudo guardar: ' + err.message, 'error');
   } finally { btn.disabled = false; }

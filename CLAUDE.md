@@ -2577,6 +2577,13 @@ tenía la foto de Lavado, para que las dos combinen visualmente) como
 
 ## Pendiente / a medias
 
+- **⚠️ Costos por kg tostado (Gas, etc.) — falta correr la migración**: el
+  código ya está (ver sección "Costos por kg tostado, ahora una lista"
+  arriba), pero hasta que no se corra `migracion_costos_por_kg.sql` en
+  Supabase, Configuración → "Costos para 'Margen estimado por lote'" va
+  a mostrar el error real de Postgres (columna `costos_por_kg`
+  inexistente) en vez de la lista editable — el panel de ⚠️ migraciones
+  pendientes ya lo detecta.
 - **⚠️ Precios de Mayorista/Interno — falta correr la migración**: el
   código ya está (ver sección "Auditoría de claridad de precios" arriba),
   pero hasta que no se corra `migracion_precios_mayorista_interno.sql` en
@@ -3093,3 +3100,59 @@ mock no trae ninguna): el modal abre con las 2, tocar "📦 Pendiente de
 envío" en una la saca de la lista al instante y el aviso de fondo baja
 de "2" a "1"; togglear la última muestra "Nada pendiente de envío. 🎉"
 y el aviso de fondo desaparece. Sin errores nuevos de consola.
+
+## Costos por kg tostado, ahora una lista (no solo Tostión) (2026-09-26)
+
+Juan: en Configuración → "Costos para 'Margen estimado por lote'", quería
+poder agregar un costo nuevo si sale un gasto adicional que deba tenerse
+en cuenta (dio el ejemplo del gas) — antes Tostión era la ÚNICA columna
+de "costo por kg tostado" en `costos_margen`, sin forma de sumar otro sin
+una migración por cada uno. Confirmado que se reparte igual que Tostión
+(un valor por kg, multiplicado por lo que tostó cada lote).
+
+**`costos_por_kg`** (jsonb, `migracion_costos_por_kg.sql`): lista de
+`{ nombre, costoPorKg }` — Tostión pasó a ser una fila más de esa lista,
+ya no un caso especial aparte. La migración convierte el valor de
+Tostión que ya hubiera configurado en la primera fila (para no perderlo)
+— `costo_tostion_kg` (la columna vieja) se queda en la tabla sin
+usarse, el código ya no la lee ni la escribe. `calcularMargenPorLote()`
+ahora suma el `costoPorKg` de TODA la lista y multiplica por los kilos
+tostados de cada lote (antes solo multiplicaba por el costo fijo de
+Tostión) — agregar "Gas" con $500/kg simplemente suma a ese total.
+
+**Configuración → Precios**: el campo único "Tostión (por kg tostado)"
+se volvió una lista editable (Nombre + Costo por kg + ✕ para quitar,
+"+ Agregar costo" para sumar una fila) — mismo patrón de "+Agregar
+precio nuevo"/"+Agregar tarifa" de la auditoría de precios de esta misma
+sesión. Buffer `costosPorKgEdit` (igual que `pesajesEdit` en el modal de
+Pesajes de cereza): nada toca `state` hasta que se le da Guardar, así
+que agregar/quitar filas no se pierde al repintar Configuración.
+
+⚠️ *Gotcha real encontrado probando esto mismo*: la primera versión de
+`costosPorKgEdit` se inicializaba con un simple `if (!costosPorKgEdit)`
+— pero `renderConfig()` puede pintarse ANTES de que `sincronizar()`
+traiga los datos reales (ej. justo al cargar la app), y ese `if` se
+quedaba pegado con el primer valor (vacío/en $0) PARA SIEMPRE, aunque
+después sí llegaran los datos reales de Supabase — Tostión se veía en
+$0 en Configuración aunque `state.costosMargen` internamente sí tuviera
+el valor correcto. Arreglado comparando contra `cm.ts` (el timestamp del
+registro, que cambia cada vez que llega una versión nueva de verdad) en
+vez de solo "¿ya existe el buffer?" — variable nueva `costosPorKgEditTs`
+junto a `costosPorKgEdit`, actualizada también al guardar. Moraleja para
+la próxima vez que se use este patrón de buffer-que-sobrevive-renders
+FUERA de un modal (los modales como Pesajes se abren siempre con datos
+ya cargados, por eso nunca les había pasado esto): si el dato de origen
+puede llegar de forma asíncrona DESPUÉS del primer render, un buffer que
+solo se inicializa "si no existe todavía" puede quedarse con datos
+viejos/vacíos para siempre — hay que invalidarlo comparando algo que
+cambie cuando el dato real llega (un timestamp, un id, etc.), no solo
+"si ya se inicializó alguna vez".
+
+Probado en el preview: Tostión mostró correctamente su valor real
+($3.000) después del arreglo del gotcha; "+ Agregar costo" agregó una
+fila "Gas" en $500 sin perder la de Tostión; Guardar persistió ambas
+correctamente (confirmado leyendo `state.costosMargen` real); "✕" quitó
+la fila de Gas sin problema (y no se ofrece "✕" cuando solo queda una
+fila, para no dejar la lista vacía); `calcularMargenPorLote()` con
+Tostión+Gas dio un costo mayor que con solo Tostión, confirmando que la
+suma se está aplicando. Sin errores nuevos de consola.

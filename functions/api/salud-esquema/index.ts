@@ -21,6 +21,7 @@ const CHEQUEOS = [
   { tabla: 'movimientos_inventario_cafe', columna: 'kilos', migracion: 'migracion_inventario_verde.sql', descripcion: 'Historial de movimientos del inventario de café' },
   { tabla: 'ventas', columna: 'creado_por', migracion: 'migracion_atribucion_usuarios.sql', descripcion: 'Atribución real de quién creó cada registro (creado_por)' },
   { tabla: 'cuentas_cobro', columna: 'creado_por', migracion: 'migracion_atribucion_usuarios.sql', descripcion: 'Atribución real de quién creó cada registro (creado_por)' },
+  { tabla: 'costos_margen', columna: 'costos_por_kg', migracion: 'migracion_costos_por_kg.sql', descripcion: 'Costos personalizados por kg tostado (ej. gas) en "Margen estimado por lote"' },
 ];
 
 // A diferencia de CHEQUEOS de arriba (columna/tabla que no existe todavía —
