@@ -3293,3 +3293,31 @@ partida) — funciona sin depender de si la migración ya corrió. Pasilla
 sigue sin mostrar nada (no tiene "Precio normal" tampoco, así que
 `filaTierOCopiar` se queda callada igual que antes — comportamiento
 intencional sin cambios).
+
+**Cierre de la auditoría — flujo de dinero y cambio de mes**: Juan pidió
+explícitamente confirmar que el paso de septiembre a octubre (el cambio
+de mes real que se venía esa semana) no fuera a romper nada. Se leyó el
+código central de dinero (`renderResumen()` — `facturado`/`cobrado`/
+`porCobrar`/`balance`/`librasVendidas` — ninguna línea tocada por los
+cambios de esta sesión, solo se reorganizó DÓNDE se pinta cada sección,
+no cómo se calcula) y se probó en vivo simulando el escenario real:
+ventas de septiembre (una pendiente/sin enviar, una pagada/enviada) +
+cambiar `filtroMes` a octubre. Confirmado: la pendiente de septiembre
+aparece en "Pendientes de meses anteriores" (con "desde 2026-09"), la
+pagada/enviada NO aparece ahí (ya está resuelta, como corresponde),
+"Resumen de 2026-10" muestra $0 en todo sin romperse (mes nuevo, sin
+datos todavía), y las 3 pestañas de Resumen (incluidas las gráficas)
+renderizan sin errores con octubre seleccionado. "Balance de cuentas" y
+"Margen estimado por lote" — las dos cosas que Juan mencionó explícitamente
+como preocupación de "dinero" — son cálculos de TODO el histórico, no del
+mes filtrado (ya documentado arriba), así que se confirmó que no cambian
+en nada al cambiar de mes, tal como deben comportarse. Sin errores de
+consola en ningún paso.
+
+De paso, encontrado y limpiado (código muerto preexistente, no
+introducido en esta sesión): `renderResumen()` calculaba `porLote`/
+`maxLote` en cada render sin que nada los leyera — quedaba de un gráfico
+de barras manual que en algún momento se reemplazó por la gráfica de
+Chart.js "Ventas por lote de café", sin borrar el cálculo viejo. Se
+confirmó con `grep` en toda la función que de verdad no se usaban en
+ningún lado antes de quitarlos.
