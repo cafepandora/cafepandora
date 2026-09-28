@@ -4048,3 +4048,55 @@ ahí → "Quitar Word" vuelve a texto plano) funcionó sin errores de
 consola; en la página pública, la tabla se ve con el estilo del sitio
 tanto en desktop como en celular (375px), sin desbordar. Sin errores
 nuevos de consola en ningún paso, en ninguna de las dos apps.
+
+## Manifest para "Añadir a pantalla de inicio" de la app interna (2026-09-28)
+
+Juan preguntó cómo hacer que, al anclar la página en la pantalla de
+inicio del celular, lo que abra directo sea la app interna. **No hacía
+falta ningún cambio de código para esto** — cuando un navegador guarda un
+ícono en la pantalla de inicio, guarda la URL exacta donde estabas parado
+en ese momento. La respuesta real: entrar a `cafepandora.co/gestion/`
+desde el navegador del celular y ahí sí usar "Compartir → Añadir a
+pantalla de inicio" (iPhone) o el menú de tres puntos → "Añadir a
+pantalla de inicio"/"Instalar app" (Android) — nunca desde la raíz
+(`cafepandora.co`), que ahora es la página pública.
+
+**Lo que sí se mejoró de paso**: `gestion/index.html` YA tenía desde
+antes (heredado de cuando vivía en la raíz, sin tocar en el intercambio
+de rutas) las 3 etiquetas `apple-mobile-web-app-*` + `apple-touch-icon`
+que hacen que iOS abra el ícono anclado a pantalla completa, sin la
+barra de Safari — pero le faltaba el equivalente para Android
+(`manifest.json`), que es lo que activa el mismo modo "app completa, sin
+barra del navegador" ahí. Se agregó:
+
+- **`gestion/manifest.json`** — `start_url`/`scope` fijos en `/gestion/`
+  (así que si Android alguna vez decide relanzar la app desde otro punto,
+  siempre vuelve a la pantalla de login, nunca a la página pública),
+  `display: standalone`, y los 2 íconos (180×180, 512×512 — extraídos del
+  mismo PNG que ya usaba `apple-touch-icon`, con `sips`, no un archivo
+  nuevo de diseño).
+- **`<link rel="manifest">`** nueva en `gestion/index.html`, junto a las
+  etiquetas de Apple ya existentes.
+- **`apple-mobile-web-app-title` cambió de "Café Pandora" a "Gestión"**
+  (y el manifest usa el mismo `short_name`) — a propósito: como la página
+  pública (`index.html`, raíz) todavía no tiene ninguna de estas etiquetas
+  (nadie la ha anclado a pantalla de inicio todavía), no hay conflicto
+  hoy, pero si alguien alguna vez ancla LAS DOS páginas, un ícono que
+  simplemente dijera "Café Pandora" dos veces sería imposible de
+  distinguir a simple vista en la pantalla de inicio — "Gestión" dejó
+  claro cuál es cuál desde ya, sin tener que rehacer esto después.
+
+No se tocó nada de `index.html` (la página pública) — si más adelante
+Juan quiere que los CLIENTES puedan anclar esa página también con el
+mismo tratamiento de app completa, es el mismo patrón, aplicado aparte
+(pendiente, no pedido todavía).
+
+Probado en el preview local: `/gestion/manifest.json` responde 200 con
+el JSON esperado (`start_url`/`scope: "/gestion/"`, `short_name:
+"Gestión"`), los 2 íconos (`/gestion/icon-180.png`,
+`/gestion/icon-512.png`) responden 200, y la app interna sigue cargando
+sin errores de consola. No se pudo probar el comportamiento real de
+"Añadir a pantalla de inicio" (necesita un dispositivo físico o un modo
+de instalación de PWA que el navegador de este entorno no dispara) — el
+comportamiento esperado se basa en cómo Android/iOS documentan e
+interpretan estas etiquetas, no en una prueba visual directa.
