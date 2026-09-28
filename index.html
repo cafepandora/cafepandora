@@ -256,6 +256,20 @@
   .blog-cta { max-width: 560px; margin: 40px auto 0; text-align: center; border-top: 1px solid var(--linea); padding-top: 32px; }
   .blog-cta p { font-size: 13.5px; color: var(--cafe-soft); margin: 0 0 14px; }
 
+  /* Merch (2026-09-28) — mismo header genérico que Blog (.blog-header/
+     -kicker/-titulo/-intro, reusados tal cual), pero la lista es una
+     cuadrícula de tarjetas de producto, no una columna de artículos. */
+  .merch-lista { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 420px) { .merch-lista { grid-template-columns: 1fr; } }
+  .merch-card { background: var(--blanco); border: 1px solid var(--linea); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
+  .merch-card-foto { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: var(--crema-alt); }
+  .merch-card-texto { padding: 14px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  .merch-card-categoria { font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--teal); margin: 0; }
+  .merch-card-nombre { font-family: var(--serif); font-weight: 600; font-size: 16px; color: var(--cafe); margin: 0; line-height: 1.25; }
+  .merch-card-precio { font-size: 15px; font-weight: 800; color: var(--cafe); margin: 2px 0 6px; }
+  .merch-card-desc { font-size: 12px; color: var(--cafe-soft); margin: 0 0 10px; line-height: 1.4; flex: 1; }
+  .merch-card-cta { display: inline-block; text-align: center; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 12.5px; color: #fff; background: var(--teal); border-radius: 20px; padding: 9px 12px; text-decoration: none; }
+
   /* Link discreto al final de la página, para el equipo — no es para
      clientes, por eso va chico y apagado, no como un botón más. Vive
      FUERA de #vistaCafe/#vistaMaquila/#vistaBlog (justo antes de
@@ -625,6 +639,25 @@
   </div>
 </section>
 
+<!-- Merch (2026-09-28) — todavía SIN link en .nav-secciones a propósito
+     (Juan: "que aún no se vea públicamente" mientras arma el catálogo).
+     La vista/ruta ya funciona igual que Maquila/Blog si se entra directo
+     a /merch — no está enlazada desde ningún lado del sitio, pero no es
+     privada de verdad (sin login ni clave). Cuando esté lista para
+     lanzarse, agregar <a href="/merch" id="navMerchLink"> en
+     .nav-secciones + 'merch: navMerchLink' en LINK_ID_POR_VISTA (ver
+     el JS) — nada más. -->
+<section class="merch-seccion" id="vistaMerch" style="display:none">
+  <div class="blog-header">
+    <p class="blog-kicker revela">Merch Café Pandora</p>
+    <h2 class="blog-titulo revela">Para llevar la marca contigo</h2>
+    <p class="blog-intro revela">Pocillos, camisetas y más — escríbenos para apartar el tuyo.</p>
+  </div>
+  <div class="merch-lista" id="merch-lista">
+    <p class="blog-vacio">Cargando productos…</p>
+  </div>
+</section>
+
 <footer class="footer-equipo">
   <a href="/gestion/">¿Eres del equipo? Inicia sesión →</a>
 </footer>
@@ -808,20 +841,28 @@ function iniciarScrollspyNav() {
 // para las 3 (código 200 = mantiene la URL escrita, no la cambia como
 // haría una redirección de verdad) — así que cargar cualquiera de las 3
 // directo, de cero, también funciona, no solo navegando desde dentro.
-const RUTA_POR_VISTA = { cafe: '/', maquila: '/maquila', blog: '/blog' };
+const RUTA_POR_VISTA = { cafe: '/', maquila: '/maquila', blog: '/blog', merch: '/merch' };
+// Merch (2026-09-28) todavía no tiene link en .nav-secciones — Juan pidió
+// que "aún no se vea públicamente" mientras arma el catálogo, así que no
+// hay ningún <a> que resaltar como "activo" para esa vista todavía. Si
+// vuelve a tocarse esto cuando se lance, agregar 'merch: navMerchLink'
+// acá, junto con el link real en el HTML.
+const LINK_ID_POR_VISTA = { maquila: 'navMaquilaLink', blog: 'navBlogLink' };
 function mostrarVista(vista, opciones = {}) {
   const esCafe = vista === 'cafe';
   document.getElementById('vistaCafe').style.display = esCafe ? '' : 'none';
   document.getElementById('vistaMaquila').style.display = vista === 'maquila' ? '' : 'none';
   document.getElementById('vistaBlog').style.display = vista === 'blog' ? '' : 'none';
+  document.getElementById('vistaMerch').style.display = vista === 'merch' ? '' : 'none';
   document.querySelectorAll('#navSecciones a').forEach(a => a.classList.remove('activo'));
   if (!esCafe) {
-    const link = vista === 'maquila' ? document.getElementById('navMaquilaLink') : document.getElementById('navBlogLink');
-    link.classList.add('activo');
+    const linkId = LINK_ID_POR_VISTA[vista];
+    if (linkId) document.getElementById(linkId).classList.add('activo');
     document.getElementById('barraCarrito').classList.remove('visible');
     window.scrollTo({ top: 0, behavior: opciones.instantaneo ? 'auto' : 'smooth' });
     if (vista === 'blog') cargarBlog(); // primera vez: trae los artículos; si ya se cargaron, no repite el fetch
-    iniciarRevelado(); // las tarjetas de Maquila/Blog estaban en display:none, nadie las había observado todavía
+    if (vista === 'merch') cargarMerch(); // ídem, para los productos
+    iniciarRevelado(); // las tarjetas de Maquila/Blog/Merch estaban en display:none, nadie las había observado todavía
   } else {
     actualizarBarra(); // restaura la barra del carrito de café si ya tenía algo
   }
@@ -835,7 +876,7 @@ function mostrarVista(vista, opciones = {}) {
 // atrás/adelante del navegador, ver los dos usos más abajo).
 function vistaDesdeURL() {
   const ruta = location.pathname.replace(/\/+$/, '') || '/';
-  return ruta === '/maquila' ? 'maquila' : ruta === '/blog' ? 'blog' : 'cafe';
+  return ruta === '/maquila' ? 'maquila' : ruta === '/blog' ? 'blog' : ruta === '/merch' ? 'merch' : 'cafe';
 }
 // Botón atrás/adelante del navegador — vuelve a leer la URL (que el
 // navegador ya cambió solo) y muestra la vista que corresponda. Seguro
@@ -929,6 +970,42 @@ function abrirArticuloBlog(id) {
 function cerrarArticuloBlog() {
   articuloBlogAbierto = null;
   pintarBlog();
+}
+
+/* ---------- Merch — lista pública (solo Publicado), cargada la primera
+   vez que se muestra la vista (mismo patrón que el Blog). Sección sin
+   link en la navegación todavía, ver el comentario junto a #vistaMerch
+   y a LINK_ID_POR_VISTA más arriba. ---------- */
+let merchProductos = [];
+let merchCargado = false;
+async function cargarMerch() {
+  if (merchCargado) return;
+  merchCargado = true;
+  try {
+    const res = await fetch('/api/merch-publico');
+    merchProductos = await res.json();
+  } catch {
+    merchProductos = [];
+  }
+  pintarMerch();
+}
+function pintarMerch() {
+  const cont = document.getElementById('merch-lista');
+  if (!cont) return;
+  cont.innerHTML = merchProductos.length
+    ? merchProductos.map(p => `
+      <div class="merch-card revela">
+        ${p.imagen ? `<img class="merch-card-foto" src="${escapeAttr(p.imagen)}" alt="${escapeAttr(p.nombre)}">` : ''}
+        <div class="merch-card-texto">
+          <p class="merch-card-categoria">${escapeHtml(p.categoria)}</p>
+          <h3 class="merch-card-nombre">${escapeHtml(p.nombre)}</h3>
+          <p class="merch-card-precio">${fmt(p.precio)}</p>
+          ${p.descripcion ? `<p class="merch-card-desc">${escapeHtml(p.descripcion)}</p>` : ''}
+          <a class="merch-card-cta" href="https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent('¡Hola! Quiero preguntar por: ' + p.nombre + '.')}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>
+        </div>
+      </div>`).join('')
+    : '<p class="blog-vacio">Todavía no hay productos publicados.</p>';
+  iniciarRevelado(); // mismo motivo que pintarBlog(): tarjetas nuevas, hay que volver a observarlas
 }
 
 // Fila de atajos pegada arriba (☕ Lavado · Honey · Natural · Exóticos) para

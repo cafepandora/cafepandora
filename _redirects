@@ -23,3 +23,11 @@
 /blog        /   200
 /blog/       /   200
 /blog/*      /   200
+# Merch (2026-09-28): la ruta YA funciona igual que las de arriba, pero
+# a propósito no tiene ningún link en la página (.nav-secciones) — Juan
+# pidió que "aún no se vea públicamente" mientras arma el catálogo. No
+# es privada de verdad (sin login), solo no está enlazada desde ningún
+# lado todavía.
+/merch       /   200
+/merch/      /   200
+/merch/*     /   200

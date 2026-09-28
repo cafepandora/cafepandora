@@ -2598,6 +2598,16 @@ tenía la foto de Lavado, para que las dos combinen visualmente) como
 
 ## Pendiente / a medias
 
+- **⚠️ Merch — falta correr la migración, Y sigue sin link público a
+  propósito**: el código ya está (ver sección "Merch — pestaña nueva..."
+  arriba), pero hasta que no se corra `migracion_merch.sql` en Supabase,
+  la pestaña "Merch" de la app interna va a mostrar el error real de
+  Postgres. Aparte de eso — a diferencia de cualquier otra migración
+  pendiente de esta lista — esta sección NO debe lanzarse sola: aunque
+  se corra la migración, `/merch` se queda sin ningún botón en la
+  página pública hasta que Juan avise que ya armó el catálogo y quiera
+  lanzarlo (ver el "Pendiente" al final de esa misma sección para el
+  cambio de 2 líneas que hace falta ese día).
 - **⚠️ Blog — faltan correr 2 migraciones**: el código ya está (ver
   secciones "Blog — pestaña nueva..." y "Blog — subir un artículo desde
   un archivo de Word" arriba), pero hasta que no se corran
@@ -4203,3 +4213,99 @@ exactamente en `/#tourFinca` (no `/maquila#tourFinca` ni ningún otro
 resultado raro), confirmando que el salto de ancla nativo del navegador
 usa la URL ya actualizada por `mostrarVista('cafe')`, no la de antes del
 clic.
+
+## Merch — pestaña nueva, todavía SIN mostrarse públicamente (2026-09-28)
+
+Juan: *"me gustaría que armáramos una pestaña nueva pero que aún no se
+vea públicamente... que sea de merch, para subir pocillos, camisetas,
+busos etc"*. Mismo patrón exacto que Blog (tabla con `estado`
+Borrador/Publicado, endpoint público aparte, pestaña de administración
+en la app interna) — la diferencia real está en que esta vez, ADEMÁS de
+que cada producto tenga su propio estado, la SECCIÓN COMPLETA todavía no
+tiene ningún link en `.nav-secciones` de la página pública.
+
+**Qué significa "oculta" acá, en concreto — sin login, no es secreta de
+verdad**: `/merch` funciona igual que `/maquila`/`/blog` si alguien
+entra directo a esa URL (mismo `_redirects` de proxying, código 200,
+mismo patrón que las otras 2 secciones) — simplemente no hay ningún
+botón en la barra de arriba que lleve ahí, así que nadie la encuentra
+navegando por el sitio. Es "no listada", no "protegida con clave" — se
+lo aclaré a Juan explícitamente antes de construirlo, para que no
+asuma que hace falta una contraseña. Si alguien comparte el link
+`/merch` antes de que esté lista, sí se puede ver.
+
+**`merch_productos`** (`migracion_merch.sql` — id, nombre, categoria,
+precio, descripcion, imagen, estado, creado_por, ts). `GET /api/merch`
+(con login, TODO — la pestaña "Merch" de la app interna) vs.
+`GET /api/merch-publico` (sin login, solo `estado = 'Publicado'`) —
+mismo patrón `POST`/`PATCH /api/merch/:id`/`DELETE` que Blog.
+`CATEGORIAS_MERCH = ['Pocillos', 'Camisetas', 'Busos', 'Otro']`
+(`gestion/index.html`) — lista fija editable a mano si hace falta un
+tipo nuevo, mismo criterio que `LOTES`/`PRESENTACIONES` en el resto de
+la app (no viene de la base de datos, es una constante de código).
+
+**`redimensionarImagen()` se volvió genérica** — antes se llamaba
+`redimensionarImagenBlog()` (el mismo canvas→JPEG que ya usaba la foto
+de portada del blog); se renombró (y se le quitó "Blog" del nombre) para
+que Merch también la use sin duplicar la misma lógica de achicar fotos
+una segunda vez. Los 2 sitios que ya la llamaban (`onImagenBlogNueva`/
+`onImagenBlogEdit`) se actualizaron al nuevo nombre, sin cambiar nada de
+su comportamiento.
+
+**Pestaña "Merch" en la app interna** (`renderMerch()`,
+`filaMerchProducto()`): mismo patrón formulario-arriba + lista-abajo que
+Blog, más simple (sin la complejidad de subir Word) — Nombre, Categoría,
+Precio, Descripción opcional, Foto opcional, Estado. Arriba del todo, un
+aviso fijo en la propia pantalla (fondo dorado, imposible de no ver)
+recuerda que la sección pública todavía no tiene link — para que a
+nadie del equipo le sorprenda no verla al entrar a `cafepandora.co`.
+Sumado a `sincronizar()`, `TABS_CON_BUSQUEDA`, el modal de búsqueda
+global, y al panel de ⚠️ migraciones pendientes — mismos 4 lugares que
+cualquier recurso nuevo de esta app.
+
+**Sección pública en `index.html`** (`#vistaMerch`, mismo mecanismo de
+`mostrarVista()`/`RUTA_POR_VISTA` que Maquila/Blog): a diferencia de
+esas 2, `mostrarVista()` necesitó generalizarse — antes buscaba el link
+de nav a resaltar con un ternario de 2 opciones
+(`vista === 'maquila' ? navMaquilaLink : navBlogLink`), que no tenía
+forma de expresar "esta vista no tiene ningún link que resaltar". Se
+reemplazó por un mapa, `LINK_ID_POR_VISTA = { maquila: 'navMaquilaLink',
+blog: 'navBlogLink' }` (sin entrada para `merch`) — `mostrarVista()`
+ahora hace `const linkId = LINK_ID_POR_VISTA[vista]; if (linkId)
+document.getElementById(linkId).classList.add('activo');`, así que para
+Merch simplemente no intenta resaltar nada, sin ningún `if` especial
+para ese caso. Cuando se lance de verdad, el único cambio que hace
+falta es agregar el `<a>` real en el HTML + una entrada más en ese mapa
+— nada de lo demás cambia.
+
+Cada tarjeta de producto (`.merch-card`, cuadrícula 2 columnas → 1 en
+celular, mismo breakpoint 420px que `.maquila-servicios`) tiene su
+PROPIO botón de WhatsApp — a diferencia de Maquila/Tour (un solo CTA
+para todo el servicio), acá cada producto es distinto, así que cada uno
+arma su propio mensaje prellenado con su nombre exacto
+(`¡Hola! Quiero preguntar por: <nombre>.`) — mismo patrón `wa.me` de
+siempre, sin carrito ni selección de talla/cantidad (deliberadamente
+simple para este primer lanzamiento — si hace falta más adelante,
+tallas/variantes/inventario es una ampliación aparte, no se inventó
+nada de eso todavía porque no se pidió).
+
+`_redirects` ganó las mismas 3 líneas de proxying que ya tienen
+`/maquila`/`/blog` (`/merch`, `/merch/`, `/merch/*`, código 200) —
+la ruta está lista desde ya, solo falta el botón.
+
+Probado en el preview local: la pestaña "Merch" de la app interna crea,
+edita, cambia de estado y busca productos correctamente (sin errores de
+consola); `/merch` en la página pública muestra SOLO los 2 productos
+`Publicado` del mock (el 1 en Borrador queda afuera, igual que un
+artículo de blog sin publicar); confirmado por JS que `.nav-secciones`
+tiene exactamente los 6 links de siempre y ninguno para Merch; cada
+tarjeta arma su propio link de WhatsApp con el nombre correcto del
+producto; la cuadrícula baja a 1 columna en celular (375px) sin
+desbordar.
+
+**Pendiente, para cuando Juan avise que ya armó el catálogo y quiere
+lanzarlo**: correr `migracion_merch.sql`, y agregar
+`<a href="/merch" onclick="mostrarVista('merch'); return false;"
+id="navMerchLink">Merch</a>` a `.nav-secciones` (en `index.html`) +
+`merch: 'navMerchLink'` a `LINK_ID_POR_VISTA` — dos líneas, nada más,
+ya está todo lo demás construido y probado.
