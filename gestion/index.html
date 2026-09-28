@@ -369,6 +369,18 @@
   .subcard { background: var(--crema-alt); border: 1px solid var(--linea); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
   .subcard-titulo { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--teal); margin: 0 0 12px; }
   .campo-ayuda { font-size: 12px; color: var(--cafe-soft); margin: -4px 0 10px; line-height: 1.4; }
+  /* Vista previa de un artículo de blog convertido desde Word — mismo
+     contenedor se usa en "Nuevo artículo" y en el modal de editar. Los
+     estilos de tabla/lista son a propósito genéricos (no calcan el diseño
+     de la página pública) porque esto es solo para que Juan confirme que
+     el archivo se leyó bien, no la vista final del cliente. */
+  .blog-html-preview { background: var(--blanco); border: 1px solid var(--linea); border-radius: 10px; padding: 14px 16px; margin: 8px 0; max-height: 320px; overflow-y: auto; font-size: 14px; color: var(--cafe); line-height: 1.6; }
+  .blog-html-preview table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; display: block; overflow-x: auto; }
+  .blog-html-preview th, .blog-html-preview td { border: 1px solid var(--linea); padding: 6px 9px; text-align: left; }
+  .blog-html-preview th { background: var(--crema-alt); font-weight: 700; }
+  .blog-html-preview img { max-width: 100%; border-radius: 6px; }
+  .blog-html-preview p { margin: 0 0 10px; }
+  .blog-html-preview ul, .blog-html-preview ol { margin: 0 0 10px; padding-left: 22px; }
   /* Los checkboxes sin estilo del navegador salen ~13px — muy chicos para
      tocar con precisión; se agrandan y se les pone el color de la marca. */
   input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--dorado); cursor: pointer; }
@@ -778,6 +790,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- Blog desde Word (2026-09-28): mammoth.js convierte el .docx a HTML
+     (tablas, negritas, listas incluidas) DENTRO del navegador — nada se
+     sube a ningún servicio aparte; DOMPurify limpia ese HTML antes de
+     guardarlo, para no guardar algo que después se pinte con innerHTML
+     sin filtrar. -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script src="/xlsx-lite.js"></script>
 <script>
 /* ================================================================
@@ -2388,6 +2407,31 @@ function redimensionarImagenBlog(file, maxAncho = 900, calidad = 0.75) {
   });
 }
 
+// Convierte un .docx a HTML DENTRO del navegador (Mammoth.js) — conserva
+// tablas, negritas, listas, títulos, y las imágenes que traiga el
+// documento (inline como base64, mismo espíritu que la foto de portada).
+// DOMPurify limpia el resultado antes de devolverlo: esto se guarda tal
+// cual y después se pinta con innerHTML (acá Y en la página pública), así
+// que lo que se guarda ya debe estar filtrado, no crudo.
+async function convertirWordABlogHtml(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const resultado = await mammoth.convertToHtml(
+    { arrayBuffer },
+    { convertImage: mammoth.images.imgElement(imagen =>
+        imagen.read('base64').then(b64 => ({ src: 'data:' + imagen.contentType + ';base64,' + b64 }))
+      ) }
+  );
+  return DOMPurify.sanitize(resultado.value);
+}
+// Quita las etiquetas HTML para armar un resumen de texto plano (fila de
+// la lista, buscador) cuando el artículo viene de un Word — sin esto se
+// verían las etiquetas crudas en vez de solo el texto.
+function textoPlanoDeHtml(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || '';
+}
+
 let imagenBlogNueva = null;
 async function onImagenBlogNueva(input) {
   const file = input.files && input.files[0];
@@ -2419,6 +2463,12 @@ function renderBlog() {
         <div class="field" style="flex:1 1 100%"><label>Contenido</label><textarea id="blog-contenido" rows="8" placeholder="Escribe el artículo — deja una línea en blanco entre párrafos."></textarea></div>
       </div>
       <div class="row">
+        <div class="field" style="flex:1 1 100%"><label>O sube un archivo de Word (.docx)</label><input type="file" accept=".docx" id="blog-word" onchange="onWordBlogNuevo(this)"></div>
+      </div>
+      <p class="campo-ayuda">Si subes un Word, se usa su contenido (con tablas y formato incluidos) en vez del texto de arriba — bueno para artículos con tablas, que se ven mal si se copian y pegan como texto.</p>
+      <div id="blog-word-preview" class="blog-html-preview" style="display:none"></div>
+      <button type="button" class="sec-btn" id="blog-word-quitar" style="display:none;margin:-4px 0 10px" onclick="quitarWordBlogNuevo()">✕ Quitar Word, usar el texto de arriba</button>
+      <div class="row">
         <div class="field"><label>Autor (opcional)</label><input id="blog-autor" placeholder="Ej. Juan David" value="${escapeAttr(localStorage.getItem('cp_blog_autor') || '')}"></div>
         <div class="field"><label>Estado</label><select id="blog-estado"><option value="Borrador">Borrador</option><option value="Publicado">Publicado</option></select></div>
       </div>
@@ -2440,12 +2490,13 @@ function renderBlog() {
 
 function filaBlogPost(p) {
   const publicado = p.estado === 'Publicado';
+  const textoPlano = p.esHtml ? textoPlanoDeHtml(p.contenido) : p.contenido;
   return `
     <div class="ledger-row">
       <div class="main">
-        <div class="title">${escapeHtml(p.titulo)}</div>
+        <div class="title">${escapeHtml(p.titulo)}${p.esHtml ? ' <span style="font-weight:400;font-size:11.5px;color:var(--cafe-soft)">(Word)</span>' : ''}</div>
         <div class="meta">${new Date(Number(p.ts)).toLocaleDateString('es-CO')}${p.autor ? ' · ' + escapeHtml(p.autor) : ''}${p.creadoPor ? ' · agregado por ' + escapeHtml(nombreDeCorreo(p.creadoPor)) : ''}</div>
-        <div class="details">${escapeHtml(p.extracto || resumenTexto(p.contenido))}</div>
+        <div class="details">${escapeHtml(p.extracto || resumenTexto(textoPlano))}</div>
       </div>
       <button class="tag ${publicado ? 'pagado' : 'pendiente'}" onclick="toggleEstadoBlog(${p.id})">${p.estado}</button>
       <div class="acciones">
@@ -2455,16 +2506,48 @@ function filaBlogPost(p) {
     </div>`;
 }
 
+let blogWordHtmlNuevo = null;
+async function onWordBlogNuevo(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    blogWordHtmlNuevo = await convertirWordABlogHtml(file);
+    const prev = document.getElementById('blog-word-preview');
+    prev.innerHTML = blogWordHtmlNuevo;
+    prev.style.display = 'block';
+    document.getElementById('blog-word-quitar').style.display = 'inline-block';
+    const textarea = document.getElementById('blog-contenido');
+    textarea.disabled = true;
+    textarea.placeholder = 'Se va a usar el archivo de Word que subiste — quítalo con el botón de abajo si prefieres escribir texto.';
+  } catch {
+    blogWordHtmlNuevo = null;
+    input.value = '';
+    toast('No se pudo leer el archivo — confirma que sea un .docx.', 'error');
+  }
+}
+function quitarWordBlogNuevo() {
+  blogWordHtmlNuevo = null;
+  document.getElementById('blog-word').value = '';
+  document.getElementById('blog-word-preview').style.display = 'none';
+  document.getElementById('blog-word-preview').innerHTML = '';
+  document.getElementById('blog-word-quitar').style.display = 'none';
+  const textarea = document.getElementById('blog-contenido');
+  textarea.disabled = false;
+  textarea.placeholder = 'Escribe el artículo — deja una línea en blanco entre párrafos.';
+}
+
 async function registrarArticuloBlog(btn) {
   const titulo = document.getElementById('blog-titulo').value.trim();
-  const contenido = document.getElementById('blog-contenido').value.trim();
+  const contenidoTexto = document.getElementById('blog-contenido').value.trim();
+  const contenido = blogWordHtmlNuevo || contenidoTexto;
   if (!titulo) return toast('Escribe el título.', 'error');
-  if (!contenido) return toast('Escribe el contenido.', 'error');
+  if (!contenido) return toast('Escribe el contenido o sube un archivo de Word.', 'error');
   const autor = document.getElementById('blog-autor').value.trim();
   const payload = {
     titulo,
     extracto: document.getElementById('blog-extracto').value.trim() || null,
     contenido,
+    esHtml: !!blogWordHtmlNuevo,
     autor: autor || null,
     estado: document.getElementById('blog-estado').value,
     imagen: imagenBlogNueva,
@@ -2478,6 +2561,7 @@ async function registrarArticuloBlog(btn) {
     state.blog.unshift(await res.json());
     guardarCacheLocal('blog');
     imagenBlogNueva = null;
+    blogWordHtmlNuevo = null;
     toast('Artículo guardado');
     renderTodo();
   } catch (err) {
@@ -2505,14 +2589,49 @@ function quitarImagenBlogEdit() {
   if (prev) prev.style.display = 'none';
 }
 
+let blogWordHtmlEditando = null;
+async function onWordBlogEdit(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    blogWordHtmlEditando = await convertirWordABlogHtml(file);
+    const prev = document.getElementById('blog-word-edit-preview');
+    prev.innerHTML = blogWordHtmlEditando;
+    prev.style.display = 'block';
+    document.getElementById('blog-word-edit-quitar').style.display = 'inline-block';
+    const textarea = document.getElementById('m-blog-contenido');
+    textarea.disabled = true;
+    textarea.placeholder = 'Se va a usar el archivo de Word que subiste.';
+  } catch {
+    blogWordHtmlEditando = null;
+    input.value = '';
+    toast('No se pudo leer el archivo — confirma que sea un .docx.', 'error');
+  }
+}
+function quitarWordBlogEdit() {
+  blogWordHtmlEditando = null;
+  const prev = document.getElementById('blog-word-edit-preview');
+  if (prev) { prev.style.display = 'none'; prev.innerHTML = ''; }
+  const boton = document.getElementById('blog-word-edit-quitar');
+  if (boton) boton.style.display = 'none';
+  const textarea = document.getElementById('m-blog-contenido');
+  if (textarea) { textarea.disabled = false; textarea.placeholder = ''; }
+}
+
 function abrirEdicionBlog(id) {
   const p = state.blog.find(x => x.id === id); if (!p) return;
   imagenBlogEditando = p.imagen || null;
+  blogWordHtmlEditando = p.esHtml ? p.contenido : null;
   abrirModal(`
     <h3>Editar artículo</h3>
     <div class="row"><div class="field" style="flex:1 1 100%"><label>Título</label><input id="m-blog-titulo" value="${escapeAttr(p.titulo)}"></div></div>
     <div class="row"><div class="field" style="flex:1 1 100%"><label>Extracto (opcional)</label><input id="m-blog-extracto" value="${escapeAttr(p.extracto || '')}"></div></div>
-    <div class="row"><div class="field" style="flex:1 1 100%"><label>Contenido</label><textarea id="m-blog-contenido" rows="8">${escapeHtml(p.contenido)}</textarea></div></div>
+    <div class="row"><div class="field" style="flex:1 1 100%"><label>Contenido</label><textarea id="m-blog-contenido" rows="8" ${p.esHtml ? 'disabled placeholder="Se va a usar el archivo de Word que subiste."' : ''}>${p.esHtml ? '' : escapeHtml(p.contenido)}</textarea></div></div>
+    <div class="row">
+      <div class="field" style="flex:1 1 100%"><label>O sube un archivo de Word (.docx)</label><input type="file" accept=".docx" onchange="onWordBlogEdit(this)"></div>
+    </div>
+    <div id="blog-word-edit-preview" class="blog-html-preview" style="display:${p.esHtml ? 'block' : 'none'}">${p.esHtml ? p.contenido : ''}</div>
+    <button type="button" class="sec-btn" id="blog-word-edit-quitar" style="display:${p.esHtml ? 'inline-block' : 'none'};margin:-4px 0 10px" onclick="quitarWordBlogEdit()">✕ Quitar Word, escribir texto en su lugar</button>
     <div class="row">
       <div class="field"><label>Autor (opcional)</label><input id="m-blog-autor" value="${escapeAttr(p.autor || '')}"></div>
       <div class="field"><label>Estado</label><select id="m-blog-estado"><option value="Borrador" ${p.estado === 'Borrador' ? 'selected' : ''}>Borrador</option><option value="Publicado" ${p.estado === 'Publicado' ? 'selected' : ''}>Publicado</option></select></div>
@@ -2532,13 +2651,15 @@ function abrirEdicionBlog(id) {
 }
 async function guardarEdicionBlog(id) {
   const titulo = document.getElementById('m-blog-titulo').value.trim();
-  const contenido = document.getElementById('m-blog-contenido').value.trim();
+  const contenidoTexto = document.getElementById('m-blog-contenido').value.trim();
+  const contenido = blogWordHtmlEditando || contenidoTexto;
   if (!titulo) return toast('Escribe el título.', 'error');
-  if (!contenido) return toast('Escribe el contenido.', 'error');
+  if (!contenido) return toast('Escribe el contenido o sube un archivo de Word.', 'error');
   const cambios = {
     titulo,
     extracto: document.getElementById('m-blog-extracto').value.trim() || null,
     contenido,
+    esHtml: !!blogWordHtmlEditando,
     autor: document.getElementById('m-blog-autor').value.trim() || null,
     estado: document.getElementById('m-blog-estado').value,
     imagen: imagenBlogEditando,

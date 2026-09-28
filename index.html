@@ -238,6 +238,21 @@
   .blog-articulo-titulo { font-family: var(--serif); font-weight: 600; font-size: clamp(22px, 5vw, 28px); color: var(--cafe); margin: 0 0 8px; line-height: 1.25; }
   .blog-articulo-meta { font-size: 12.5px; font-weight: 600; color: var(--teal); text-transform: uppercase; letter-spacing: .5px; margin: 0 0 20px; }
   .blog-articulo-texto { font-size: 15px; color: var(--cafe); line-height: 1.7; margin: 0 0 16px; }
+  /* Artículo subido desde Word (2026-09-28) — el HTML que devuelve
+     Mammoth.js viene con etiquetas genéricas (p/table/ul/h1…), sin clases
+     propias, así que se estilan directo para que combinen con el resto
+     del sitio en vez de verse como una tabla de navegador sin adornos. */
+  .blog-articulo-html { font-size: 15px; color: var(--cafe); line-height: 1.7; }
+  .blog-articulo-html p { margin: 0 0 16px; }
+  .blog-articulo-html h1, .blog-articulo-html h2, .blog-articulo-html h3 { font-family: var(--serif); font-weight: 600; color: var(--cafe); margin: 24px 0 12px; }
+  .blog-articulo-html ul, .blog-articulo-html ol { margin: 0 0 16px; padding-left: 22px; }
+  .blog-articulo-html li { margin-bottom: 6px; }
+  .blog-articulo-html strong { font-weight: 700; }
+  .blog-articulo-html table { border-collapse: collapse; width: 100%; margin: 0 0 20px; font-size: 13.5px; display: block; overflow-x: auto; }
+  .blog-articulo-html th, .blog-articulo-html td { border: 1px solid var(--linea); padding: 8px 10px; text-align: left; }
+  .blog-articulo-html th { background: var(--crema-alt); font-weight: 700; color: var(--teal); }
+  .blog-articulo-html img { max-width: 100%; border-radius: 10px; margin: 0 0 16px; }
+  .blog-articulo-html a { color: var(--teal); }
   .blog-cta { max-width: 560px; margin: 40px auto 0; text-align: center; border-top: 1px solid var(--linea); padding-top: 32px; }
   .blog-cta p { font-size: 13.5px; color: var(--cafe-soft); margin: 0 0 14px; }
 
@@ -624,6 +639,12 @@
   </div>
 </div>
 
+<!-- Blog desde Word (2026-09-28): los artículos convertidos desde .docx
+     (ver gestion/index.html) llegan como HTML ya sanitizado, pero se
+     vuelve a limpiar con DOMPurify justo antes de pintarlo acá también
+     — defensa en profundidad, esta página pinta contenido que viene de
+     una API pública con innerHTML. -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script>
 /* ================================================================
    NÚMERO DE WHATSAPP DE CAFÉ PANDORA
@@ -807,6 +828,14 @@ function resumenTextoBlog(texto, n = 140) {
   const limpio = (texto || '').replace(/\s+/g, ' ').trim();
   return limpio.length > n ? limpio.slice(0, n).trim() + '…' : limpio;
 }
+// Quita las etiquetas HTML de un artículo subido desde Word, para armar
+// el resumen de la tarjeta cuando no hay "extracto" escrito a mano — sin
+// esto se verían las etiquetas crudas en vez de solo el texto.
+function textoPlanoDeHtmlBlog(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || '';
+}
 async function cargarBlog() {
   if (blogCargado) return;
   blogCargado = true;
@@ -832,14 +861,21 @@ function pintarBlog() {
   if (articuloBlogAbierto != null) {
     const p = blogPosts.find(x => x.id === articuloBlogAbierto);
     if (!p) { articuloBlogAbierto = null; return pintarBlog(); }
-    const parrafos = (p.contenido || '').split(/\n{2,}/).map(t => t.trim()).filter(Boolean);
+    // Artículo subido desde Word: "contenido" ya es HTML (tablas, negritas,
+    // listas...), sanitizado al guardarse — se limpia OTRA VEZ acá antes
+    // de pintarlo (defensa en profundidad, ver comentario junto al script
+    // de DOMPurify). Artículo de texto de siempre: mismo comportamiento
+    // que ya había, partir por párrafos y escapar cada uno.
+    const cuerpoHtml = p.esHtml
+      ? `<div class="blog-articulo-html">${DOMPurify.sanitize(p.contenido)}</div>`
+      : (p.contenido || '').split(/\n{2,}/).map(t => t.trim()).filter(Boolean).map(t => `<p class="blog-articulo-texto">${escapeHtml(t)}</p>`).join('');
     cont.innerHTML = `
       <button class="blog-volver" onclick="cerrarArticuloBlog()">← Volver a los artículos</button>
       <article class="blog-articulo">
         ${p.imagen ? `<img class="blog-articulo-foto" src="${escapeAttr(p.imagen)}" alt="${escapeAttr(p.titulo)}">` : ''}
         <h3 class="blog-articulo-titulo">${escapeHtml(p.titulo)}</h3>
         <p class="blog-articulo-meta">${new Date(Number(p.ts)).toLocaleDateString('es-CO')}${p.autor ? ' · ' + escapeHtml(p.autor) : ''}</p>
-        ${parrafos.map(t => `<p class="blog-articulo-texto">${escapeHtml(t)}</p>`).join('')}
+        ${cuerpoHtml}
       </article>`;
     return;
   }
@@ -851,7 +887,7 @@ function pintarBlog() {
         <div class="blog-card-texto">
           <p class="blog-card-fecha">${new Date(Number(p.ts)).toLocaleDateString('es-CO')}</p>
           <h3 class="blog-card-titulo">${escapeHtml(p.titulo)}</h3>
-          <p class="blog-card-extracto">${escapeHtml(p.extracto || resumenTextoBlog(p.contenido))}</p>
+          <p class="blog-card-extracto">${escapeHtml(p.extracto || resumenTextoBlog(p.esHtml ? textoPlanoDeHtmlBlog(p.contenido) : p.contenido))}</p>
         </div>
       </button>`).join('')
     : '<p class="blog-vacio">Todavía no hay artículos publicados — vuelve pronto.</p>';

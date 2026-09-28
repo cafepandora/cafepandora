@@ -2598,13 +2598,15 @@ tenía la foto de Lavado, para que las dos combinen visualmente) como
 
 ## Pendiente / a medias
 
-- **⚠️ Blog — falta correr la migración**: el código ya está (ver sección
-  "Blog — pestaña nueva..." arriba), pero hasta que no se corra
-  `migracion_blog.sql` en Supabase, la pestaña "Blog" de la app interna
-  va a mostrar el error real de Postgres (tabla `blog_posts` inexistente)
+- **⚠️ Blog — faltan correr 2 migraciones**: el código ya está (ver
+  secciones "Blog — pestaña nueva..." y "Blog — subir un artículo desde
+  un archivo de Word" arriba), pero hasta que no se corran
+  `migracion_blog.sql` (tabla `blog_posts`) Y `migracion_blog_html.sql`
+  (columna `es_html`, para subir artículos desde Word) en Supabase, la
+  pestaña "Blog" de la app interna va a mostrar el error real de Postgres
   y la sección "Blog" de la página de pedidos no va a poder cargar
   artículos — el panel de ⚠️ migraciones pendientes en Configuración ya
-  lo detecta.
+  detecta las dos por separado.
 - **⚠️ Costos por kg tostado (Gas, etc.) — falta correr la migración**: el
   código ya está (ver sección "Costos por kg tostado, ahora una lista"
   arriba), pero hasta que no se corra `migracion_costos_por_kg.sql` en
@@ -3950,3 +3952,99 @@ nueva carpeta. No se pudo probar `_redirects` en el preview local (es
 una función propia de Cloudflare Pages, el servidor mock de Python no la
 interpreta) — la sintaxis se verificó contra la documentación oficial en
 su lugar.
+
+## Blog — subir un artículo desde un archivo de Word (2026-09-28)
+
+Juan: *"para el archivo del blog, también sea posible subir un archivo de
+Word para que si tiene tablas o algo así sigan viéndose, debido a que si
+copio y pego y hay tablas todo queda escrito pegado y no queda tan
+bonito"*. Hasta ahora "Contenido" era un `<textarea>` de texto plano
+(párrafos separados por línea en blanco) — cualquier tabla de Word,
+copiada y pegada ahí, perdía toda su estructura. La solución: convertir
+el `.docx` a HTML DENTRO del navegador (nada se sube a ningún servicio
+aparte) y guardar ESE html en vez de texto plano.
+
+**`es_html`** (`migracion_blog_html.sql`, boolean, default `false`) —
+columna nueva en `blog_posts` que le dice a la app (interna Y pública)
+cómo tratar `contenido`: `false` (todos los artículos de siempre) = texto
+plano, se sigue partiendo por párrafos como hasta hoy; `true` = ya es
+HTML (tablas, negritas, listas, títulos, imágenes) y se pinta directo,
+sin tocarlo. Los 3 endpoints de blog (`GET/POST /api/blog`,
+`PATCH /api/blog/:id`, `GET /api/blog-publico`) suman `esHtml:es_html` a
+su `SELECT`.
+
+**Mammoth.js** (`https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js`,
+CDN, sin instalar nada) hace la conversión — es la librería estándar para
+esto, entiende el formato real de Word (OOXML) y produce HTML semántico
+(`<table>`, `<strong>`, `<ul>`, `<h1-6>`...). Las imágenes que traiga el
+.docx se configuran para venir inline como base64
+(`mammoth.images.imgElement(...)`, del propio ejemplo de la documentación
+de Mammoth) — mismo espíritu que la foto de portada del blog, sin
+necesitar almacenamiento de archivos aparte. **DOMPurify**
+(`https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js`) limpia el
+HTML que devuelve Mammoth ANTES de guardarlo — es contenido que después
+se pinta con `innerHTML`, primero en el preview de `gestion/index.html` y
+luego en la página pública, así que lo que se guarda en la base de datos
+ya tiene que estar filtrado. Se sanitiza OTRA VEZ (con el mismo DOMPurify,
+cargado también ahí) justo antes de pintarlo en `index.html` (la página
+pública) — defensa en profundidad, esa página pinta contenido que viene
+de una API pública.
+
+**Flujo en `gestion/index.html`** (mismo patrón en "Nuevo artículo" y en
+el modal de "Editar"): debajo del `<textarea>` de siempre hay un
+`<input type="file" accept=".docx">` nuevo. Al elegir un archivo,
+`convertirWordABlogHtml(file)` (Mammoth + DOMPurify) llena un buffer JS
+(`blogWordHtmlNuevo` / `blogWordHtmlEditando`, mismo patrón que
+`imagenBlogNueva`/`imagenBlogEditando` para la foto de portada) y pinta
+una vista previa real (`.blog-html-preview`, con la tabla ya con
+bordes/encabezado — para que Juan confirme que el archivo se leyó bien
+antes de guardar) — el `<textarea>` se deshabilita mientras tanto, con un
+placeholder que explica que se va a usar el Word en su lugar, para que
+no quede ambiguo cuál de los dos gana. Un botón "✕ Quitar Word, escribir
+texto en su lugar" limpia el buffer y reactiva el `<textarea>`. Al
+guardar, `contenido` es el HTML del Word si se subió uno (si no, el texto
+del `<textarea>` de siempre) y `esHtml` viaja como `true`/`false` según
+cuál se haya usado — **nunca se mezclan los dos** (uno reemplaza al otro
+por completo, no se concatenan).
+
+**Editar un artículo que ya es HTML**: `abrirEdicionBlog()` arranca el
+buffer (`blogWordHtmlEditando`) con el HTML ya guardado si `p.esHtml` es
+`true`, muestra ese HTML en el mismo `.blog-html-preview` de solo-lectura,
+y deja el `<textarea>` deshabilitado — no tiene sentido mostrar HTML
+crudo dentro de un `<textarea>` de texto plano. Para corregir el
+contenido hay 2 caminos: subir OTRO `.docx` (reemplaza el HTML anterior),
+o darle "Quitar Word" para volver a texto plano y escribir de cero.
+
+**Fila de la lista y buscador**: `filaBlogPost()` ganó una etiqueta
+"(Word)" junto al título cuando `p.esHtml`, y `textoPlanoDeHtml(html)`
+(crea un `<div>` fuera del DOM visible, le pone el HTML, lee
+`.textContent`) le quita las etiquetas antes de armar el resumen — sin
+esto, un artículo sin "Extracto" escrito a mano hubiera mostrado las
+etiquetas crudas en la vista previa de la lista. Mismo criterio, mismo
+nombre de función (`textoPlanoDeHtmlBlog` en la página pública, por ser
+archivos independientes) para el resumen de la tarjeta en `index.html`
+cuando tampoco hay "Extracto".
+
+**CSS de tablas/listas/títulos** (`.blog-html-preview` en
+`gestion/index.html`, `.blog-articulo-html` en `index.html`) — el HTML
+que devuelve Mammoth no trae clases propias (`<table>`, `<td>` pelados),
+así que se estilan a mano: en el preview interno, genérico, solo para
+que Juan confirme que se ve bien; en la página pública, ya con la
+tipografía/colores reales del sitio (`--serif` en títulos, `--teal` en
+encabezados de tabla). `table { display: block; overflow-x: auto; }` en
+las dos — para que una tabla con muchas columnas se pueda desplazar de
+lado en vez de desbordar la pantalla en celular (la tabla de prueba de 2
+columnas cabía bien igual, pero no hay garantía de que un Word real
+siempre traiga tablas angostas).
+
+Probado de punta a punta con un `.docx` REAL construido a mano (ZIP +
+XML mínimo válido, con un párrafo, una tabla de 2 columnas/3 filas con
+encabezado en negrita, y otro párrafo) — no solo con HTML de prueba
+tipeado directo: la conversión con Mammoth extrajo el párrafo, la tabla
+completa (con `<strong>` en los encabezados) y el párrafo final
+exactamente; el flujo completo en `gestion/index.html` (elegir archivo →
+preview → guardar → aparece en la lista con "(Word)" → editar → sigue
+ahí → "Quitar Word" vuelve a texto plano) funcionó sin errores de
+consola; en la página pública, la tabla se ve con el estilo del sitio
+tanto en desktop como en celular (375px), sin desbordar. Sin errores
+nuevos de consola en ningún paso, en ninguna de las dos apps.

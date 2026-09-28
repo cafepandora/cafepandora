@@ -1,0 +1,15 @@
+-- Ejecuta esto en el SQL Editor de Supabase.
+--
+-- Blog — subir un artículo desde un archivo de Word (2026-09-28). Juan
+-- pidió poder subir un .docx en vez de solo escribir texto plano, porque
+-- si el artículo tiene tablas (u otro formato) y se copia/pega como
+-- texto, todo queda pegado y sin verse "bonito". El archivo se convierte
+-- a HTML DENTRO del navegador (Mammoth.js, ver index.html/gestion/index.html)
+-- antes de mandarse — lo que llega y se guarda en "contenido" ya es HTML
+-- listo para mostrar, no el .docx en sí.
+--
+-- "es_html" le dice a la app (interna Y pública) cómo tratar "contenido":
+-- false (default, artículos de siempre) = texto plano, se sigue partiendo
+-- por párrafos como hasta ahora; true = ya es HTML (tablas, negritas,
+-- listas, etc. incluidas), se pinta directo.
+ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS es_html boolean NOT NULL DEFAULT false;

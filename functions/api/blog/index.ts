@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
 
-const SELECT = 'id, titulo, extracto, contenido, imagen, autor, estado, ts, creadoPor:creado_por';
+const SELECT = 'id, titulo, extracto, contenido, imagen, autor, estado, esHtml:es_html, ts, creadoPor:creado_por';
 
 // GET trae TODO (Borrador y Publicado) — es la vista de administración,
 // desde la pestaña "Blog" de la app interna. La página pública usa
@@ -37,6 +37,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       imagen: body.imagen || null,
       autor: body.autor || null,
       estado: body.estado || 'Borrador',
+      es_html: !!body.esHtml,
       creado_por: email,
       ts: body.ts || Date.now(),
     })

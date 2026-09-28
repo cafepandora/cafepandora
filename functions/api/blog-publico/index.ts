@@ -5,7 +5,7 @@ import { getSupabase, Env } from '../../_lib/supabase.js';
 // en estado 'Publicado' (nunca Borradores), y deja afuera "creadoPor"
 // (quién lo escribió desde la app interna, un dato interno, no de la
 // firma pública del artículo — para eso está "autor").
-const SELECT = 'id, titulo, extracto, contenido, imagen, autor, ts';
+const SELECT = 'id, titulo, extracto, contenido, imagen, autor, esHtml:es_html, ts';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const supabase = getSupabase(context.env);

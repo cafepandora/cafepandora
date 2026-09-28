@@ -1,7 +1,7 @@
 import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
-const SELECT = 'id, titulo, extracto, contenido, imagen, autor, estado, ts, creadoPor:creado_por';
+const SELECT = 'id, titulo, extracto, contenido, imagen, autor, estado, esHtml:es_html, ts, creadoPor:creado_por';
 
 export const onRequestPatch: PagesFunction<Env> = async (context) => {
   const authError = await requireAuth(context.request, context.env);
@@ -18,6 +18,7 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   if (body.imagen !== undefined) updates.imagen = body.imagen || null;
   if (body.autor !== undefined) updates.autor = body.autor || null;
   if (body.estado !== undefined) updates.estado = body.estado;
+  if (body.esHtml !== undefined) updates.es_html = !!body.esHtml;
 
   if (Object.keys(updates).length === 0) return new Response('Sin cambios', { status: 400 });
 
