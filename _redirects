@@ -1,0 +1,9 @@
+# Cloudflare Pages lee este archivo para redirecciones.
+#
+# Hasta el 2026-09-28 la página pública de pedidos vivía en /pedidos/ y la
+# app interna en la raíz — se intercambiaron (ver CLAUDE.md, sección
+# "Dominio propio + la raíz ahora es la página pública") para que
+# cafepandora.co muestre la página de clientes, no la pantalla de login.
+# Cualquier link viejo a /pedidos/ (Instagram, WhatsApp Business, tarjetas
+# ya impresas) sigue funcionando, redirigido a la raíz.
+/pedidos/*  /  301

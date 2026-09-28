@@ -8,13 +8,30 @@ mirando los archivos.
 
 Dos apps separadas, un mismo repo, un mismo despliegue de Cloudflare Pages:
 
-1. **App interna** (`index.html`, raíz del repo) — la usan Juan, Inés y
-   Joaquín para registrar ventas de café, órdenes de maquila, gastos,
-   trazabilidad de cosecha/tueste, y ver el resumen financiero del negocio.
-   Requiere login.
-2. **Página pública de pedidos** (`pedidos/index.html`) — la ven los
-   clientes, sin login, para armar un pedido de café y mandarlo por
-   WhatsApp. URL: `cafepandora.pages.dev/pedidos/`.
+1. **Página pública de pedidos** (`index.html`, raíz del repo) — la ven
+   los clientes, sin login, para armar un pedido de café y mandarlo por
+   WhatsApp, ver el blog, o pedir maquila. URL:
+   [cafepandora.co](https://cafepandora.co) (dominio propio desde
+   2026-09-28, comprado y activado directo en Cloudflare Registrar —
+   `www.cafepandora.co` también apunta ahí; `cafepandora.pages.dev` sigue
+   funcionando igual, es el mismo sitio).
+2. **App interna** (`gestion/index.html`) — la usan Juan, Inés y Joaquín
+   para registrar ventas de café, órdenes de maquila, gastos,
+   trazabilidad de cosecha/tueste, y ver el resumen financiero del
+   negocio. Requiere login. URL: `cafepandora.co/gestion/` — un link
+   chico y discreto al final de la página pública ("¿Eres del equipo?
+   Inicia sesión →") lleva ahí, para que un cliente normal nunca se
+   tope con la pantalla de login por accidente.
+
+⚠️ **Hasta el 2026-09-28 esto estaba AL REVÉS** — `index.html` (raíz) era
+la app interna y `pedidos/index.html` era la página pública. Se
+intercambiaron el mismo día que se activó el dominio propio, porque
+`cafepandora.co` mostrando una pantalla de login del equipo en vez de la
+página de ventas se veía poco profesional para cualquiera que llegara
+por primera vez. Ver la sección "Dominio propio + la raíz ahora es la
+página pública" más abajo para el detalle completo del cambio (qué se
+movió, qué se dejó igual, y un gotcha real de cómo probar esto en el
+preview local).
 
 Café Pandora es un negocio de café colombiano: cultivan, procesan
 (Lavado/Honey/Natural/Exótico), tuestan y venden su propio café — y además
@@ -24,7 +41,7 @@ servicio, no un producto del inventario propio).
 ## Stack
 
 - **Frontend**: un solo `index.html` sin build step, JS vanilla, Chart.js y
-  jsPDF por CDN. Igual `pedidos/index.html`, independiente.
+  jsPDF por CDN. Igual `gestion/index.html`, independiente.
 - **Backend**: Cloudflare Pages Functions (`functions/api/**/*.ts`), cada
   carpeta = un recurso REST (`index.ts` para GET/POST de la colección,
   `[id].ts` para PATCH/DELETE de un registro).
@@ -59,7 +76,7 @@ siempre revalida con el servidor antes de usar una copia guardada, así
 que cada redeploy se ve de inmediato sin necesitar hard-refresh.
 
 **"Sin conexión (viendo caché)" no siempre es de verdad falta de
-conexión**: `sincronizar()` (en `index.html`) llama los ~14 endpoints en
+conexión**: `sincronizar()` (en `gestion/index.html`) llama los ~14 endpoints en
 paralelo; antes, cualquier respuesta que no fuera JSON válido (por
 ejemplo un 401 — `requireAuth()` devuelve texto plano, no JSON) hacía
 que `r.json()` explotara y el `catch` mostrara el aviso genérico de "sin
@@ -223,8 +240,10 @@ fila por fila, no es un cambio de CSS global seguro. Tampoco se tocó
 ## Estructura del repo
 
 ```
-index.html                         # app interna completa
-pedidos/index.html                 # página pública de pedidos
+index.html                         # página pública de pedidos (raíz, desde 2026-09-28)
+gestion/index.html                 # app interna completa (antes vivía en la raíz)
+img/                                # fotos reales de index.html (antes pedidos/img/)
+_redirects                         # /pedidos/* -> / (compatibilidad con links viejos)
 xlsx-lite.js                       # generador de .xlsx sin dependencias
 functions/_lib/supabase.ts         # cliente Supabase (service role)
 functions/_lib/auth.ts             # requireAuth() — valida sesión Supabase
@@ -3840,3 +3859,94 @@ automático, igual que las notas de `wa.me` documentadas en "WhatsApp —
 aviso de pedido nuevo y aviso al cliente" más arriba). Cambio de una sola
 línea: `href="mailto:pandoracafedeorigen@gmail.com?subject=...&body=..."`
 en vez de `wa.me`, sin `target="_blank"` (no hace falta para `mailto:`).
+
+## Dominio propio + la raíz ahora es la página pública (2026-09-28)
+
+Juan compró `cafepandora.co` (y `www.cafepandora.co`) directo en
+Cloudflare Registrar y los activó como Custom domains del proyecto de
+Pages — confirmado visitando los dos en el navegador, cargan el sitio
+igual que `cafepandora.pages.dev` (ese sigue funcionando, es el mismo
+despliegue con 3 dominios apuntando ahí). Con el dominio propio ya
+puesto, Juan probó entrar y le apareció la pantalla de login del equipo
+en vez de la página de comprar café — pidió que la raíz fuera "una
+página mucho más profesional" y que hubiera "una opción de login" aparte
+para el equipo. Petición razonable: hasta ahora la raíz del repo
+(`index.html`) SIEMPRE había sido la app interna, y la página pública
+vivía en `/pedidos/` — al revés de lo que cualquier visitante nuevo
+esperaría de un dominio de marca.
+
+**El cambio, completo**:
+- `index.html` (app interna, lo que antes estaba en la raíz) →
+  `gestion/index.html`. El nombre "gestión" no es antojado — es
+  literalmente la palabra que ya usa el propio login
+  ("Gestión integral — acceso del equipo"), más fácil de recordar para
+  Juan/Inés que un genérico "/app/" en inglés.
+- `pedidos/index.html` (página pública) → `index.html`, en la raíz.
+- `pedidos/img/*.jpg` → `img/*.jpg` — las rutas relativas dentro del
+  archivo (`src="img/..."`) no cambiaron ni una letra, porque el HTML y
+  su carpeta de fotos se movieron JUNTOS, manteniendo la misma posición
+  relativa entre ellos.
+- `xlsx-lite.js` se quedó en la raíz, sin moverse — lo referencia
+  `gestion/index.html` con una ruta ABSOLUTA (`<script src="/xlsx-lite.js">`),
+  así que no le importa desde qué carpeta se sirva el HTML que lo pide.
+  Mismo motivo por el que ninguna llamada a `/api/...` (siempre rutas
+  absolutas) se vio afectada por el movimiento.
+- **`_redirects`** (archivo nuevo, primera vez que existe en este repo):
+  `/pedidos/*  /  301` — cualquier link viejo a `/pedidos/` (Instagram,
+  WhatsApp Business, una tarjeta ya impresa) sigue funcionando, redirigido
+  a la raíz en vez de dar 404. Formato de una sola línea
+  `[origen] [destino] [código]`, verificado contra la documentación
+  oficial de Cloudflare Pages antes de escribirlo.
+- **Link "¿Eres del equipo? Inicia sesión →"** (`.footer-equipo`, nuevo en
+  `index.html`): chico, apagado (opacity .7, sube a 1 en hover), al final
+  de la página — vive FUERA de `#vistaCafe`/`#vistaMaquila`/`#vistaBlog`
+  (junto a `.carrito-barra`, justo antes en el HTML) para que se vea sin
+  importar cuál de las 3 vistas esté activa. Apunta a `/gestion/` — un
+  clic normal de navegador, no pasa por `mostrarVista()` ni nada de JS.
+
+**Nada de lógica se tocó** — ni un solo `onclick`/`id`/función cambió de
+nombre; todo el trabajo de esta sesión (Maquila, Blog, WhatsApp→correo)
+sigue funcionando exactamente igual, solo cambiaron las rutas de los 2
+archivos HTML y su carpeta de imágenes. Confirmado leyendo TODO
+`gestion/index.html` en busca de rutas relativas, `redirectTo` de
+Supabase Auth, o cualquier otra cosa que asumiera "estoy en la raíz" —
+no había ninguna (Supabase Auth acá es simple correo/contraseña, sin
+magic link ni confirmación por correo que dependa de una URL de retorno).
+
+⚠️ **Gotcha real, encontrado probando esto en el preview local — apuntar
+el mock directo al proyecto real (en vez de copiar a `preview-root/`)
+no funciona**: para evitar el ya conocido "se me olvidó sincronizar el
+archivo antes de probar" (pasó varias veces esta sesión), se intentó
+apuntar `ROOT` de `mock_pedidos_server.py`/`mock_index_server.py`
+directo a la carpeta real del proyecto en `/Users/.../cafe-pandora-cf 2`
+en vez de a `scratchpad/preview-root/`. El mismo script, corrido a mano
+en Bash, servía el archivo real sin problema (confirmado con `curl`) —
+pero lanzado a través de la herramienta `preview_start`, daba 404 para
+TODO, aunque el archivo sí existía y sí era legible desde Bash. Causa:
+el proceso que lanza `preview_start` corre sandboxeado, sin permiso de
+lectura fuera de `scratchpad/` — el archivo "no existe" desde su punto de
+vista, aunque exista de verdad en disco. Vuelto a `preview-root/` (con
+la estructura nueva: `preview-root/index.html` + `preview-root/img/` +
+`preview-root/gestion/index.html`, sincronizados a mano con `cp` antes de
+cada prueba) — ahí sí funcionó. Moraleja para la próxima vez que se
+quiera "simplificar" el mock apuntando directo al proyecto real: no
+vale la pena, `preview_start` necesita que los archivos vivan dentro de
+`scratchpad/`.
+
+**Pendiente, operativo, no de código**: avisarle a Inés y Joaquín que el
+link de acceso a la app interna cambió de `cafepandora.co` (o
+`cafepandora.pages.dev`) a `cafepandora.co/gestion/` — quien tenga la
+raíz vieja guardada como marcador/favorito ahora va a ver la página de
+clientes en vez de su pantalla de login, tiene que actualizar el
+marcador una sola vez.
+
+Probado en el preview local: `index.html` (raíz) carga la página de
+comprar café con las fotos reales funcionando (antes de este pase varias
+daban 404 en el mock por un problema de sincronización previo, ya
+resuelto de paso); el link "¿Eres del equipo?" lleva a `/gestion/` y
+esa carga el login de la app interna sin ningún error de consola; la app
+interna sigue sincronizando y funcionando igual que siempre desde su
+nueva carpeta. No se pudo probar `_redirects` en el preview local (es
+una función propia de Cloudflare Pages, el servidor mock de Python no la
+interpreta) — la sintaxis se verificó contra la documentación oficial en
+su lugar.
