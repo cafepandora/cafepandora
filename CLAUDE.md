@@ -3830,3 +3830,13 @@ abre/cierra el artículo completo correctamente (incluida la foto de
 portada, probada con la misma foto de la tostadora de Maquila), y se ve
 bien en celular (375px). Sin errores nuevos de consola en ningún
 recorrido, en ninguna de las dos apps.
+
+**"Proponer un artículo" por correo, no por WhatsApp (mismo día)**: Juan
+pidió que ese botón mande a `pandoracafedeorigen@gmail.com` en vez de
+WhatsApp — mismo patrón `mailto:` con asunto/cuerpo prellenado que ya
+usa `wa.me` en el resto del sitio (abre el cliente de correo con el
+mensaje YA ESCRITO, la persona solo le da Enviar — no es un envío 100%
+automático, igual que las notas de `wa.me` documentadas en "WhatsApp —
+aviso de pedido nuevo y aviso al cliente" más arriba). Cambio de una sola
+línea: `href="mailto:pandoracafedeorigen@gmail.com?subject=...&body=..."`
+en vez de `wa.me`, sin `target="_blank"` (no hace falta para `mailto:`).
