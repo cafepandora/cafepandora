@@ -4100,3 +4100,106 @@ sin errores de consola. No se pudo probar el comportamiento real de
 de instalación de PWA que el navegador de este entorno no dispara) — el
 comportamiento esperado se basa en cómo Android/iOS documentan e
 interpretan estas etiquetas, no en una prueba visual directa.
+
+## Cada vista de la página pública con su propia URL — /maquila, /blog (2026-09-28)
+
+Juan: *"que cada pestaña tenga su propia sección... por si quiero
+compartir algo específico que no se vaya siempre a la de pedidos"*.
+Hasta ahora `mostrarVista()` (la función que reemplaza contenido entre
+café/Maquila/Blog, ver "Sección Maquila..." más arriba) nunca tocaba la
+URL — siempre era `/`, sin importar qué vista estuvieras viendo, así que
+no había forma de compartir un link directo a Maquila o al Blog.
+
+**`_redirects`** (Cloudflare Pages) ganó reglas de "proxying" — código
+`200`, no `301`/`302` — para `/pedidos`, `/maquila` y `/blog` (con y sin
+`/` final, más comodín para cualquier cosa después): ese código hace que
+Cloudflare sirva el contenido de `/` (el mismo `index.html` de siempre)
+pero **mantenga la URL tal como se escribió** en la barra, a diferencia
+de una redirección de verdad que sí la cambia. Reemplazó la regla vieja
+`/pedidos/* / 301` (de cuando `/pedidos/` era la única URL de la página
+pública, antes del dominio propio) — ya no hace falta redirigir esas
+URLs a la raíz, ahora son válidas por derecho propio.
+
+**El JS decide qué vista mostrar leyendo la URL**, no al revés:
+`vistaDesdeURL()` (nueva) lee `location.pathname` y devuelve
+`'maquila'`/`'blog'`/`'cafe'`. Se usa en 2 momentos:
+1. **Al cargar la página** (`mostrarVista(vistaDesdeURL(), {sinURL:true,
+   instantaneo:true})`, al final del script) — si alguien entra directo a
+   un link compartido de `/maquila`, ve Maquila de una, no café.
+2. **Botón atrás/adelante del navegador** (`popstate`) — mismo patrón,
+   vuelve a leer la URL (que el navegador ya cambió solo) y muestra la
+   vista que corresponda.
+
+**`mostrarVista(vista, opciones)`** ganó un segundo parámetro:
+- `sinURL: true` — no toca el historial (lo usan los 2 casos de arriba,
+  porque la URL YA es la correcta, la puso el navegador solo; volver a
+  empujarla crearía una entrada de historial duplicada y "atrás" se
+  sentiría raro, sin volver a ningún lado la primera vez que se aprieta).
+- `instantaneo: true` — el scroll al tope usa `behavior: 'auto'` en vez
+  de `'smooth'` (para los 2 casos de arriba, donde no tiene sentido
+  animar un scroll que el usuario ni siquiera pidió con un clic).
+- Sin ninguna opción (el caso normal, clic en la barra de navegación):
+  `history.pushState({vista}, '', RUTA_POR_VISTA[vista])` — la URL
+  cambia de verdad y queda en el historial, para que "atrás" funcione.
+
+Los links de "Maquila"/"Blog" en `.nav-secciones` pasaron de
+`href="#"` (con `return false`, nunca navegaban de verdad) a
+`href="/maquila"`/`href="/blog"` reales — mismo `onclick` de siempre
+(`mostrarVista(...); return false;`, sigue interceptando el clic para
+que sea instantáneo, sin recargar la página), pero ahora con una URL de
+verdad detrás: si el JS fallara por lo que sea, o si alguien abre el
+link en una pestaña nueva (clic derecho → abrir en pestaña nueva), el
+`href` real sigue funcionando solo, sin depender del JS.
+
+⚠️ **Gotcha real, encontrado probando esto — TDZ, mismo patrón ya
+documentado en este archivo, esta vez en la página pública**: la primera
+versión ponía la llamada inicial a `mostrarVista(vistaDesdeURL(), ...)`
+justo debajo de la definición de `mostrarVista()`, ANTES de donde el
+script más abajo declara `let blogPosts`/`let blogCargado` (sección
+"Blog — lista pública"). Como `mostrarVista('blog')` dispara
+`cargarBlog()`, que lee `blogCargado`, entrar directo a `/blog` tiraba
+`"Cannot access 'blogCargado' before initialization"` — el mismo tipo de
+error de TDZ ya documentado para `TITULARES_CUENTA_COBRO` en la app
+interna (Gotchas, más arriba), esta vez del lado de `pedidos`/`index.html`.
+Arreglado moviendo SOLO la llamada inicial (no la función
+`vistaDesdeURL()` en sí, que no referencia nada `let` y es segura donde
+está) hasta el final del script, después de `cargarCatalogo()` — para
+entonces todo el archivo ya se terminó de ejecutar una vez, así que
+cualquier `let`/`const` ya está inicializado sin importar en qué orden
+aparezcan las secciones.
+
+⚠️ **Segundo gotcha real, esta vez del entorno de pruebas, no del
+código**: mientras se probaba esto, una pestaña "recién" navegada a
+`http://localhost:8787/` seguía mostrando un documento de HORAS atrás
+(confirmado con `document.lastModified`) aunque el archivo en disco y la
+respuesta de un `fetch()` con `cache:'no-store'` sí estaban al día — el
+navegador estaba cacheando agresivamente el HTML por URL (mismo problema
+real que `_headers` con `Cache-Control: no-cache` ya resuelve en
+producción, ver "Cómo se despliega" al principio de este archivo), pero
+el servidor mock de Python (`mock_pedidos_server.py`/`mock_index_server.py`,
+en el scratchpad de la sesión) nunca mandaba ese header, así que el
+navegador quedaba libre de cachear agresivo. Arreglado agregándole
+`Cache-Control: no-store` a las respuestas del mock
+(`end_headers()` sobreescrito) — mismo motivo por el que existe
+`_headers` en este repo, aplicado también al servidor de prueba. Mientras
+tanto, cualquier URL que ya se hubiera cargado ANTES de este arreglo
+seguía sirviendo la copia vieja cacheada hasta que se le agregó un
+parámetro cualquiera (`?v=2`) para forzar una petición nueva — moraleja
+para la próxima vez que algo se vea "viejo" en el preview local sin
+explicación: sospechar de caché del navegador antes que del código,
+sobre todo si `fetch()` manual sí muestra el contenido correcto pero la
+página cargada no.
+
+Probado de punta a punta en el preview local (con el mock ya corregido):
+cargar `/maquila`, `/blog` y `/pedidos` DIRECTO (sin pasar por la
+navegación interna) muestra la vista correcta de una, sin ningún error
+de consola; tocar "Maquila" desde `/` cambia la URL a `/maquila` con
+`pushState` (sin recargar la página — confirmado que la respuesta ya
+traía el querystring de prueba y desapareció, señal de que no hubo
+petición de red nueva); el botón atrás del navegador vuelve a `/` y
+muestra café de nuevo; y el caso más delicado — estando en `/maquila` y
+tocando "Tour" (un link de café con ancla, `#tourFinca`) — la URL queda
+exactamente en `/#tourFinca` (no `/maquila#tourFinca` ni ningún otro
+resultado raro), confirmando que el salto de ancla nativo del navegador
+usa la URL ya actualizada por `mostrarVista('cafe')`, no la de antes del
+clic.

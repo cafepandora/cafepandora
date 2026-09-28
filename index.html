@@ -481,8 +481,8 @@
   <a href="#datoDuro" onclick="mostrarVista('cafe')">La finca</a>
   <a href="#procesoSeccion" onclick="mostrarVista('cafe')">Proceso</a>
   <a href="#tourFinca" onclick="mostrarVista('cafe')">Tour</a>
-  <a href="#" onclick="mostrarVista('maquila'); return false;" id="navMaquilaLink">Maquila</a>
-  <a href="#" onclick="mostrarVista('blog'); return false;" id="navBlogLink">Blog</a>
+  <a href="/maquila" onclick="mostrarVista('maquila'); return false;" id="navMaquilaLink">Maquila</a>
+  <a href="/blog" onclick="mostrarVista('blog'); return false;" id="navBlogLink">Blog</a>
   <a href="#catalogo" class="destacado" onclick="mostrarVista('cafe')">Pedir →</a>
 </nav>
 <div id="vistaCafe">
@@ -801,7 +801,15 @@ function iniciarScrollspyNav() {
 // normal (sin preventDefault — el navegador sigue haciendo el scroll de
 // siempre), así que si estabas viendo Maquila y tocas "Tour", primero se
 // vuelve a mostrar el contenido de café y LUEGO el navegador salta ahí.
-function mostrarVista(vista) {
+// A cada vista le corresponde una URL real (2026-09-28, a pedido de
+// Juan: "por si quiero compartir algo específico que no se vaya siempre
+// a la de pedidos") — /maquila, /blog, / (café). _redirects en la raíz
+// del repo le dice a Cloudflare Pages que sirva ESTE MISMO index.html
+// para las 3 (código 200 = mantiene la URL escrita, no la cambia como
+// haría una redirección de verdad) — así que cargar cualquiera de las 3
+// directo, de cero, también funciona, no solo navegando desde dentro.
+const RUTA_POR_VISTA = { cafe: '/', maquila: '/maquila', blog: '/blog' };
+function mostrarVista(vista, opciones = {}) {
   const esCafe = vista === 'cafe';
   document.getElementById('vistaCafe').style.display = esCafe ? '' : 'none';
   document.getElementById('vistaMaquila').style.display = vista === 'maquila' ? '' : 'none';
@@ -811,13 +819,33 @@ function mostrarVista(vista) {
     const link = vista === 'maquila' ? document.getElementById('navMaquilaLink') : document.getElementById('navBlogLink');
     link.classList.add('activo');
     document.getElementById('barraCarrito').classList.remove('visible');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: opciones.instantaneo ? 'auto' : 'smooth' });
     if (vista === 'blog') cargarBlog(); // primera vez: trae los artículos; si ya se cargaron, no repite el fetch
     iniciarRevelado(); // las tarjetas de Maquila/Blog estaban en display:none, nadie las había observado todavía
   } else {
     actualizarBarra(); // restaura la barra del carrito de café si ya tenía algo
   }
+  // sinURL: lo usan la carga inicial y el botón atrás/adelante del
+  // navegador — la URL en esos casos YA es la correcta (el navegador la
+  // puso ahí solo), volver a empujarla crearía una entrada de historial
+  // duplicada y "atrás" dejaría de funcionar como se espera.
+  if (!opciones.sinURL) history.pushState({ vista }, '', RUTA_POR_VISTA[vista]);
 }
+// Lee de la URL cuál vista corresponde (usada al cargar Y en el botón
+// atrás/adelante del navegador, ver los dos usos más abajo).
+function vistaDesdeURL() {
+  const ruta = location.pathname.replace(/\/+$/, '') || '/';
+  return ruta === '/maquila' ? 'maquila' : ruta === '/blog' ? 'blog' : 'cafe';
+}
+// Botón atrás/adelante del navegador — vuelve a leer la URL (que el
+// navegador ya cambió solo) y muestra la vista que corresponda. Seguro
+// de registrar ya: solo llama mostrarVista() cuando de verdad ocurra el
+// evento (más adelante), nunca de una — a diferencia de la llamada de
+// carga inicial, que si tiene que esperar (ver el comentario junto a
+// ella, al final del script).
+window.addEventListener('popstate', () => {
+  mostrarVista(vistaDesdeURL(), { sinURL: true, instantaneo: true });
+});
 
 /* ---------- Blog — lista pública (solo Publicado), cargada la primera
    vez que alguien toca "Blog", no de entrada como el catálogo ---------- */
@@ -1447,6 +1475,19 @@ function mostrarToast(msg) {
 }
 
 cargarCatalogo();
+// Primera carga: si alguien entra directo a /maquila o /blog (un link
+// compartido, no navegando desde adentro), mostrar esa vista de una vez
+// en vez de siempre arrancar en café. Tiene que ir ACÁ, al final del
+// script, no más arriba junto a vistaDesdeURL()/popstate — mostrarVista
+// ('blog') dispara cargarBlog(), que usa `let blogCargado` (declarada
+// más abajo en el archivo); llamarlo antes de llegar a esa línea tira
+// "Cannot access 'blogCargado' before initialization" (mismo tipo de
+// gotcha de TDZ ya documentado en CLAUDE.md para TITULARES_CUENTA_COBRO
+// en la app interna — ahí también tocó mover la referencia después de
+// la declaración, no al revés). sinURL:true porque la URL ya es la
+// correcta (la puso el navegador al cargar la página) — no hay nada que
+// empujar al historial.
+mostrarVista(vistaDesdeURL(), { sinURL: true, instantaneo: true });
 </script>
 </body>
 </html>

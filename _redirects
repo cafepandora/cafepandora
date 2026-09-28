@@ -1,9 +1,25 @@
-# Cloudflare Pages lee este archivo para redirecciones.
+# Cloudflare Pages lee este archivo para redirecciones/proxying.
 #
-# Hasta el 2026-09-28 la página pública de pedidos vivía en /pedidos/ y la
-# app interna en la raíz — se intercambiaron (ver CLAUDE.md, sección
-# "Dominio propio + la raíz ahora es la página pública") para que
-# cafepandora.co muestre la página de clientes, no la pantalla de login.
-# Cualquier link viejo a /pedidos/ (Instagram, WhatsApp Business, tarjetas
-# ya impresas) sigue funcionando, redirigido a la raíz.
-/pedidos/*  /  301
+# Cada pestaña de la página pública tiene su propio link para poder
+# compartir directo a esa sección (2026-09-28, a pedido de Juan: "por si
+# quiero compartir algo específico que no se vaya siempre a la de
+# pedidos") — /pedidos, /maquila, /blog. El código 200 hace que
+# Cloudflare sirva el CONTENIDO de destino (siempre el mismo index.html)
+# pero MANTENGA la URL tal como se escribió en la barra del navegador —
+# a diferencia de 301/302 (redirección de verdad), que sí la cambian.
+# El JS del lado del cliente (inicializarVistaDesdeURL()/mostrarVista(),
+# en index.html) lee esa URL al cargar y decide qué vista mostrar.
+#
+# Reemplaza la regla vieja "/pedidos/* / 301" (de cuando /pedidos/ era
+# la única URL de la página pública, antes del dominio propio) — ya no
+# hace falta una redirección de verdad, /pedidos ahora es una URL válida
+# por derecho propio, no solo un link viejo que hay que reencauzar.
+/pedidos     /   200
+/pedidos/    /   200
+/pedidos/*   /   200
+/maquila     /   200
+/maquila/    /   200
+/maquila/*   /   200
+/blog        /   200
+/blog/       /   200
+/blog/*      /   200
