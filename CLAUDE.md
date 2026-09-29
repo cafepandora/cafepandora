@@ -4874,6 +4874,7 @@ se ve teal con texto claro en las 4 vistas (Catálogo/Maquila/Conócenos/
 Blog), el ítem activo se resalta en dorado con texto oscuro, y "Café
 Pandora" (el link del encabezado) también pasa a dorado cuando
 Conócenos está activo. Sin errores de consola.
+
 ## Foto real de "③ Trilla" en Conócenos (2026-09-29)
 
 El usuario mandó la foto que faltaba (ver "Primera foto real..." y
@@ -4897,3 +4898,94 @@ bien tal cual, sin ajuste adicional.
 Con esto, 3 de los 4 pasos de "Del cafeto a tu taza" ya tienen foto real
 (Cereza, Lavado y secado, Trilla) — solo queda "④ Tueste" pendiente de
 que el usuario mande una foto real de ese paso.
+
+## Menú de celular en teal/blanco + logo no-clickeable + "Nosotros" de vuelta a la lista (2026-09-29)
+
+Dos ajustes seguidos sobre la barra lateral de `index.html` (la pública),
+después de que el usuario confirmara que el activo en dorado (sección de
+arriba) había quedado bien:
+
+**Botón "☰ Menú" cerrado, en teal/blanco**: antes de tocarlo (mientras
+aún no se abre el panel) era una píldora blanca con texto oscuro y borde
+`--linea` — quedaba desentonado ahora que el panel abierto es teal. Se
+cambió `.mobile-menu-btn` a fondo Y borde `var(--teal)`, texto/ícono
+`var(--crema)` — mismo color que el panel abierto, así que "antes" y
+"después" de tocarlo ya se sienten como el mismo elemento, no dos
+botones distintos.
+
+**El logo vuelve a ser NO-clickeable, y "Nosotros" vuelve a la lista de
+navegación** — revierte la decisión del 2026-09-28 ("Café Pandora es un
+link real a Conócenos", sección de arriba): el usuario pidió
+explícitamente volver a poner el logo solo (sin click) y la lista con
+**Catálogo, Maquila, Blog, Nosotros** en ese orden — la palabra pasó de
+"Conócenos" a "Nosotros" en el link visible (mismo `id="navConocenosLink"`,
+mismo `onclick="mostrarVista('conocenos')"`, mismo destino `/conocenos`,
+solo cambia el texto y desde dónde vive en el HTML). `.sidebar-marca`
+volvió a ser un simple contenedor (`padding: 22px 20px 16px`) con un
+`<div class="sidebar-logo" id="sidebarLogo">` adentro — como
+`LOGO_PANDORA_B64` es tinta oscura sobre fondo transparente y el fondo de
+la barra ahora es teal (poco contraste puesto directo), se envolvió en
+una "chapa" clara (`.sidebar-logo`, fondo `--crema`, `border-radius:12px`,
+logo a 128px de ancho) — mismo logo que ya usa `#heroLogo`, pintado
+también acá por `pintarHeroArte()`. El selector que limpia el estado
+"activo" al cambiar de vista volvió de `'.sidebar-nav a, .sidebar-marca a'`
+a `'.sidebar-nav a'` (ya no hay ningún link dentro de `.sidebar-marca`).
+
+Probado en el preview, escritorio y celular (panel cerrado y abierto):
+el botón ☰ cerrado se ve teal/blanco; el logo se ve nítido en su chapa
+clara tanto en el panel abierto de celular como en la barra fija de
+escritorio; "Nosotros" aparece como 4º y último ítem, se resalta en
+dorado al tocarlo y navega a `/conocenos` correctamente. Sin errores de
+consola.
+
+## La página se veía "como celular" en pantallas de escritorio (2026-09-29)
+
+El usuario preguntó, después de ver el ajuste de arriba: *"sera que
+tambien en pc puede verse la pagina completa comoda y no que parezca que
+se esta viendo desde un celular?"* — tenía razón. `.wrap` (el contenedor
+que envuelve casi todo el contenido de "Arma tu pedido": catálogo, "Así
+se pide", tarjetas de café, datos del cliente) tenía `max-width: 560px`
+FIJO, sin ningún ajuste para pantallas anchas — en un monitor de
+escritorio (probado a 1440px), eso dejaba la columna de contenido usando
+menos de la mitad del espacio real disponible (después de la barra
+lateral de 236px), con ~320px de fondo vacío a cada lado. Se veía
+exactamente como una página pensada para celular, simplemente centrada
+en una ventana grande — no una página de escritorio de verdad.
+
+**Mismo problema, mismo origen, en "Nosotros" (Conócenos)**: la foto
+vertical de la finca (`.conocenos-arte`, fuera de `.wrap`, es su propia
+banda) tenía `width: min(420px, 84vw)` — sin ningún ajuste de escritorio
+tampoco, una sola foto angosta flotando sola en medio de un monitor
+grande.
+
+**Arreglo — un solo `@media (min-width: 860px)` nuevo** (el mismo
+breakpoint que ya usa toda la barra lateral para pasar de "panel
+deslizante en celular" a "fija en escritorio", así que no se inventó
+ningún breakpoint nuevo): `.wrap` pasa a `max-width: 720px` y
+`.conocenos-arte` a `width: min(520px, 44vw)` — SOLO en pantallas anchas;
+celular queda exactamente igual que antes (`max-width: 560px` /
+`min(420px, 84vw)` siguen siendo el valor por defecto, el media query
+nuevo únicamente los amplía a partir de 860px).
+
+**A propósito NO se tocó el resto** — los textos/bloques que ya tenían
+su propio `max-width` más angosto (`.hero-linea` 340px, `.proceso-pasos`
+420px, `.tour-desc`/`.dato-duro-texto` 380px, `.blog-lista`/
+`.blog-articulo` 560px) se quedaron igual: son columnas de LECTURA
+(párrafos de texto), no contenedores de layout — una línea de texto muy
+ancha es más difícil de leer, así que angostas ahí es lo correcto, con o
+sin pantalla grande. Ensanchar solo `.wrap` (que contiene tarjetas,
+grillas y controles, no párrafos largos) y `.conocenos-arte` (una foto,
+no texto) es lo que de verdad se sentía "como celular" — esos textos
+angostos, centrados dentro de un `.wrap` ahora más ancho, ya se ven bien
+proporcionados, ni un cambio hacía falta.
+
+Probado en el preview a 1440px: el catálogo (tarjetas de Lavado/
+Honey-Natural, "Así se pide", pills de peso/molienda) usa un ~60% del
+espacio disponible en vez de ~47% de antes, sin que ningún control se
+vea estirado o desproporcionado (los pills siguen centrados como grupo,
+no individualmente estirados); Maquila y Blog se ven proporcionados
+(Blog mantiene su columna de lectura angosta, a propósito); la foto de
+"Nosotros" se ve notoriamente más grande, con más presencia. Confirmado
+también que celular (375px) no cambió en nada — mismo layout, mismos
+tamaños, capturado antes y después del cambio. Sin errores de consola en
+ningún recorrido.

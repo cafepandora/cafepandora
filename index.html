@@ -528,19 +528,17 @@
     background: var(--teal); border-right: 1px solid var(--teal);
     display: flex; flex-direction: column; overflow-y: auto;
   }
-  .sidebar-marca { padding: 24px 20px 14px; }
-  /* "Café Pandora" es un link real ahora (2026-09-29) — lleva a
-     "Conócenos", que se quitó de la lista de abajo (`.sidebar-nav`) para
-     no repetirlo. Antes era solo texto, sin onclick ni href — el usuario
-     reportó que "hasta yo me confundí y traté de darle clic ya un par de
-     veces": un encabezado de marca destacado, arriba del todo, se lee
-     como un link en casi cualquier sitio, así que lo más simple era
-     hacerlo funcionar de verdad en vez de aclarar que no lo es. */
-  .sidebar-marca a { font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--crema); text-decoration: none; }
-  .sidebar-marca a.activo { color: var(--dorado); }
-  @media (hover: hover) {
-    .sidebar-marca a:hover { color: var(--dorado); }
-  }
+  /* El encabezado vuelve a ser SOLO el logo, sin clic (2026-09-29) —
+     "Café Pandora" como link (probado un rato antes) reemplazaba a
+     "Conócenos" en la lista de abajo; el usuario pidió volver a un
+     logo puramente decorativo y devolver ese destino a la lista, ahora
+     con el nombre "Nosotros" (ver `.sidebar-nav`, al final de los 4).
+     El logo real (LOGO_PANDORA_B64, mismo de siempre) es tinta oscura
+     sobre fondo transparente — puesto directo sobre el teal de la barra
+     se perdería, así que lleva su propia placa clara detrás. */
+  .sidebar-marca { padding: 22px 20px 16px; }
+  .sidebar-logo { display: inline-block; background: var(--crema); border-radius: 12px; padding: 9px 16px; }
+  .sidebar-logo img { display: block; width: 128px; }
   .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; flex: 1; }
   /* Sin íconos (2026-09-28, a pedido del usuario — "no haya íconos en la
      barra lateral") y en la misma serif del logo/los títulos en vez de
@@ -562,13 +560,15 @@
      vez) y se encoge a un círculo con solo ☰ apenas se empieza a hacer
      scroll (`.compacta`, ver `actualizarBotonMenu()` en el JS) — para no
      quedar un botón ancho tapando contenido todo el tiempo que dure la
-     visita. */
+     visita. Teal sólido con texto/ícono claros (2026-09-29, a pedido del
+     usuario) — mismo color que la barra que se abre al tocarlo, en vez
+     de un botón blanco que no anticipaba nada de lo que había detrás. */
   .mobile-menu-btn {
     display: none; position: fixed; top: 14px; left: 14px; z-index: 130;
     align-items: center; justify-content: center; gap: 8px;
-    width: auto; height: 44px; padding: 0 18px; border-radius: 30px; border: 1px solid var(--linea);
-    background: var(--blanco); box-shadow: 0 4px 14px rgba(32,27,20,.14);
-    font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; color: var(--cafe);
+    width: auto; height: 44px; padding: 0 18px; border-radius: 30px; border: 1px solid var(--teal);
+    background: var(--teal); box-shadow: 0 4px 14px rgba(32,27,20,.24);
+    font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; color: var(--crema);
     cursor: pointer; transition: width .2s ease, padding .2s ease;
   }
   .mobile-menu-btn .mmb-icono { font-size: 18px; line-height: 1; }
@@ -580,6 +580,19 @@
   @media (min-width: 860px) {
     .main-content { margin-left: var(--sidebar-w); }
     .carrito-barra { left: var(--sidebar-w); }
+    /* Sin esto, `.wrap` se quedaba en 560px (su ancho pensado para
+       celular) sin importar qué tan ancha fuera la pantalla — en un
+       monitor de escritorio se veía como una página de celular
+       angosta, flotando con muchísimo espacio vacío a los lados.
+       720px sigue siendo una columna de lectura cómoda (no se estira a
+       ancho completo), solo usa mejor el espacio real de un monitor. */
+    .wrap { max-width: 720px; }
+    /* Mismo motivo que arriba, para "Nosotros": la foto vertical de la
+       finca (fuera de `.wrap`, banda propia) se quedaba en 420px sin
+       importar el ancho de pantalla — una sola foto angosta flotando
+       sola en un monitor grande. Sigue siendo un retrato (mismo
+       aspect-ratio 3/4), solo más grande. */
+    .conocenos-arte { width: min(520px, 44vw); }
   }
   @media (max-width: 859px) {
     .sidebar-publica { transform: translateX(-100%); transition: transform .25s ease; box-shadow: 0 0 30px rgba(0,0,0,.18); }
@@ -603,12 +616,13 @@
      a propósito (ver el comentario junto a #vistaMerch, más abajo). -->
 <nav class="sidebar-publica" id="sidebarPublica">
   <div class="sidebar-marca">
-    <a href="/conocenos" id="navConocenosLink" onclick="mostrarVista('conocenos'); return false;">Café Pandora</a>
+    <div class="sidebar-logo" id="sidebarLogo"></div>
   </div>
   <div class="sidebar-nav">
     <a href="/" id="navCatalogoLink" onclick="mostrarVista('catalogo'); return false;">Catálogo</a>
     <a href="/maquila" id="navMaquilaLink" onclick="mostrarVista('maquila'); return false;">Maquila</a>
     <a href="/blog" id="navBlogLink" onclick="mostrarVista('blog'); return false;">Blog</a>
+    <a href="/conocenos" id="navConocenosLink" onclick="mostrarVista('conocenos'); return false;">Nosotros</a>
   </div>
   <div class="sidebar-footer">
     <a href="/gestion/">¿Eres del equipo? Inicia sesión →</a>
@@ -979,7 +993,7 @@ function mostrarVista(vista, opciones = {}) {
   document.getElementById('vistaMaquila').style.display = vista === 'maquila' ? '' : 'none';
   document.getElementById('vistaBlog').style.display = vista === 'blog' ? '' : 'none';
   document.getElementById('vistaMerch').style.display = vista === 'merch' ? '' : 'none';
-  document.querySelectorAll('.sidebar-nav a, .sidebar-marca a').forEach(a => a.classList.remove('activo'));
+  document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('activo'));
   const linkId = LINK_ID_POR_VISTA[vista];
   if (linkId) document.getElementById(linkId).classList.add('activo');
   cerrarSidebar(); // no-op en escritorio (siempre visible); en celular cierra el panel al navegar
@@ -1187,6 +1201,10 @@ const LOTES_GRUPO_HONEY_NATURAL = ['Honey', 'Natural'];
 function pintarHeroArte() {
   const logo = document.getElementById('heroLogo');
   if (logo) logo.innerHTML = `<img src="data:image/png;base64,${LOGO_PANDORA_B64}" alt="Café Pandora">`;
+  // Mismo logo, en la placa clara del encabezado de la barra lateral
+  // (2026-09-29) — ahí es puramente decorativo, sin clic.
+  const logoSidebar = document.getElementById('sidebarLogo');
+  if (logoSidebar) logoSidebar.innerHTML = `<img src="data:image/png;base64,${LOGO_PANDORA_B64}" alt="Café Pandora">`;
 }
 
 // La foto real de la finca (finca-flor.jpg) vive en "Conócenos" — se
