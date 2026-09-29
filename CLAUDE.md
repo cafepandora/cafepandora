@@ -4515,3 +4515,34 @@ envíos todos los jueves — si necesitas que sea otro día, tiene un costo
 adicional de $5.000." Mismo `<p class="confianza-item">` de siempre, sin
 tocar CSS ni estructura — solo el texto. Probado en el preview, se ve
 igual de bien que las otras 2 líneas de la misma tarjeta.
+
+## Botón ☰ de celular: "Menú" con texto, se encoge al hacer scroll (2026-09-28)
+
+Pedido del usuario: que el botón de la barra lateral en celular diga
+"Menú" (texto, más fácil de reconocer para alguien que entra por
+primera vez que un ícono solo) al abrir la página, y que se vuelva las
+"3 barritas" (☰ solo) apenas se empieza a bajar.
+
+`.mobile-menu-btn` pasó de círculo fijo de 44px con `☰` a una píldora
+(`<span class="mmb-icono">☰</span><span class="mmb-texto">Menú</span>`,
+`width: auto`, `padding: 0 18px`) que se encoge a los mismos 44px de
+círculo con la clase `.compacta` (`width: 44px; padding: 0`, oculta
+`.mmb-texto`). `actualizarBotonMenu()` (JS nuevo) decide cuándo aplicar
+`.compacta` — `window.scrollY > UMBRAL_SCROLL_MENU` (24px, un margen
+chico para no reaccionar al primer pixel) **o** el panel ya está
+abierto (`abrirSidebar()`/`cerrarSidebar()` ahora llaman a esta función
+en vez de escribir `.textContent` directo) — cuando está abierto se
+queda compacto con `✕` sin importar el scroll, mismo comportamiento de
+siempre solo que ahora pasa por un solo lugar. Un listener de `scroll`
+en `window` (`{ passive: true }`) la llama en cada scroll.
+
+No hizo falta tocar `mostrarVista()`: ya llamaba `cerrarSidebar()` +
+`window.scrollTo({top:0})` en cada cambio de vista — el scroll a 0
+dispara el listener y el botón vuelve solo a la píldora "Menú" al
+llegar arriba, sin ningún cambio adicional.
+
+Probado en el preview, celular (375px): arranca en píldora "☰ Menú";
+al bajar 5 “ticks” de scroll se encoge a círculo con ☰ solo; abrirlo
+muestra ✕ compacto con el panel de siempre; tocar "Maquila" cierra el
+panel, navega, y el botón vuelve a la píldora "Menú" porque la vista
+nueva arranca en scroll 0. Sin errores de consola.
