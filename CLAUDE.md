@@ -4809,3 +4809,41 @@ que se guarda bien se hizo interceptando `window.fetch` para capturar
 el `PATCH` real antes de que saliera: llegó con
 `"tipoCliente":"Distribuidor"` en el cuerpo, exactamente lo que espera
 el backend real. Sin errores de consola.
+
+## "Por pagar" de Ventas, separado en Clientes normales / Distribuidores (2026-09-29)
+
+Pedido de Juan, el mismo día que se arregló lo de Carlos Maya arriba:
+"para encontrar fácil los clientes distribuidores" dentro de "Por
+pagar" — tiene sentido justo después de ese arreglo, porque los
+Distribuidores son los que van pagando de a poco (el stepper "Pagado X
+de Y") y conviene poder revisarlos aparte del resto sin leer fila por
+fila.
+
+`renderVentas()` ahora, SOLO cuando `ventasSubTab === 'porPagar'`,
+separa `porPagarDelMes` en dos listas — `porPagarDistribuidores`
+(`tipoCliente === 'Distribuidor'`) y `porPagarNormales` (todo lo
+demás: Cliente normal, Mayorista e Interno juntos, tal como lo pidió
+Juan — "clientes normales" en el sentido amplio, no solo el tier
+literal "Cliente normal") — y pinta una segunda fila de `.subtabs`
+(mismo estilo rectangular de siempre, sin pills — ver el gotcha ya
+documentado sobre `.subtabs`) debajo de la primera, con su propio
+estado (`ventasPorPagarSubTab`, `cambiarVentasPorPagarSubTab()`) y su
+propia paginación (`ventasPorPagarNormales`/`ventasPorPagarDistribuidores`,
+pre-declaradas en `paginas` — el gotcha de siempre de `paginar()`).
+"Por enviar" y "Pagadas" no se tocaron — la sub-pestaña nueva solo
+aparece dentro de "Por pagar".
+
+`cambiarVentasPorPagarSubTab()` usa `conservarScroll()` (a diferencia
+de `cambiarVentasSubTab()`, la de arriba, que no lo usaba — inconsistencia
+preexistente que no se tocó, fuera de alcance de este pedido) para no
+perder la posición del scroll al alternar entre las dos.
+
+Probado en el preview (con una venta de prueba "Por pagar" de un
+Distribuidor, ya que el mock no traía ninguna combinación así):
+"Por pagar" muestra "Clientes normales (0)" / "Distribuidores (1)";
+tocar "Distribuidores" lista la venta con su "1 de 3 paquetes pagados";
+tocar "Clientes normales" muestra "Sin clientes normales por pagar
+este mes."; "Por enviar" y "Pagadas" siguen sin la sub-pestaña nueva.
+Sin errores de consola nuevos (los 404 de `xlsx-lite.js` que aparecen
+son del respaldo automático del mock, ya documentados, sin relación
+con este cambio).

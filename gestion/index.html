@@ -1351,10 +1351,17 @@ function autocompletarDesdeCliente() {
 }
 let resumenSubTab = 'pagadas';
 let ventasSubTab = 'porEnviar';
+// Dentro de "Por pagar" — separa Distribuidores del resto para
+// encontrarlos rápido (2026-09-29, a pedido de Juan: los Distribuidores
+// suelen ir pagando de a poco, con el stepper "Pagado X de Y", así que
+// conviene poder verlos aparte del resto de pendientes). Solo aplica
+// dentro de esa sub-pestaña — "Por enviar"/"Pagadas" no se tocan.
+let ventasPorPagarSubTab = 'normales';
 const POR_PAGINA = 8;
 const paginas = {
   ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1,
   ventasPorEnviar: 1, ventasPagadas: 1, ventasPorPagar: 1, cuentasCobro: 1, clientes: 1, cerezaComprada: 1, movimientosInventario: 1,
+  ventasPorPagarNormales: 1, ventasPorPagarDistribuidores: 1,
   blog: 1, merch: 1,
   // Paginación propia del modal de búsqueda (abrirBusquedaModal) — separada
   // de la de cada pestaña para no interferir con la página de atrás.
@@ -2893,6 +2900,11 @@ function renderVentas() {
   const porEnviar = delMesOrdenadas.filter(v => v.estadoEnvio !== 'Enviado');
   const pagadasDelMes = delMesOrdenadas.filter(v => v.estado === 'Pagado');
   const porPagarDelMes = delMesOrdenadas.filter(v => v.estado !== 'Pagado');
+  // Dentro de "Por pagar", separados por tipo de cliente — Distribuidores
+  // aparte del resto (Cliente normal/Mayorista/Interno juntos como
+  // "normales"), para encontrarlos rápido sin tener que leer fila por fila.
+  const porPagarDistribuidores = porPagarDelMes.filter(v => v.tipoCliente === 'Distribuidor');
+  const porPagarNormales = porPagarDelMes.filter(v => v.tipoCliente !== 'Distribuidor');
 
   document.getElementById('view-ventas').innerHTML = `
       <div class="card orden-card">
@@ -2985,10 +2997,17 @@ function renderVentas() {
       <button class="${ventasSubTab==='pagadas'?'active':''}" onclick="cambiarVentasSubTab('pagadas')">Pagadas (${pagadasDelMes.length})</button>
       <button class="${ventasSubTab==='porPagar'?'active':''}" onclick="cambiarVentasSubTab('porPagar')">Por pagar (${porPagarDelMes.length})</button>
     </div>
+    ${ventasSubTab === 'porPagar' ? `
+      <div class="subtabs">
+        <button class="${ventasPorPagarSubTab==='normales'?'active':''}" onclick="cambiarVentasPorPagarSubTab('normales')">Clientes normales (${porPagarNormales.length})</button>
+        <button class="${ventasPorPagarSubTab==='distribuidores'?'active':''}" onclick="cambiarVentasPorPagarSubTab('distribuidores')">Distribuidores (${porPagarDistribuidores.length})</button>
+      </div>
+    ` : ''}
     <div class="ledger">
       ${ventasSubTab === 'porEnviar' ? paginar(porEnviar, 'ventasPorEnviar', v => filaVenta(v, false), 'Nada pendiente de envío este mes.') : ''}
       ${ventasSubTab === 'pagadas' ? paginar(pagadasDelMes, 'ventasPagadas', v => filaVenta(v, false), 'Sin ventas pagadas este mes.') : ''}
-      ${ventasSubTab === 'porPagar' ? paginar(porPagarDelMes, 'ventasPorPagar', v => filaVenta(v, false), 'Sin ventas por pagar este mes.') : ''}
+      ${ventasSubTab === 'porPagar' && ventasPorPagarSubTab === 'normales' ? paginar(porPagarNormales, 'ventasPorPagarNormales', v => filaVenta(v, false), 'Sin clientes normales por pagar este mes.') : ''}
+      ${ventasSubTab === 'porPagar' && ventasPorPagarSubTab === 'distribuidores' ? paginar(porPagarDistribuidores, 'ventasPorPagarDistribuidores', v => filaVenta(v, false), 'Sin distribuidores por pagar este mes.') : ''}
     </div>
   `;
   onLnLoteChange();
@@ -2999,6 +3018,10 @@ function renderVentas() {
 function cambiarVentasSubTab(tab) {
   ventasSubTab = tab;
   renderTodo();
+}
+
+function cambiarVentasPorPagarSubTab(tab) {
+  conservarScroll(() => { ventasPorPagarSubTab = tab; renderTodo(); });
 }
 
 /* ---------- Línea nueva (café o un servicio de maquila) ---------- */
