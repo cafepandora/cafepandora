@@ -387,18 +387,23 @@
   .proceso-pill.activo { background: var(--teal); color: #fff; }
   .lote-presentaciones { padding: 4px 18px 16px; }
 
-  /* Los 4 pasos en columna, TODOS visibles de una — antes era una fila
-     con scroll horizontal (scrollbar oculta), y con solo 3-4 pasos
-     visibles a la vez no era obvio que había que deslizar para ver el
-     resto. Para alguien mayor eso puede leerse como "solo hay 2 pasos"
-     y quedarse confundido — en columna se ve todo de una, sin adivinar. */
+  /* Los 4 pasos, TODOS visibles de una — antes era una fila con scroll
+     horizontal (scrollbar oculta), y con solo 3-4 pasos visibles a la
+     vez no era obvio que había que deslizar para ver el resto. Para
+     alguien mayor eso puede leerse como "solo hay 2 pasos" y quedarse
+     confundido — así se ve todo de una, sin adivinar (sea en 1 columna
+     o, como ahora, en 2). */
   /* Sin fondo/borde de tarjeta a propósito (2026-09-22) — con ese
      tratamiento varios clientes reales pensaron que los 4 pasos eran
      botones y tocaban esperando que pasara algo. El título chico
      ("Así se pide") + un guion en vez de tarjeta los deja leyéndose
      como lo que son: una guía de texto, no controles. */
   .guia-titulo { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--teal); margin: 0 0 10px; }
-  .guia-pasos { display: flex; flex-direction: column; gap: 10px; padding: 2px 0 14px; }
+  /* De 4 filas (una por paso) a una cuadrícula de 2×2 (2026-09-29, a
+     pedido del usuario) — mismo contenido, la mitad de alto, para que
+     desde que se entra a la página se llegue antes a la bolsa/catálogo
+     sin perder la claridad de ver los 4 pasos de una. */
+  .guia-pasos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 2px 0 14px; }
   .guia-paso { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600; color: var(--cafe); cursor: default; }
   .guia-paso b { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--verde); color: #fff; font-size: 12.5px; flex-shrink: 0; font-weight: 600; }
 

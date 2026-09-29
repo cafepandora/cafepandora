@@ -4665,3 +4665,23 @@ navegación interna) muestra la foto de la finca sin problema; Maquila y
 los pasos de Proceso (Cereza, Lavado/Honey secado en par) se ven nítidos
 con las fotos ya comprimidas; sin errores de consola en ningún
 recorrido.
+
+## "Así se pide" en 2×2 en vez de 4 filas (2026-09-29)
+
+Pedido del usuario: acortar el espacio que ocupa la guía antes de
+llegar a la bolsa/catálogo, apenas se entra a la página. `.guia-pasos`
+pasó de `display:flex; flex-direction:column` (los 4 pasos, uno debajo
+del otro) a `display:grid; grid-template-columns:1fr 1fr` — los mismos
+4 pasos, ahora en 2 filas de 2 en vez de 4 filas de 1, la mitad de
+alto. El comentario viejo que justificaba "todos visibles de una, sin
+scroll horizontal" (2026-09-22, el motivo por el que se había dejado
+en columna) se actualizó — la cuadrícula sigue mostrando los 4 a la
+vez, sin scroll, así que la razón original de ese cambio sigue
+cumpliéndose, no se está revirtiendo. En celular angosto (375px), los
+textos más largos ("Cantidad y molienda", "Confirma por WhatsApp")
+bajan a 2 líneas dentro de su celda — se ve prolijo igual, y aun así el
+bloque completo queda más bajo que las 4 filas de antes.
+
+Probado en el preview, escritorio y celular (375px): los 4 pasos se
+ven en cuadrícula 2×2, alineados, sin desbordar; sin errores de
+consola.
