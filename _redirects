@@ -1,10 +1,10 @@
 # Cloudflare Pages lee este archivo para redirecciones/proxying.
 #
-# Cada pestaña de la página pública tiene su propio link para poder
+# Cada vista de la página pública tiene su propio link para poder
 # compartir directo a esa sección (2026-09-28, a pedido de Juan: "por si
 # quiero compartir algo específico que no se vaya siempre a la de
-# pedidos") — /pedidos, /maquila, /blog. El código 200 hace que
-# Cloudflare sirva el CONTENIDO de destino (siempre el mismo index.html)
+# pedidos") — /pedidos, /maquila, /conocenos, /blog. El código 200 hace
+# que Cloudflare sirva el CONTENIDO de destino (siempre el mismo index.html)
 # pero MANTENGA la URL tal como se escribió en la barra del navegador —
 # a diferencia de 301/302 (redirección de verdad), que sí la cambian.
 # El JS del lado del cliente (inicializarVistaDesdeURL()/mostrarVista(),
@@ -23,8 +23,15 @@
 /blog        /   200
 /blog/       /   200
 /blog/*      /   200
+# Conócenos (2026-09-28, rediseño "catálogo primero"): junta lo que antes
+# era la portada larga antes del catálogo (Dato duro + Proceso + Tour) en
+# su propia vista de la barra lateral — ver la sección de CLAUDE.md del
+# mismo nombre.
+/conocenos     /   200
+/conocenos/    /   200
+/conocenos/*   /   200
 # Merch (2026-09-28): la ruta YA funciona igual que las de arriba, pero
-# a propósito no tiene ningún link en la página (.nav-secciones) — Juan
+# a propósito no tiene ningún link en la página (barra lateral) — Juan
 # pidió que "aún no se vea públicamente" mientras arma el catálogo. No
 # es privada de verdad (sin login), solo no está enlazada desde ningún
 # lado todavía.

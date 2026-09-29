@@ -4305,7 +4305,149 @@ desbordar.
 
 **Pendiente, para cuando Juan avise que ya armó el catálogo y quiere
 lanzarlo**: correr `migracion_merch.sql`, y agregar
-`<a href="/merch" onclick="mostrarVista('merch'); return false;"
-id="navMerchLink">Merch</a>` a `.nav-secciones` (en `index.html`) +
-`merch: 'navMerchLink'` a `LINK_ID_POR_VISTA` — dos líneas, nada más,
-ya está todo lo demás construido y probado.
+`<a href="/merch" id="navMerchLink" onclick="mostrarVista('merch');
+return false;"><span class="ico">🛍️</span><span>Merch</span></a>` dentro
+de `.sidebar-nav` (en `index.html`) + `merch: 'navMerchLink'` a
+`LINK_ID_POR_VISTA` — dos líneas, nada más, ya está todo lo demás
+construido y probado. ⚠️ *Actualización 2026-09-28*: `.nav-secciones`
+(mencionada arriba en este bloque) ya no existe — la barra de arriba se
+reemplazó por una barra lateral, ver "Barra lateral + catálogo como
+primera pantalla" más abajo; el lugar donde agregar el link de Merch
+ahora es `.sidebar-nav`, como se corrigió en este mismo párrafo.
+
+## Barra lateral + catálogo como primera pantalla (2026-09-28)
+
+Juan compartió un feedback real que le dio alguien de confianza (analiza
+datos para otro negocio, nunca había visto la página — Juan solo se la
+había pasado a conocidos) — dos mensajes, sin que se le preguntara nada
+en concreto: **"es difícil diferenciar entre el consumidor final y lo
+que tú tienes para negocios (maquilas)... como que intenta hacer muchas
+cosas al mismo tiempo. Yo la separaría en consumidor y negocios. Si yo
+quisiera comprar café, quisiera que eso estuviera más directo"**, y por
+separado, sobre el recorrido hasta llegar al catálogo: **"no tanto me
+parece que hay que leer mucho para llegar al catálogo, yo empezaría con
+el catálogo"**. Juan pidió implementar los ajustes, y de paso: **"mejor
+tener todo en una barra lateral de menú como en la app [interna], y que
+la primera página a donde uno llegue sea el catálogo, y que lo de finca
+y toda la info esté en una pestaña llamada 'conócenos' o algo parecido.
+Que sea una web de compra de café antes que cualquier otra cosa"**.
+
+⚠️ **Esto reemplaza por completo lo que describían varias secciones de
+arriba sobre `pedidos/index.html`/`index.html`** ("Identidad visual...",
+"Rediseño de lujo...", "Barra de secciones en pedidos/index.html",
+"Sección 'Maquila'...", "Cada vista de la página pública con su propia
+URL") — se dejaron tal cual, como registro histórico de CÓMO se llegó
+hasta acá, pero el Hero de pantalla completa, `.nav-secciones` (la barra
+fija de arriba con anclas `#datoDuro`/`#procesoSeccion`/`#tourFinca`), y
+la idea de que "café" fuera un scroll largo con la historia de la finca
+ANTES del catálogo, ya NO existen. Si algo de esta sección contradice a
+una de arriba, esta gana — es la más reciente.
+
+**El cambio real, de fondo — 5 vistas en vez de 4, con una barra lateral
+en vez de una barra de arriba**:
+
+- **"Catálogo"** (`#vistaCatalogo`, la URL raíz `/`) es la vista por
+  defecto ahora — antes era "cafe" (Hero + Dato duro + Proceso + Tour +
+  el catálogo, todo en un solo scroll largo). El Hero de 88vh se achicó a
+  un encabezado compacto (`.cat-header`): el logo real, una línea de
+  marca, y las 2 señales de confianza (WhatsApp en menos de una hora,
+  +1.000 pedidos) — nada de CTAs ("Comprar café →"/"Conoce la finca ↓"),
+  porque ya no hace falta saltar a ningún lado, el catálogo está
+  INMEDIATAMENTE debajo. `.wrap` (el carrito/checkout de siempre) no se
+  tocó por dentro — mismo `header-slim`/`guia-pasos`/`nav-rapida`/
+  `#catalogo`/`#bannerExoticos`/`#resumenPedido`/`#confianzaPedido`/
+  `#datosCliente`/`#pantallaFinal`, en el mismo orden, con la misma
+  lógica de JS (`cargarCatalogo()`, `enviarPedido()`,
+  `mostrarConfirmacion()`...) intacta.
+- **"Conócenos"** (`#vistaConocenos`, `/conocenos`) — vista nueva que
+  junta lo que antes era la portada larga: Dato duro (finca real) +
+  Proceso (los 4 pasos, con sus fotos) + Tour de café, en ese mismo
+  orden, apilados normalmente (sin anclas internas ni scrollspy — la
+  barra lateral ya cubre la navegación de primer nivel, no hace falta
+  saltar DENTRO de esta vista a una sub-sección). Arriba de Dato duro se
+  agregó `.conocenos-arte` — la foto real de la finca
+  (`finca-flor.jpg`) que antes vivía en el Hero, para que "Conócenos" no
+  empiece en seco directo con el bloque oscuro de Dato duro.
+- **Maquila y Blog** — sin cambios de contenido, solo se movieron de
+  vivir sueltas bajo `<body>` a vivir dentro de `.main-content` (ver
+  abajo). Maquila sigue siendo la vista que de entrada distingue
+  cliente-final de negocio — exactamente lo que pedía el feedback.
+- **Merch** — sin cambios, sigue sin link en la navegación a propósito
+  (ver la sección de arriba).
+
+**La barra lateral** (`.sidebar-publica`, nueva): en escritorio
+(`min-width: 860px`) es una columna fija de `--sidebar-w` (236px) a la
+izquierda, siempre visible, con 4 links (Catálogo/Maquila/Conócenos/
+Blog, cada uno `icono + texto`) y, al fondo, el link "¿Eres del equipo?
+Inicia sesión →" (antes vivía en un `<footer>` aparte, ahora es el pie
+de la barra — mismo destino, `/gestion/`, sin cambios). En celular
+(`max-width: 859px`) es un panel que se abre/cierra: `translateX(-100%)`
+por defecto, `.abierta` lo trae a `translateX(0)`, con un botón
+`☰`/`✕` fijo en la esquina (`.mobile-menu-btn`, `id="mobileMenuBtn"`,
+`toggleSidebar()`) y un fondo oscuro (`.sidebar-overlay`) que lo cierra
+al tocar fuera. `abrirSidebar()`/`cerrarSidebar()`/`toggleSidebar()`
+(JS nuevo) — `mostrarVista()` llama `cerrarSidebar()` SIEMPRE al cambiar
+de vista (no-op en escritorio, donde el panel nunca se "abre/cierra" de
+verdad), así que tocar un link en celular navega Y cierra el panel en
+el mismo gesto, sin un segundo toque.
+
+`.main-content` (`id="mainContent"`) envuelve TODAS las vistas (antes
+Maquila/Blog/Merch eran hermanos sueltos de `#vistaCafe` bajo `<body>`)
+— en escritorio lleva `margin-left: var(--sidebar-w)` para no quedar
+debajo de la barra; `.carrito-barra` (la barra flotante del carrito,
+`position: fixed`, fuera de `.main-content`) recibe el mismo
+`left: var(--sidebar-w)` en escritorio, para no taparse con la barra
+lateral. Ninguna sección interna (Dato duro, Maquila, Blog...) necesitó
+tocarse por este cambio — al vivir dentro de un contenedor con
+`margin-left`, sus fondos "full-bleed" simplemente dejan de extenderse
+por debajo de la barra lateral, que es el comportamiento correcto
+(la propia barra ya tiene su fondo opaco).
+
+**`mostrarVista()`/`RUTA_POR_VISTA`/`LINK_ID_POR_VISTA`/`vistaDesdeURL()`
+se generalizaron de 4 a 5 vistas** (antes `cafe` era un caso especial —
+"si no es ninguna de las otras 3, es cafe, y cafe no resalta ningún
+link"; ahora las 5 vistas son simétricas, `catalogo` incluida, cada una
+con su propio link que se resalta igual que las demás). `_redirects`
+ganó `/conocenos`, `/conocenos/`, `/conocenos/*` (código 200, mismo
+patrón de proxying que las demás — ver el comentario en el archivo).
+
+⚠️ **Gotcha real durante la construcción (atrapado y corregido antes de
+probar, no llegó a producción)**: el primer intento de mover Dato duro/
+Proceso/Tour a `#vistaConocenos` cerró `#vistaCatalogo` justo después del
+encabezado compacto (`.cat-header`) y ABRIÓ `#vistaConocenos` ahí mismo,
+ANTES de `.wrap` — dejando el carrito/checkout completo (`.wrap`) como
+hermano suelto de `.main-content`, sin ningún `id` de vista que lo
+controlara, así que quedaba SIEMPRE visible sin importar qué vista
+estuviera activa (o, según el punto exacto del corte, atrapado dentro de
+`#vistaConocenos` y por lo tanto SIEMPRE oculto). Se encontró
+inmediatamente con `grep -n` sobre el HTML (contando aperturas/cierres de
+`id="vista*"` y `class="wrap"`) antes de siquiera abrir el preview — la
+moraleja de siempre en este archivo, otra vez: cuando una edición mueve
+bloques grandes de HTML entre contenedores con `display:none`, verificar
+la posición exacta de cada apertura/cierre con `grep -n`, no confiar en
+que "se ve bien" a simple vista en un diff largo.
+
+⚠️ **Segundo hallazgo, de CSS, encontrado probando en el preview**: sin
+`background: var(--crema)` propio, `.cat-header` dejaba ver la marca de
+agua (armadillo, fixed, detrás de todo) mucho más marcada que su 5% de
+opacidad real — el mismo problema que ya justificaba el fondo opaco de
+`.hero` (ver el comentario original, seguía documentado en el CSS) —
+solo que esta vez en un contenedor nuevo que no lo había heredado.
+Arreglado agregándole el mismo `background: var(--crema)` +
+`position: relative; z-index: 1` que ya usaba `.hero`.
+
+Probado a fondo en el preview local, escritorio y celular (375px):
+Catálogo carga de entrada en `/` con el encabezado compacto + guía +
+catálogo, sin la portada larga de antes; Conócenos/Maquila/Blog cargan
+completos al tocar cada link de la barra (y por URL directa —
+`/conocenos`, `/maquila`, `/blog` — sin pasar por la navegación interna);
+la barra lateral resalta el link correcto en las 4 vistas; `.carrito-barra`
+no se monta sobre la barra lateral en escritorio; en celular el panel
+`☰` abre con fondo oscuro, cierra al tocar un link o el fondo, y no tapa
+el encabezado (`.sidebar-marca` con espacio de sobra para el botón fijo,
+segundo gotcha chico encontrado y corregido en la misma pasada); se
+armó un pedido completo (agregar café, llenar datos, "Confirmar por
+WhatsApp") y la pantalla de confirmación se mostró igual que siempre,
+con el resto del formulario oculto correctamente. `/merch` sigue
+funcionando por URL directa, sin ningún link resaltado en la barra —
+comportamiento sin cambios. Sin errores de consola en ningún recorrido.
