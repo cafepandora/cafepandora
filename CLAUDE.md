@@ -4759,3 +4759,53 @@ Probado en el preview después de quitar los 4 `id`: Catálogo, Maquila,
 Conócenos (con "Café Pandora" resaltando en teal, sin depender de
 `id="datoDuro"` para nada) y Blog cargan igual que antes; sin errores
 de consola.
+
+## "Tipo de cliente" ahora se puede corregir al editar una venta (2026-09-29)
+
+Juan: *"cuando un cliente es distribuidor quiero que se pueda descontar
+una a una lo que va pagando, como Andrés Mall, porque Carlos Maya
+sucede lo mismo pero no puedo hacerlo aún"*. El stepper "Pagado X de Y"
+(ver "Pagos parciales de Distribuidores, paquete por paquete" más
+arriba) ya existía y ya funciona — solo se ve cuando
+`tipoCliente === 'Distribuidor'`. El problema real, confirmado con
+Juan antes de tocar código: la venta de Carlos Maya no quedó marcada
+como Distribuidor al registrarla, y **`abrirEdicionVenta()` nunca tuvo
+un campo para corregir "Tipo de cliente"** una vez guardada la venta —
+`editTipoCliente` se leía de `v.tipoCliente` al abrir el modal pero
+nunca se podía reasignar. Sin poder corregir el dato, el stepper se
+quedaba escondido para siempre en cualquier venta mal clasificada al
+registrarla.
+
+**El backend YA soportaba esto** — `functions/api/ventas/[id].ts`
+(`onRequestPatch`) ya tenía `if (body.tipoCliente !== undefined)
+updates.tipo_cliente = body.tipoCliente;` desde antes, sin usarse nunca
+desde el frontend de edición. Por eso el arreglo fue 100% de
+`gestion/index.html`, sin ninguna migración ni cambio de backend:
+
+- `abrirEdicionVenta()` ganó un `<select id="em-tipo-cliente">` (mismas
+  4 opciones de `TIPOS_CLIENTE`) arriba del todo, antes de "Agregar
+  línea" — con una nota aclarando que corregirlo NO cambia el valor de
+  las líneas ya guardadas (esto es corregir una etiqueta, no
+  renegociar precios ya cobrados).
+- `cambiarTipoClienteEdicion()` (nueva) actualiza `editTipoCliente` y
+  llama a `pintarEdicionCarrito()` (para que el stepper aparezca/
+  desaparezca al toque en cada línea de café ya guardada) y a
+  `recalcularEmLinea()` (para que "Valor de esta línea", si ya se había
+  elegido lote/presentación para una línea nueva, se recalcule con la
+  tarifa del tier correcto).
+- `guardarEdicionVenta()` suma `tipoCliente: editTipoCliente` al
+  `PATCH` que ya mandaba — una línea.
+
+Probado en el preview (con un cliente de prueba registrado como
+"Cliente normal", simulando el caso real de Carlos Maya): abrir su
+venta, cambiar "Tipo de cliente" a Distribuidor hace aparecer el
+stepper "Pagado 0 de 2" en su línea de café al instante, y recalcula el
+precio sugerido de la tarifa (confirmado que baja al precio de
+Distribuidor); tocar "+" sube a "Pagado 1 de 2" correctamente. El mock
+de preview no persiste ediciones de ventas (limitación conocida del
+harness de pruebas, no del código real — ver el patrón ya documentado
+para otros PATCH de este mismo mock), así que la confirmación final de
+que se guarda bien se hizo interceptando `window.fetch` para capturar
+el `PATCH` real antes de que saliera: llegó con
+`"tipoCliente":"Distribuidor"` en el cuerpo, exactamente lo que espera
+el backend real. Sin errores de consola.
