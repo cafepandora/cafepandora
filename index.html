@@ -90,12 +90,19 @@
     font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 15px; color: #fff;
     background: var(--teal); border-radius: 30px; padding: 13px 30px; text-decoration: none;
   }
-  /* Adelanta la única señal de confianza que antes solo aparecía al
-     final del flujo (pantalla de confirmación) — resuelve la duda de
-     "¿esto es serio, contestan de verdad?" antes de elegir nada.
-     Auditoría CRO 2026-09-21; se queda en el encabezado del catálogo. */
-  .hero-confianza { font-size: 13px; font-weight: 600; color: var(--cafe-soft); margin: 2px 0 0; }
-  .hero-prueba-social { font-size: 13px; font-weight: 700; color: var(--teal); margin: 4px 0 0; }
+  /* "Respondemos por WhatsApp" y "+1.000 pedidos" ya NO viven en el
+     encabezado del catálogo (2026-09-28, a pedido del usuario) — la
+     primera se movió a `.wrap`, entre el banner de Exóticos y donde se
+     llenan los datos (justo antes de tocar "Confirmar", el momento en
+     que más ayuda saber que sí contestan rápido); la segunda al final
+     del todo, después de "Tus datos" (un cierre de confianza justo
+     antes de mandar el pedido, no una introducción). Reusan las mismas
+     2 clases de siempre — solo se les agrega centrado + margen propio
+     acá, porque `.wrap` (a diferencia de `.cat-header`) no centra su
+     texto por defecto. */
+  .hero-confianza, .hero-prueba-social { font-size: 13px; text-align: center; margin: 4px 0 18px; }
+  .hero-confianza { font-weight: 600; color: var(--cafe-soft); }
+  .hero-prueba-social { font-weight: 700; color: var(--teal); }
 
   .dato-duro {
     background:
@@ -285,6 +292,17 @@
   .confianza-titulo { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--teal); margin: 0 0 10px; }
   .confianza-item { font-size: 13.5px; color: var(--cafe); margin: 0 0 8px; line-height: 1.45; }
   .confianza-item:last-child { margin-bottom: 0; }
+  /* Las 2 tarjetas-bolsa (Lavado, Honey/Natural) una al lado de la otra
+     en vez de apiladas (2026-09-28, a pedido del usuario) — solo desde
+     860px (mismo quiebre que ya usa la barra lateral, ver
+     `.sidebar-publica`), porque en celular ese ancho ya es angosto para
+     una sola tarjeta, dos lado a lado quedarían apretadas. `gap` hace el
+     trabajo de separación — el `margin-bottom` de `.card` en cada
+     tarjeta queda de sobra dentro de su propia celda, no estorba. */
+  .catalogo-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 860px) {
+    .catalogo-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+  }
   .card-lote { padding: 0; overflow: hidden; scroll-margin-top: 66px; }
   #resumenPedido { scroll-margin-top: 66px; }
   .lote-cabecera { padding: 20px 18px 18px; background: var(--crema-alt); }
@@ -559,8 +577,6 @@
   <p class="hero-kicker revela">Café de origen colombiano</p>
   <h1 class="hero-titulo revela" id="heroLogo"></h1>
   <p class="hero-linea revela">Café colombiano de origen — cultivado, tostado y empacado en nuestra propia finca.</p>
-  <p class="hero-confianza revela">💬 Respondemos por WhatsApp en menos de una hora</p>
-  <p class="hero-prueba-social revela">☕ +1.000 pedidos de café entregados este año</p>
 </div>
 
 <div class="wrap">
@@ -586,6 +602,8 @@
     <a class="wa-inline" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20preguntar%20por%20la%20disponibilidad%20de%20los%20caf%C3%A9s%20ex%C3%B3ticos." target="_blank" rel="noopener">📲 Preguntar por WhatsApp</a>
   </div>
 
+  <p class="hero-confianza revela">💬 Respondemos por WhatsApp en menos de una hora</p>
+
   <div id="resumenPedido" style="display:none"></div>
 
   <div class="card confianza-pedido" id="confianzaPedido">
@@ -601,6 +619,8 @@
     <div class="field"><label>Tu WhatsApp o celular</label><input id="p-telefono" type="tel" placeholder="Ej. 300 000 0000" oninput="guardarBorrador()"></div>
     <div class="field"><label>Notas (opcional)</label><textarea id="p-notas" placeholder="Barrio, punto de entrega, alguna preferencia…" oninput="guardarBorrador()"></textarea></div>
   </div>
+
+  <p class="hero-prueba-social revela">☕ +1.000 pedidos de café entregados este año</p>
 
   <div id="pantallaFinal"></div>
 </div>
@@ -1144,7 +1164,13 @@ function pintarCatalogo() {
     if (filas.length) html += tarjetaListaHTML(lote, filas);
   });
 
-  cont.innerHTML = html || '<div class="card">No hay productos disponibles ahora mismo. Escríbenos directo por WhatsApp.</div>';
+  // Las dos "bolsas" (Lavado, Honey/Natural) van una al lado de la otra en
+  // vez de una bajo la otra en pantallas anchas (2026-09-28, a pedido del
+  // usuario) — .catalogo-grid es 2 columnas desde 860px (mismo quiebre que
+  // ya usa la barra lateral) y 1 columna en celular, donde no cabrían
+  // cómodas. Envuelve lo que sea que haya (2 tarjetas normalmente, o
+  // ninguna) sin afectar el mensaje de "no hay productos".
+  cont.innerHTML = html ? `<div class="catalogo-grid">${html}</div>` : '<div class="card">No hay productos disponibles ahora mismo. Escríbenos directo por WhatsApp.</div>';
 }
 
 // Tarjeta "de siempre": lista con una fila por presentación, cada una con

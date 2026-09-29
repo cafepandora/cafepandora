@@ -4467,3 +4467,44 @@ clientes (mismo criterio que ya tenía cuando era un `<footer>` aparte).
 Probado en el preview, escritorio y celular (375px, panel abierto): los
 4 links se ven en serif sin íconos, sin desbordar ni verse apretados;
 sin errores de consola.
+
+## Reordenar señales de confianza + catálogo en 2 columnas (2026-09-28)
+
+Tres pedidos más del usuario, viendo ya el catálogo como primera
+pantalla en vivo:
+
+1. **"💬 Respondemos por WhatsApp en menos de una hora"** — se quitó del
+   encabezado del catálogo (`.cat-header`) y se movió a `.wrap`, entre
+   el banner de Exóticos y "Tus datos" (justo antes de `#resumenPedido`/
+   `#confianzaPedido`) — el momento en que más ayuda saber que sí
+   contestan rápido es cuando ya se está por llenar los datos, no antes
+   de ver el catálogo.
+2. **"☕ +1.000 pedidos de café entregados este año"** — se quitó del
+   mismo encabezado y se movió al FINAL del todo, después de "Tus
+   datos" (justo antes de `#pantallaFinal`) — un cierre de confianza
+   justo antes de mandar el pedido, en vez de una introducción.
+   `.cat-header` se quedó solo con el kicker, el logo y la línea de
+   marca — más corto todavía que la primera versión del rediseño.
+   Ninguna de las dos cambió de clase CSS (`.hero-confianza`/
+   `.hero-prueba-social`, las mismas de siempre) — solo se les agregó
+   `text-align: center` + su propio margen, porque `.wrap` (a diferencia
+   de `.cat-header`) no centra el texto por defecto.
+3. **Las dos "bolsas" (Lavado, Honey/Natural) una al lado de la otra**:
+   `pintarCatalogo()` ahora envuelve lo que arma (antes html suelto) en
+   un `<div class="catalogo-grid">` — grid de 2 columnas desde 860px
+   (mismo quiebre que ya usa la barra lateral), 1 columna en celular
+   (con solo ~340px de ancho disponible, dos bolsas lado a lado
+   quedarían demasiado apretadas). En escritorio, dentro de `.wrap`
+   (560px máximo, ~528px útiles descontando el padding), cada columna
+   queda en ~257px — ajustado pero suficiente: los pills de peso ya
+   tenían `flex-wrap`, así que si no caben los 3 en una fila bajan solo
+   a una segunda fila, sin desbordar. Si en el futuro se agrega un
+   tercer lote con bolsa propia, cae solo a una tercera celda (fila 2,
+   columna 1) sin tocar nada de este código — el grid no asume
+   exactamente 2 tarjetas.
+
+Probado en el preview, escritorio (con las 2 tarjetas realmente lado a
+lado, controles de peso/molienda/cantidad funcionando en las dos) y
+celular 375px (una sola columna, sin cambios); las 2 señales de
+confianza aparecen en su nueva posición y el encabezado del catálogo
+quedó más corto. Sin errores de consola.
