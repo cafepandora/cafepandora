@@ -959,6 +959,7 @@ function mostrarVista(vista, opciones = {}) {
     actualizarBarra(); // restaura la barra del carrito si ya tenía algo
   } else {
     document.getElementById('barraCarrito').classList.remove('visible');
+    if (vista === 'conocenos') cargarConocenosArte(); // primera vez: pinta la foto de la finca
     if (vista === 'blog') cargarBlog(); // primera vez: trae los artículos; si ya se cargaron, no repite el fetch
     if (vista === 'merch') cargarMerch(); // ídem, para los productos
     iniciarRevelado(); // las tarjetas de Conócenos/Maquila/Blog/Merch estaban en display:none, nadie las había observado todavía
@@ -1155,12 +1156,33 @@ const LOTES_GRUPO_HONEY_NATURAL = ['Honey', 'Natural'];
 // aparte; para arte/logos vectoriales pequeños, base64 sigue siendo lo
 // normal en este proyecto.
 function pintarHeroArte() {
-  // La foto real de la finca vive ahora en "Conócenos" (antes era la foto
-  // del Hero, antes de que el catálogo pasara a ser la primera pantalla).
-  const cont = document.getElementById('conocenosArte');
-  if (cont) cont.innerHTML = `<img src="img/finca-flor.jpg" alt="Cereza de café y flor de café en la finca, al amanecer" loading="lazy">`;
   const logo = document.getElementById('heroLogo');
   if (logo) logo.innerHTML = `<img src="data:image/png;base64,${LOGO_PANDORA_B64}" alt="Café Pandora">`;
+}
+
+// La foto real de la finca (finca-flor.jpg) vive en "Conócenos" — se
+// pinta la PRIMERA VEZ que se muestra esa vista, no de entrada (mismo
+// patrón que cargarBlog()/cargarMerch() más abajo), para no gastar esos
+// ~280 KB en alguien que solo viene a comprar café y nunca toca
+// "Conócenos". 2026-09-29: antes se pintaba de una, al cargar la
+// página, con `loading="lazy"` del navegador para lograr el mismo
+// ahorro — pero como el `<img>` nacía DENTRO de `#vistaConocenos`
+// (display:none hasta que se toca el link), varios navegadores de
+// celular nunca llegaban a cargar la imagen ni siquiera después de
+// mostrar la vista (un `<img>` sin caja de layout, por vivir en un
+// contenedor `display:none`, no cuenta bien su distancia al viewport, y
+// el lazy-loading nativo se queda esperando para siempre) — Juan lo
+// reportó como "no cargan las imágenes... en algunas de las pestañas".
+// Con este patrón (construir el `<img>` recién cuando la vista ya es
+// visible) no hay ningún `display:none` de por medio al momento de
+// pedir la imagen, así que no depende de que el navegador acierte con
+// el lazy-loading nativo.
+let conocenosArteCargada = false;
+function cargarConocenosArte() {
+  if (conocenosArteCargada) return;
+  conocenosArteCargada = true;
+  const cont = document.getElementById('conocenosArte');
+  if (cont) cont.innerHTML = `<img src="img/finca-flor.jpg" alt="Cereza de café y flor de café en la finca, al amanecer">`;
 }
 
 // Revela por scroll los bloques .revela (Hero, Dato duro) agregándoles

@@ -4598,3 +4598,70 @@ el `<head>`. Igual que con el manifest de la app interna, no se pudo
 probar el comportamiento real de "Añadir a pantalla de inicio" (necesita
 un dispositivo físico) — se basa en cómo iOS/Android documentan estas
 etiquetas.
+
+## Fotos reales comprimidas + el bug real de por qué no cargaban en "algunas pestañas" (2026-09-29)
+
+Juan reportó: "no están cargando las imágenes de la página de pedidos
+en algunas de las pestañas" y pidió comprimirlas para que pesen menos
+sin perder calidad. Las dos cosas eran ciertas y, revisando, la primera
+tenía una causa concreta — no era solo "van lentas".
+
+**El bug real**: `pintarHeroArte()` pintaba la foto de la finca
+(`finca-flor.jpg`, en "Conócenos") de una, al cargar la página, con
+`loading="lazy"` del navegador para no gastar esos KB en alguien que
+nunca visita esa pestaña. El problema: ese `<img>` nacía DENTRO de
+`#vistaConocenos`, que empieza en `display:none` hasta que se toca el
+link — un elemento sin caja de layout (por vivir en un contenedor
+`display:none`) no tiene una distancia calculable al viewport, así que
+varios navegadores de celular (sobre todo Safari/iOS) nunca disparaban
+la carga de esa imagen, ni siquiera después de mostrar la vista más
+tarde. Era la ÚNICA imagen de todo el archivo con `loading="lazy"` —
+las demás (Maquila, Proceso) son `<img>` fijos en el HTML de siempre,
+sin este problema, así que el síntoma real era "en la pestaña Conócenos
+específicamente, a veces".
+
+**Arreglo, no un parche**: se quitó el `loading="lazy"` del navegador y
+se reemplazó por el mismo patrón que ya usan `cargarBlog()`/
+`cargarMerch()` — un flag (`conocenosArteCargada`) + una función
+(`cargarConocenosArte()`) que arma el `<img>` recién la PRIMERA VEZ que
+se muestra "Conócenos" (llamada desde `mostrarVista()`, junto a las
+otras dos). Como para ese momento `#vistaConocenos` ya está
+`display:''` (visible), no hay ningún contenedor oculto de por medio
+cuando el navegador recibe el `<img>` — se carga siempre, sin depender
+de que el lazy-loading nativo acierte. `pintarHeroArte()` se quedó solo
+con el logo del encabezado (`#heroLogo`), que sí vive en una vista
+visible desde el principio y nunca tuvo este problema.
+
+**Compresión real, las 6 fotos** (`img/*.jpg`) — Pillow, no algo
+manual: cada una se reescaló al ancho máximo que de verdad ocupa en
+pantalla (revisando el CSS: `.conocenos-arte`/`.maquila-foto`/
+`.proceso-foto` tienen su propio `max-width`), a 2.5-3× ese ancho para
+verse nítidas en pantallas retina sin cargar más resolución de la que
+un navegador va a mostrar nunca, más recompresión JPEG progresiva
+(calidad 78-82, suficiente para foto real sin artefactos visibles —
+revisado a ojo antes de aplicar). De paso, `ImageOps.exif_transpose()`
+antes de guardar (respeta la rotación real de cada foto de celular) y
+se descarta el EXIF al reguardar (menos peso, y de paso ya no queda
+metadata como ubicación GPS en los archivos servidos). Antes/después:
+
+| Archivo | Antes | Después |
+|---|---|---|
+| finca-flor.jpg | 436 KB | 278 KB |
+| finca-ladera.jpg | 389 KB | 241 KB |
+| maquila-tostadora.jpg | 315 KB | 152 KB |
+| proceso-cereza.jpg | 211 KB | 92 KB |
+| proceso-secado.jpg | 176 KB | 115 KB |
+| proceso-secado-honey.jpg | 339 KB | 48 KB |
+
+Total: 1.87 MB → 926 KB (~50% menos), sin ningún cambio visible a ojo
+en el sitio real. `proceso-secado-honey.jpg` fue el caso más extremo —
+1600 px de ancho de archivo real para un espacio de apenas ~135 px en
+pantalla (la mitad de `.proceso-fotos-par`, 280px), así que casi toda
+esa resolución nunca se llegaba a ver.
+
+Probado en el preview local: "Conócenos" cargada DIRECTO por URL
+(`/conocenos`, el caso más parecido al bug real — sin pasar por
+navegación interna) muestra la foto de la finca sin problema; Maquila y
+los pasos de Proceso (Cereza, Lavado/Honey secado en par) se ven nítidos
+con las fotos ya comprimidas; sin errores de consola en ningún
+recorrido.
