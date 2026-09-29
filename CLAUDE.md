@@ -4874,3 +4874,26 @@ se ve teal con texto claro en las 4 vistas (Catálogo/Maquila/Conócenos/
 Blog), el ítem activo se resalta en dorado con texto oscuro, y "Café
 Pandora" (el link del encabezado) también pasa a dorado cuando
 Conócenos está activo. Sin errores de consola.
+## Foto real de "③ Trilla" en Conócenos (2026-09-29)
+
+El usuario mandó la foto que faltaba (ver "Primera foto real..." y
+"Pendiente / a medias" más arriba — de las 6 piezas que mandó el
+2026-09-25, ninguna documentaba Trilla en concreto). Mismo pipeline de
+siempre: `sips` (HEIC→JPEG, el archivo llegó como `IMG_6600.HEIC`) +
+Pillow (`ImageOps.exif_transpose()` — el archivo traía tag de
+orientación 6, 4032×3024 crudo → 3024×4032 ya derecho; sin este paso se
+hubiera visto de lado) + resize/recompresión a 800×1067, calidad 82,
+progressive. Guardada como `img/proceso-trilla.jpg` (~127 KB).
+
+Contenido: café verde (ya sin pergamino) cayendo de un cucharón/costal a
+una caneca roja que ya muestra residuo de cisco — encaja directo con el
+texto ya existente del paso ("Retiramos el pergamino para dejar el café
+verde..."). Se simuló el recorte de `.proceso-foto` (`aspect-ratio:3/2,
+object-fit:cover`, centrado por default) antes de guardar — a diferencia
+de la foto de secado (`proceso-secado.jpg`, que sí necesitó
+`object-position` a mano), el recorte centrado de esta foto ya se veía
+bien tal cual, sin ajuste adicional.
+
+Con esto, 3 de los 4 pasos de "Del cafeto a tu taza" ya tienen foto real
+(Cereza, Lavado y secado, Trilla) — solo queda "④ Tueste" pendiente de
+que el usuario mande una foto real de ese paso.
