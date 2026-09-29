@@ -512,9 +512,20 @@
      + la barra del carrito ya no, esa sigue aparte) para poder correrlo
      `--sidebar-w` a la derecha en escritorio con un solo `margin-left`,
      sin tocar el CSS de cada vista una por una. */
+  /* Fondo teal sólido en vez de crema (2026-09-29, a pedido del usuario:
+     "que sea más vistoso" apenas se abre la página) — el teal ya era el
+     color de marca más usado en todo el sitio (botones, activos,
+     títulos), así que esto es la MISMA idea que ya tenía el ítem activo
+     de `.sidebar-nav` (fondo teal sólido), llevada a la barra completa,
+     no un color nuevo sin relación con el resto. Con el fondo oscuro,
+     todo el texto de adentro pasa a claro, y "elegido/activo" se marca
+     con dorado (el otro acento de marca, el mismo que ya usan los
+     peso-pill/molienda-btn elegidos en el catálogo) en vez de con el
+     fondo teal de antes — ya no se nota un fondo teal sobre otro fondo
+     teal. */
   .sidebar-publica {
     position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w); z-index: 120;
-    background: var(--crema-alt); border-right: 1px solid var(--linea);
+    background: var(--teal); border-right: 1px solid var(--teal);
     display: flex; flex-direction: column; overflow-y: auto;
   }
   .sidebar-marca { padding: 24px 20px 14px; }
@@ -525,22 +536,22 @@
      veces": un encabezado de marca destacado, arriba del todo, se lee
      como un link en casi cualquier sitio, así que lo más simple era
      hacerlo funcionar de verdad en vez de aclarar que no lo es. */
-  .sidebar-marca a { font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--cafe); text-decoration: none; }
-  .sidebar-marca a.activo { color: var(--teal); }
+  .sidebar-marca a { font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--crema); text-decoration: none; }
+  .sidebar-marca a.activo { color: var(--dorado); }
   @media (hover: hover) {
-    .sidebar-marca a:hover { color: var(--teal); }
+    .sidebar-marca a:hover { color: var(--dorado); }
   }
   .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; flex: 1; }
   /* Sin íconos (2026-09-28, a pedido del usuario — "no haya íconos en la
      barra lateral") y en la misma serif del logo/los títulos en vez de
      Outfit — se ve más elegante como menú de texto solo. */
-  .sidebar-nav a { display: block; font-family: var(--serif); font-weight: 600; font-size: 16.5px; letter-spacing: .2px; color: var(--cafe); text-decoration: none; padding: 12px 14px; border-radius: 12px; }
-  .sidebar-nav a.activo { background: var(--teal); color: #fff; }
+  .sidebar-nav a { display: block; font-family: var(--serif); font-weight: 600; font-size: 16.5px; letter-spacing: .2px; color: var(--crema); text-decoration: none; padding: 12px 14px; border-radius: 12px; }
+  .sidebar-nav a.activo { background: var(--dorado); color: var(--cafe); }
   @media (hover: hover) {
-    .sidebar-nav a:not(.activo):hover { background: var(--linea); }
+    .sidebar-nav a:not(.activo):hover { background: rgba(252,250,243,.14); }
   }
-  .sidebar-footer { padding: 14px 20px 20px; border-top: 1px solid var(--linea); }
-  .sidebar-footer a { font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--cafe-soft); text-decoration: none; opacity: .75; }
+  .sidebar-footer { padding: 14px 20px 20px; border-top: 1px solid rgba(252,250,243,.2); }
+  .sidebar-footer a { font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--crema); text-decoration: none; opacity: .7; }
   .sidebar-footer a:hover { opacity: 1; text-decoration: underline; }
 
   /* Botón de menú y fondo oscuro de celular — display:none por

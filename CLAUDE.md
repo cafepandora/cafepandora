@@ -4847,3 +4847,30 @@ este mes."; "Por enviar" y "Pagadas" siguen sin la sub-pestaña nueva.
 Sin errores de consola nuevos (los 404 de `xlsx-lite.js` que aparecen
 son del respaldo automático del mock, ya documentados, sin relación
 con este cambio).
+
+## Barra lateral de pedidos, fondo teal en vez de crema (2026-09-29)
+
+Pedido del usuario: "el menú... en vez de blanco en azul o verde que
+hemos usado para la marca, para que sea más vistoso". `.sidebar-publica`
+pasó de `background: var(--crema-alt)` a `background: var(--teal)` — el
+teal ya era, por lejos, el color de marca más usado en todo el sitio
+(botones, títulos de sección, el fondo del ítem activo de la barra
+misma), así que esto es más una extensión natural que un color nuevo.
+
+Con el fondo oscuro, todo el texto de adentro (`.sidebar-marca a`,
+`.sidebar-nav a`, `.sidebar-footer a`) pasó de `var(--cafe)` (café
+oscuro, pensado para fondo claro) a `var(--crema)` (claro). El
+"elegido/activo" de cada link ya no se puede seguir marcando con fondo
+teal sólido (se perdía contra el fondo teal de toda la barra) — se
+cambió a **dorado**, el otro acento de marca, el mismo que ya usan los
+`peso-pill`/`molienda-btn` elegidos en el catálogo para decir "esto es
+lo que está seleccionado" — mismo lenguaje visual reusado, no inventado
+de cero. El hover de los ítems no-activos pasó de `var(--linea)` (un
+gris casi invisible sobre teal) a un blanco translúcido
+(`rgba(252,250,243,.14)`).
+
+Probado en el preview, escritorio y celular (panel abierto): la barra
+se ve teal con texto claro en las 4 vistas (Catálogo/Maquila/Conócenos/
+Blog), el ítem activo se resalta en dorado con texto oscuro, y "Café
+Pandora" (el link del encabezado) también pasa a dorado cuando
+Conócenos está activo. Sin errores de consola.
