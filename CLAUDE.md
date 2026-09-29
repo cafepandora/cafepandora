@@ -4989,3 +4989,104 @@ no individualmente estirados); Maquila y Blog se ven proporcionados
 también que celular (375px) no cambió en nada — mismo layout, mismos
 tamaños, capturado antes y después del cambio. Sin errores de consola en
 ningún recorrido.
+
+## Reseñas con estrellas, bajo cada producto (2026-09-29)
+
+Pedido del usuario: un espacio bajo cada producto del catálogo para
+dejar reseñas de 1 a 5 estrellas, "de la manera más óptima que exista,
+fácil de entender, cómoda y accesible para personas de cualquier edad".
+
+**Tabla nueva, sin moderación previa** (`migracion_resenas.sql` —
+`resenas`: id, lote, nombre, calificacion, comentario, ts): a diferencia
+de Blog/Merch (que arrancan en 'Borrador' hasta que Juan los publica),
+una reseña se ve de inmediato apenas se envía — ese es justo el punto de
+que sea "cómoda" de dejar (retroalimentación instantánea, como cualquier
+sitio de reseñas real). `GET`/`POST /api/resenas-publico` son ambos
+públicos, sin clave (mismo patrón que `pedidos-web`/`catalogo-publico`)
+— el `POST` valida `lote` contra los 4 lotes reales del catálogo,
+`calificacion` como entero 1-5, y recorta `nombre`/`comentario` a 60/500
+caracteres. **Sí exige login borrar una** — `DELETE
+/api/resenas-publico/:id` (`requireAuth()`) es el único endpoint
+protegido de este recurso, pensado para quitar spam o algo inapropiado;
+**no tiene pantalla propia en la app interna todavía** (ver "Pendiente"
+más abajo) — hay que llamarlo a mano con el token de sesión mientras
+tanto.
+
+**Accesible de verdad, no solo con `aria-*` de adorno**: el selector de
+calificación (`bloqueResenasHTML()`, `index.html`) es un
+`role="radiogroup"` de 5 botones `role="radio"` de 44×44px (mismo
+mínimo de tap-target que ya rige toda la accesibilidad de este
+proyecto), cada uno con `aria-label` explícito ("4 estrellas — Muy
+bueno") y `aria-checked` — confirmado que un lector de pantalla los
+anuncia como radios reales, no como texto suelto. Más importante para
+alguien mayor: **la estrella NUNCA es la única señal** — justo debajo
+del selector hay un texto que se actualiza en vivo ("Tu calificación: 4
+de 5 — Muy bueno", `ETIQUETA_CALIFICACION`) y el resumen de arriba
+siempre muestra el promedio en número ("4.7 de 5 · 3 reseñas") al lado
+de las estrellas visuales — mismo criterio ya establecido en la
+auditoría de accesibilidad de la app interna ("texto visible junto a
+los íconos, nunca solo el ícono"), aplicado acá por primera vez en la
+página pública. **Nada queda oculto detrás de un desplegable** — el
+resumen, la lista de reseñas y el formulario para dejar la propia se ven
+todos de una, sin tocar nada para "abrir" nada — mismo aprendizaje ya
+documentado con el selector de Peso neto (a personas mayores les costó
+encontrar controles escondidos la primera vez que se probó así).
+
+**Repintado quirúrgico, no de toda la tarjeta**: `elegirCalificacion()`
+solo actualiza los 5 botones + el texto de calificación en el DOM
+directo (sin tocar `innerHTML` del formulario completo) — así, si ya
+habías escrito tu nombre o el comentario antes de decidir cuántas
+estrellas poner, no se borra. Solo al publicar con éxito se repinta el
+bloque completo (`refrescarBloqueResenas()`), que de paso limpia el
+formulario y muestra la reseña nueva arriba de la lista. Mismo patrón ya
+establecido en este archivo con `panelBolsaHTML()`/`elegirPeso()`: cada
+bloque se puede repintar solo a él, sin rehacer la tarjeta entera ni
+perder el resto de lo que la persona ya tenía elegido (cantidad,
+molienda, peso).
+
+**Honey y Natural comparten una sola tarjeta-bolsa** (con un selector de
+"Proceso" que ya existía) — las reseñas tenían que seguir ese mismo
+selector, porque son productos distintos aunque compartan tarjeta. El
+contenedor de reseñas de esa tarjeta usa un id fijo (`resenas-panel-
+grupo`, igual que `bolsa-panel-grupo` ya hacía para los controles de
+compra) y `elegirProceso()` ahora también llama a
+`refrescarBloqueResenas(lote)` al cambiar de proceso — cambiar a
+"Natural" muestra sus propias reseñas (o "Todavía no hay reseñas de
+Natural" si no tiene ninguna todavía), sin mezclarse con las de Honey.
+`idContenedorResenas(lote)` decide a cuál de los dos contenedores
+apunta cada lote (`resenas-panel-grupo` para Honey/Natural,
+`resenas-panel-<lote>` para Lavado o cualquier lote futuro con su propia
+tarjeta).
+
+**Resiliente si falta la migración**: `cargarCatalogo()` pide
+`/api/resenas-publico` en un `try/catch` APARTE del de `/api/catalogo-
+publico` — si la tabla `resenas` no existe todavía en Supabase, el
+catálogo de café sigue cargando normal, solo sin reseñas (`resenas =
+[]`, cada bloque cae al estado "Todavía no hay reseñas..."). Sumado a
+`CHEQUEOS` en `functions/api/salud-esquema/index.ts`, así que el panel
+de ⚠️ migraciones pendientes de Configuración (app interna) también lo
+detecta.
+
+Probado en el preview local (mock con 3 reseñas de muestra, 2 en Lavado
+y 1 en Honey): el resumen y la lista se ven correctos bajo Lavado
+(4.7 de 5 · 3 reseñas tras enviar una de prueba) y bajo Honey (5.0 de 5
+· 1 reseña); tocar una estrella actualiza el texto de calificación al
+instante sin perder lo ya escrito en nombre/comentario (confirmado leyendo
+`aria-checked` real de cada botón); enviar sin elegir calificación
+muestra el toast de validación SIN mandar ningún POST (confirmado en el
+log de red); enviar una reseña completa la agrega arriba de la lista,
+actualiza el promedio, limpia el formulario y muestra el toast de
+confirmación; cambiar de "Honey" a "Natural" muestra las reseñas
+correctas de cada uno por separado. En celular (375px) los 5 botones de
+estrella miden 44px reales sin desbordar el ancho de pantalla — confirmado
+midiendo `getBoundingClientRect()` en vivo. Sin errores de consola en
+ningún recorrido.
+
+**Pendiente**: correr `migracion_resenas.sql` en Supabase antes de que
+esto llegue a producción (el código ya está desplegado). No hay pantalla
+en la app interna para ver/moderar reseñas todavía — solo el endpoint
+`DELETE /api/resenas-publico/:id` (con login) existe como red de
+seguridad contra spam; si hace falta usarlo antes de construir una
+pantalla propia, es una llamada autenticada a mano. Si más adelante se
+quiere, el patrón a seguir es el mismo de Blog/Merch (una pestaña nueva
+en el sidebar que liste todas y deje borrar con un botón).

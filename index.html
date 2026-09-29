@@ -387,6 +387,59 @@
   .proceso-pill.activo { background: var(--teal); color: #fff; }
   .lote-presentaciones { padding: 4px 18px 16px; }
 
+  /* ---------- Reseñas con estrellas (2026-09-29) ----------
+     Pensado para cualquier edad, no solo quien ya sabe leer un rating de
+     5 estrellas de memoria: cada estrella SIEMPRE va acompañada de texto
+     ("Tu calificación: 4 de 5 — Muy bueno"), nunca solo el ícono — mismo
+     criterio que ya rige el resto del sitio (ver la accesibilidad de la
+     app interna en CLAUDE.md: texto junto a íconos, nunca solo el ícono).
+     Nada queda oculto detrás de un desplegable — la reseña se ve y se
+     deja de una, sin tocar nada para "abrir" el formulario (mismo
+     aprendizaje ya documentado con el selector de Peso neto: a personas
+     mayores les costaba encontrar controles escondidos). */
+  .resenas-wrap { border-top: 1px solid var(--linea); margin-top: 6px; padding: 20px 22px 24px; }
+  .resenas-cabecera { margin-bottom: 10px; }
+  .resenas-resumen { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .estrellas-readonly { letter-spacing: 2px; line-height: 1; }
+  .estrellas-readonly .llena { color: var(--dorado); }
+  .estrellas-readonly .vacia { color: var(--linea); }
+  .resenas-promedio { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 16px; color: var(--cafe); }
+  .resenas-conteo { font-size: 13.5px; color: var(--cafe-soft); }
+  .resenas-vacio { font-size: 13.5px; color: var(--cafe-soft); margin: 0 0 14px; line-height: 1.5; }
+  .resenas-lista { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+  .resena-item { border-bottom: 1px solid var(--linea); padding-bottom: 14px; }
+  .resena-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .resena-encabezado { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .resena-nombre { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; color: var(--cafe); }
+  .resena-fecha { font-size: 12px; color: var(--cafe-soft); margin: 2px 0 6px; }
+  .resena-comentario { font-size: 14px; color: var(--cafe); line-height: 1.55; margin: 0; }
+  .resenas-mas { font-size: 13px; color: var(--cafe-soft); margin: 2px 0 0; }
+  .resenas-form { background: var(--crema-alt); border-radius: 14px; padding: 18px; }
+  .resenas-form-titulo { font-family: var(--serif); font-weight: 600; font-size: 18px; color: var(--cafe); margin: 0 0 12px; }
+  .resenas-label { display: block; font-size: 13.5px; font-weight: 600; color: var(--cafe-soft); margin-bottom: 10px; }
+  /* 44px de mínimo real (no solo el glifo) — el tamaño de toque recomendado
+     para dedos menos precisos, mismo criterio ya usado en toda la app. */
+  .estrellas-input { display: flex; gap: 4px; margin-bottom: 4px; }
+  .estrella-btn {
+    width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    font-size: 30px; line-height: 1; color: var(--linea); background: var(--blanco);
+    border: 1.5px solid var(--linea); border-radius: 10px; cursor: pointer; padding: 0;
+    transition: transform .12s ease, color .15s ease, border-color .15s ease;
+  }
+  .estrella-btn.llena { color: var(--dorado); border-color: var(--dorado); background: var(--dorado-bg); }
+  .estrella-btn:active { transform: scale(.94); }
+  @media (hover: hover) { .estrella-btn:hover { border-color: var(--dorado); } }
+  .resenas-calif-texto { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14px; color: var(--teal); margin: 0 0 14px; min-height: 18px; }
+  .resenas-form .field { margin-bottom: 12px; }
+  .resenas-enviar {
+    display: block; width: 100%; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 15.5px;
+    color: #fff; background: var(--teal); border: none; border-radius: 30px; padding: 14px; cursor: pointer;
+    transition: transform .12s ease, filter .15s ease;
+  }
+  .resenas-enviar:active { transform: scale(.98); }
+  .resenas-enviar:disabled { opacity: .6; cursor: default; transform: none; }
+  @media (hover: hover) { .resenas-enviar:not(:disabled):hover { filter: brightness(.94); } }
+
   /* Los 4 pasos, TODOS visibles de una — antes era una fila con scroll
      horizontal (scrollbar oculta), y con solo 3-4 pasos visibles a la
      vez no era obvio que había que deslizar para ver el resto. Para
@@ -912,6 +965,16 @@ async function cargarCatalogo() {
   } catch {
     precios = [];
   }
+  // Aparte de precios, con su propio try/catch — si la migración de
+  // reseñas todavía no se ha corrido, el endpoint responde con error,
+  // pero eso no debe tumbar el catálogo: simplemente no hay reseñas
+  // todavía que mostrar (mismo criterio de resiliencia de toda esta app).
+  try {
+    const res = await fetch('/api/resenas-publico');
+    resenas = res.ok ? await res.json() : [];
+  } catch {
+    resenas = [];
+  }
   recuperarBorrador();
   pintarCatalogo();
   pintarBannerExoticos();
@@ -1249,6 +1312,136 @@ function iniciarRevelado() {
   bloques.forEach(b => obs.observe(b));
 }
 
+/* ---------- Reseñas con estrellas (2026-09-29) ----------
+   `resenas` se llena en cargarCatalogo() desde /api/resenas-publico, junto
+   a `precios`. Cada bloque se pinta bajo la tarjeta del producto (Lavado,
+   o la que esté activa en Honey/Natural) y se puede repintar SOLO A ÉL
+   (idContenedorResenas/refrescarBloqueResenas) sin tocar el resto de la
+   tarjeta — mismo patrón que ya usa panelBolsaHTML()/elegirPeso() para no
+   perder lo que la persona ya tenía elegido en el resto del catálogo. */
+let resenas = [];
+let calificacionEnCurso = {}; // clave lote -> 1..5 elegido en el formulario ahora mismo (0/sin clave = nada)
+const ETIQUETA_CALIFICACION = { 1: 'Malo', 2: 'Regular', 3: 'Bueno', 4: 'Muy bueno', 5: 'Excelente' };
+
+function resenasDeLote(lote) {
+  return resenas.filter(r => r.lote === lote).sort((a, b) => Number(b.ts) - Number(a.ts));
+}
+
+function promedioResenas(lista) {
+  if (!lista.length) return null;
+  return lista.reduce((s, r) => s + Number(r.calificacion), 0) / lista.length;
+}
+
+// Puramente visual — aria-hidden porque el número/texto de al lado ya dice
+// lo mismo en palabras (4.7 de 5, o "Tu calificación: 4 de 5 — Muy bueno"),
+// así nadie depende de interpretar el ícono solo.
+function estrellasReadonlyHTML(valor, tamPx) {
+  const redondeado = Math.round(valor);
+  let html = `<span class="estrellas-readonly" style="font-size:${tamPx}px" aria-hidden="true">`;
+  for (let i = 1; i <= 5; i++) html += `<span class="${i <= redondeado ? 'llena' : 'vacia'}">★</span>`;
+  return html + '</span>';
+}
+
+function idContenedorResenas(lote) {
+  return LOTES_GRUPO_HONEY_NATURAL.includes(lote) ? 'resenas-panel-grupo' : 'resenas-panel-' + lote;
+}
+
+function refrescarBloqueResenas(lote) {
+  const cont = document.getElementById(idContenedorResenas(lote));
+  if (cont) cont.innerHTML = bloqueResenasHTML(lote);
+}
+
+function bloqueResenasHTML(lote) {
+  const lista = resenasDeLote(lote);
+  const promedio = promedioResenas(lista);
+  const calif = calificacionEnCurso[lote] || 0;
+  const idBase = idSeguro(lote);
+
+  const resumenHTML = promedio == null
+    ? `<p class="resenas-vacio">Todavía no hay reseñas de ${lote} — sé la primera persona en dejar la tuya.</p>`
+    : `<div class="resenas-resumen">
+        ${estrellasReadonlyHTML(promedio, 20)}
+        <span class="resenas-promedio">${promedio.toFixed(1)} de 5</span>
+        <span class="resenas-conteo">· ${lista.length} ${lista.length === 1 ? 'reseña' : 'reseñas'}</span>
+      </div>`;
+
+  const MOSTRAR = 6;
+  const listaHTML = lista.length ? `
+    <div class="resenas-lista">
+      ${lista.slice(0, MOSTRAR).map(r => `
+        <div class="resena-item">
+          <div class="resena-encabezado">
+            <span class="resena-nombre">${escapeHtml(r.nombre || 'Cliente de Café Pandora')}</span>
+            ${estrellasReadonlyHTML(r.calificacion, 14)}
+          </div>
+          <p class="resena-fecha">${new Date(Number(r.ts)).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          ${r.comentario ? `<p class="resena-comentario">${escapeHtml(r.comentario)}</p>` : ''}
+        </div>`).join('')}
+      ${lista.length > MOSTRAR ? `<p class="resenas-mas">Y ${lista.length - MOSTRAR} reseña${lista.length - MOSTRAR === 1 ? '' : 's'} más.</p>` : ''}
+    </div>` : '';
+
+  return `
+    <div class="resenas-cabecera"><p class="confianza-titulo">Reseñas de ${lote}</p></div>
+    ${resumenHTML}
+    ${listaHTML}
+    <div class="resenas-form">
+      <p class="resenas-form-titulo">Deja tu reseña</p>
+      <span id="calif-label-${idBase}" class="resenas-label">¿Cómo calificarías este café?</span>
+      <div class="estrellas-input" id="estrellas-input-${idBase}" role="radiogroup" aria-labelledby="calif-label-${idBase}">
+        ${[1, 2, 3, 4, 5].map(n => `<button type="button" class="estrella-btn ${n <= calif ? 'llena' : ''}" role="radio" aria-checked="${n === calif}" aria-label="${n} ${n === 1 ? 'estrella' : 'estrellas'} — ${ETIQUETA_CALIFICACION[n]}" onclick="elegirCalificacion('${lote}', ${n})">★</button>`).join('')}
+      </div>
+      <p class="resenas-calif-texto" id="calif-texto-${idBase}">${calif ? `Tu calificación: ${calif} de 5 — ${ETIQUETA_CALIFICACION[calif]}` : 'Toca una estrella para calificar'}</p>
+      <div class="field"><label>Tu nombre (opcional)</label><input id="resena-nombre-${idBase}" maxlength="60" placeholder="¿Cómo te llamas?"></div>
+      <div class="field"><label>Tu comentario (opcional)</label><textarea id="resena-comentario-${idBase}" maxlength="500" placeholder="Cuéntanos qué te pareció este café…"></textarea></div>
+      <button type="button" class="resenas-enviar" onclick="enviarResena('${lote}')">Publicar mi reseña</button>
+    </div>`;
+}
+
+// Repinta SOLO los botones/texto de calificación (no el formulario entero)
+// para no borrar lo que la persona ya haya escrito en nombre/comentario.
+function elegirCalificacion(lote, valor) {
+  calificacionEnCurso[lote] = valor;
+  const idBase = idSeguro(lote);
+  const cont = document.getElementById('estrellas-input-' + idBase);
+  if (cont) {
+    cont.querySelectorAll('.estrella-btn').forEach((btn, i) => {
+      const n = i + 1;
+      btn.classList.toggle('llena', n <= valor);
+      btn.setAttribute('aria-checked', n === valor ? 'true' : 'false');
+    });
+  }
+  const texto = document.getElementById('calif-texto-' + idBase);
+  if (texto) texto.textContent = `Tu calificación: ${valor} de 5 — ${ETIQUETA_CALIFICACION[valor]}`;
+}
+
+async function enviarResena(lote) {
+  const calif = calificacionEnCurso[lote] || 0;
+  if (!calif) { mostrarToast('Elige una calificación de 1 a 5 estrellas antes de publicar.'); return; }
+  const idBase = idSeguro(lote);
+  const nombreEl = document.getElementById('resena-nombre-' + idBase);
+  const comentarioEl = document.getElementById('resena-comentario-' + idBase);
+  const nombre = nombreEl ? nombreEl.value.trim() : '';
+  const comentario = comentarioEl ? comentarioEl.value.trim() : '';
+  const btn = document.querySelector(`#${idContenedorResenas(lote)} .resenas-enviar`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
+  try {
+    const res = await fetch('/api/resenas-publico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lote, calificacion: calif, nombre, comentario }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const nueva = await res.json();
+    resenas.unshift(nueva);
+    calificacionEnCurso[lote] = 0;
+    refrescarBloqueResenas(lote);
+    mostrarToast('¡Gracias por tu reseña!');
+  } catch {
+    mostrarToast('No se pudo publicar tu reseña — inténtalo de nuevo.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar mi reseña'; }
+  }
+}
+
 function pintarCatalogo() {
   const cont = document.getElementById('catalogo');
   let html = '';
@@ -1300,6 +1493,7 @@ function tarjetaListaHTML(lote, filas) {
         </div>`;
       }).join('')}
       </div>
+      <div class="resenas-wrap" id="resenas-panel-${lote}">${bloqueResenasHTML(lote)}</div>
     </div>`;
 }
 
@@ -1323,6 +1517,7 @@ function tarjetaBolsaHTML(lote, filas, bolsa) {
       <div class="bolsa-panel" id="bolsa-panel-${lote}">
         ${panelBolsaHTML(lote, filas)}
       </div>
+      <div class="resenas-wrap" id="resenas-panel-${lote}">${bloqueResenasHTML(lote)}</div>
     </div>`;
 }
 
@@ -1383,6 +1578,7 @@ function tarjetaBolsaGrupoHTML(procesos) {
       <div class="bolsa-panel" id="bolsa-panel-grupo">
         ${panelBolsaGrupoHTML(procesos)}
       </div>
+      <div class="resenas-wrap" id="resenas-panel-grupo">${bloqueResenasHTML(procesoActivo)}</div>
     </div>`;
 }
 
@@ -1426,6 +1622,7 @@ function elegirProceso(lote) {
   const procesos = LOTES_GRUPO_HONEY_NATURAL.filter(l => ORDEN_PRES.some(p => precioDe(l, p) > 0));
   const cont = document.getElementById('bolsa-panel-grupo');
   if (cont) cont.innerHTML = panelBolsaGrupoHTML(procesos);
+  refrescarBloqueResenas(lote);
 }
 
 function elegirPesoGrupo(presentacion) {
