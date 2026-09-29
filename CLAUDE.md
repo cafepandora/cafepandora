@@ -4717,3 +4717,45 @@ Probado en el preview, escritorio y celular (panel abierto): tocar
 pone teal (activo); la lista de abajo solo tiene 3 links; en celular el
 panel se cierra igual al tocarlo, mismo comportamiento de siempre. Sin
 errores de consola.
+
+## Auditoría de "código basura" en `index.html` (2026-09-29)
+
+Pedido del usuario, después de la seguidilla de cambios de este mismo
+día. Revisado a fondo, no a ojo: cada función declarada (`function`/
+`async function`) contra sus llamadas reales, cada `let`/`const` de
+nivel superior contra sus usos, cada `onclick`/`onchange`/etc. contra
+que la función que invoca exista de verdad, cada clase CSS contra si
+aparece en algún `class="..."` (HTML o plantillas de JS), y balance de
+`{}`/`[]`/`()` de todo el `<script>`. Resultado: **ninguna función,
+variable o clase CSS sin usar** en el código de este archivo — cada una
+tiene al menos un uso real más allá de su propia declaración.
+
+**Sí se encontraron 4 `id` sin ningún uso**, los 4 de bajo riesgo
+(nunca tocados por JS ni CSS, solo ocupaban espacio en el HTML) — se
+quitaron:
+- `id="mainContent"` en `.main-content` — se agregó al construir la
+  barra lateral (2026-09-28) por costumbre, junto a otros ids que sí se
+  usan (`sidebarPublica`, `sidebarOverlay`), pero nunca hizo falta
+  referenciarlo — el contenedor ya se controla por su clase.
+- `id="datoDuro"`, `id="procesoSeccion"`, `id="tourFinca"` en sus
+  respectivas `<section>` — eran los destinos de las anclas
+  (`href="#datoDuro"` etc.) de la barra de arriba vieja
+  (`.nav-secciones`), que se reemplazó por la barra lateral el
+  2026-09-28. Al quitar esa barra se quitaron también sus links, pero
+  estos 3 `id` de destino se quedaron sin que nada los apuntara ya —
+  vestigio de ese cambio, no de este archivo original.
+
+**Encontrado pero NO tocado, por ser una decisión ya documentada
+antes de esta sesión**: `.tarjeta-bolsa` (el fondo degradado "kraft" +
+sus overrides de color, ver el CSS cerca de `.card-lote`) no lo usa
+ningún template — pero CLAUDE.md ya lo explicaba en la sección
+"Rediseño de lujo de pedidos/index.html": se dejó a propósito "por si
+se necesita para un lote nuevo algún día" cuando se reemplazó por
+`.tarjeta-bolsa-clara` en las 3 bolsas actuales. No se borró — es una
+decisión ya tomada, no un descuido de esta sesión; si el usuario
+prefiere quitarlo definitivamente, es un cambio aparte.
+
+Probado en el preview después de quitar los 4 `id`: Catálogo, Maquila,
+Conócenos (con "Café Pandora" resaltando en teal, sin depender de
+`id="datoDuro"` para nada) y Blog cargan igual que antes; sin errores
+de consola.
