@@ -4503,3 +4503,15 @@ posición y el encabezado del catálogo quedó más corto (puntos 1 y 2, sí
 se quedaron); las tarjetas de Lavado y Honey/Natural volvieron a verse
 apiladas, una debajo de la otra (punto 3, revertido). Sin errores de
 consola.
+
+## Política real de envío en la nota de "Antes de pedir" (2026-09-28)
+
+El texto de "Envío" en la tarjeta `#confianzaPedido` decía algo genérico
+("coordinamos contigo la entrega o el envío por transportadora, según tu
+ciudad") sin ningún día ni costo concreto — el usuario dio la política
+real: los envíos son todos los jueves, y si el cliente necesita otro día
+tiene un costo adicional de $5.000. Texto nuevo: "📦 Envío: hacemos
+envíos todos los jueves — si necesitas que sea otro día, tiene un costo
+adicional de $5.000." Mismo `<p class="confianza-item">` de siempre, sin
+tocar CSS ni estructura — solo el texto. Probado en el preview, se ve
+igual de bien que las otras 2 líneas de la misma tarjeta.
