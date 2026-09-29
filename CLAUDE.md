@@ -4990,7 +4990,12 @@ también que celular (375px) no cambió en nada — mismo layout, mismos
 tamaños, capturado antes y después del cambio. Sin errores de consola en
 ningún recorrido.
 
-## Reseñas con estrellas, bajo cada producto (2026-09-29)
+## Reseñas con estrellas (2026-09-29)
+
+⚠️ **Se movieron al fondo de la página el mismo día — ver el addendum al
+final de esta sección.** Lo de abajo describe la implementación real
+(tabla, endpoints, accesibilidad, resiliencia), que no cambió; solo
+cambió DÓNDE viven en la página y cómo se elige de qué producto.
 
 Pedido del usuario: un espacio bajo cada producto del catálogo para
 dejar reseñas de 1 a 5 estrellas, "de la manera más óptima que exista,
@@ -5090,3 +5095,64 @@ seguridad contra spam; si hace falta usarlo antes de construir una
 pantalla propia, es una llamada autenticada a mano. Si más adelante se
 quiere, el patrón a seguir es el mismo de Blog/Merch (una pestaña nueva
 en el sidebar que liste todas y deje borrar con un botón).
+
+**Addendum, mismo día — movidas al fondo, detrás de un desplegable**:
+el usuario pidió, después de ver la primera versión en vivo, juntar las
+reseñas en un solo bloque al final de la página (no una sección repetida
+bajo cada tarjeta) y ponerlas detrás de un desplegable con invitación —
+"¿ya nos conoces? Califícanos" en vez de una etiqueta genérica
+"Reseñas". Con las 3 tarjetas de producto (Lavado, Honey, Natural) ya
+bastante cargadas de controles (peso/molienda/cantidad), repetir todo el
+bloque de reseñas 2 veces (una por tarjeta, contando la de Honey/Natural
+compartida) alargaba mucho el catálogo antes de llegar a "Tus datos".
+
+⚠️ *Esto NO contradice el criterio de accesibilidad de "nada oculto
+detrás de un desplegable" que ya rige el resto del sitio (ver el
+comentario del selector de Peso neto) — la diferencia real es qué se
+esconde*: el selector de Peso neto escondía un control que hacía falta
+tocar para COMPRAR (bloquear eso confundía a gente mayor); las reseñas
+son contenido de apoyo/social, no parte del camino para pedir café —
+ocultarlas detrás de un botón claro, con resumen visible incluso
+cerrado ("4 reseñas · 4.5 de 5"), es justo lo que reduce el desorden sin
+esconder nada que alguien necesite para comprar.
+
+**Un solo bloque, con un selector de "¿Cuál café?" adentro**: como las
+reseñas siguen siendo por producto (Lavado ≠ Honey ≠ Natural), el panel
+que se abre (`pintarSeccionResenas()`) muestra unas pills — mismo estilo
+que ya usa "Proceso" en la tarjeta de Honey/Natural — para elegir de
+cuál se están viendo/dejando reseñas antes de mostrar
+`bloqueResenasHTML(lote)` (la MISMA función de la versión anterior, sin
+cambios — lo que cambió es solo desde dónde se llama y con qué lote).
+Arranca en el primer lote con precio (`lotesConResenasDisponibles()`,
+reutiliza el mismo filtro que ya usa `pintarCatalogo()`).
+
+**Disclosure accesible de verdad**: el botón "¿Ya nos conoces?
+Califícanos" (`toggleResenasSeccion()`) usa `aria-expanded` +
+`aria-controls`, y el panel se oculta con el atributo `hidden` nativo
+del HTML (no solo `display:none` por CSS) — así un lector de pantalla
+lo salta por completo mientras está cerrado, en vez de solo no verlo. La
+flecha (⌄/⌃) gira con CSS leyendo ese mismo `aria-expanded`, sin JS
+aparte. El botón cerrado ya muestra cuántas reseñas hay y el promedio
+("4 reseñas · 4.5 de 5", `actualizarResenasToggleResumen()`, vacío si
+todavía no hay ninguna) — invita a abrir sin que haga falta tocar para
+enterarse de que ya hay actividad.
+
+**Se quitaron los 3 puntos de repintado por-tarjeta** (`idContenedorResenas()`,
+`refrescarBloqueResenas()`, y las 3 inserciones de `.resenas-wrap` dentro
+de `tarjetaBolsaHTML()`/`tarjetaBolsaGrupoHTML()`/`tarjetaListaHTML()`,
+más la llamada extra en `elegirProceso()`) — ya no hacen falta, ahora
+hay un solo contenedor fijo (`#resenasContenido`) y una sola función que
+lo repinta (`pintarSeccionResenas()`), llamada al abrir el desplegable,
+al cambiar de lote, o después de publicar una reseña con éxito.
+
+Probado en el preview local: las 3 tarjetas de producto ya NO muestran
+reseñas inline (confirmado con `get_page_text`, solo quedan los
+controles de comprar); el bloque nuevo aparece al fondo, después de
+"+1.000 pedidos..."; abrirlo muestra las pills de producto + las
+reseñas de Lavado por defecto; cambiar a "Honey"/"Natural" muestra las
+reseñas correctas de cada uno; publicar una reseña de prueba en
+"Natural" la agregó a la lista, actualizó el resumen DENTRO del panel Y
+el resumen del botón cerrado ("4 reseñas · 4.5 de 5"); en celular
+(375px) el botón, las pills y el panel se ven completos sin desbordar,
+con la flecha girando al abrir/cerrar. Sin errores de consola en ningún
+recorrido.

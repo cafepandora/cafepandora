@@ -393,11 +393,25 @@
      ("Tu calificación: 4 de 5 — Muy bueno"), nunca solo el ícono — mismo
      criterio que ya rige el resto del sitio (ver la accesibilidad de la
      app interna en CLAUDE.md: texto junto a íconos, nunca solo el ícono).
-     Nada queda oculto detrás de un desplegable — la reseña se ve y se
-     deja de una, sin tocar nada para "abrir" el formulario (mismo
-     aprendizaje ya documentado con el selector de Peso neto: a personas
-     mayores les costaba encontrar controles escondidos). */
-  .resenas-wrap { border-top: 1px solid var(--linea); margin-top: 6px; padding: 20px 22px 24px; }
+     Un solo bloque al fondo de la página, detrás de un desplegable con
+     invitación ("¿Ya nos conoces? Califícanos") — a diferencia del
+     selector de Peso neto (donde esconder los controles de COMPRAR
+     confundía a personas mayores), acá es contenido de apoyo/social, no
+     parte del camino para pedir café, así que sí tiene sentido que
+     empiece cerrado y no compita visualmente con el catálogo. */
+  .resenas-seccion-wrap { padding: 0; overflow: hidden; }
+  .resenas-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: none; border: none; padding: 18px 20px; cursor: pointer; text-align: left;
+    font-family: inherit; color: inherit;
+  }
+  .resenas-toggle-titulo { font-family: var(--serif); font-weight: 600; font-size: 18px; color: var(--cafe); display: block; }
+  .resenas-toggle-resumen { font-size: 13px; color: var(--cafe-soft); display: block; margin-top: 2px; }
+  .resenas-toggle-flecha { font-size: 20px; color: var(--teal); flex-shrink: 0; transition: transform .2s ease; }
+  .resenas-toggle[aria-expanded="true"] .resenas-toggle-flecha { transform: rotate(180deg); }
+  @media (hover: hover) { .resenas-toggle:hover .resenas-toggle-titulo { color: var(--teal); } }
+  .resenas-contenido { padding: 0 20px 22px; border-top: 1px solid var(--linea); margin-top: -1px; padding-top: 18px; }
+  .resenas-lote-fila { margin-bottom: 16px; }
   .resenas-cabecera { margin-bottom: 10px; }
   .resenas-resumen { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
   .estrellas-readonly { letter-spacing: 2px; line-height: 1; }
@@ -735,6 +749,22 @@
 
   <p class="hero-prueba-social revela">☕ +1.000 pedidos de café entregados este año</p>
 
+  <!-- Reseñas con estrellas (2026-09-29): un solo bloque al fondo, detrás
+       de un desplegable con invitación en vez de bajo cada producto —
+       no compite con el flujo de armar el pedido, pero sigue a un toque
+       de distancia. aria-expanded/hidden nativo, no solo CSS, para que
+       un lector de pantalla lo trate como de verdad cerrado/abierto. -->
+  <div class="card resenas-seccion-wrap">
+    <button type="button" class="resenas-toggle" id="resenasToggleBtn" aria-expanded="false" aria-controls="resenasContenido" onclick="toggleResenasSeccion()">
+      <span class="resenas-toggle-texto">
+        <span class="resenas-toggle-titulo">¿Ya nos conoces? Califícanos</span>
+        <span class="resenas-toggle-resumen" id="resenasToggleResumen"></span>
+      </span>
+      <span class="resenas-toggle-flecha" aria-hidden="true">⌄</span>
+    </button>
+    <div class="resenas-contenido" id="resenasContenido" hidden></div>
+  </div>
+
   <div id="pantallaFinal"></div>
 </div>
 </div> <!-- /vistaCatalogo -->
@@ -979,6 +1009,7 @@ async function cargarCatalogo() {
   pintarCatalogo();
   pintarBannerExoticos();
   pintarNavRapida();
+  actualizarResenasToggleResumen();
   actualizarBarra();
   // pintarCatalogo() recién acaba de agregar sus propias tarjetas .revela
   // al DOM — la llamada de iniciarRevelado() de más abajo ya corrió antes
@@ -1312,16 +1343,78 @@ function iniciarRevelado() {
   bloques.forEach(b => obs.observe(b));
 }
 
-/* ---------- Reseñas con estrellas (2026-09-29) ----------
-   `resenas` se llena en cargarCatalogo() desde /api/resenas-publico, junto
-   a `precios`. Cada bloque se pinta bajo la tarjeta del producto (Lavado,
-   o la que esté activa en Honey/Natural) y se puede repintar SOLO A ÉL
-   (idContenedorResenas/refrescarBloqueResenas) sin tocar el resto de la
-   tarjeta — mismo patrón que ya usa panelBolsaHTML()/elegirPeso() para no
-   perder lo que la persona ya tenía elegido en el resto del catálogo. */
+/* ---------- Reseñas con estrellas (2026-09-29, movidas al fondo 2026-09-29) ----------
+   Primera versión: una sección de reseñas bajo CADA tarjeta de producto.
+   El usuario pidió juntarlas en un solo bloque al final de la página,
+   detrás de un desplegable con una invitación ("¿Ya nos conoces?
+   Califícanos") en vez de una etiqueta genérica "Reseñas" — así no
+   compite con el flujo de elegir/comprar café, pero sigue estando a un
+   toque de distancia, no escondida de verdad. Dentro del panel, unas
+   pills (mismo estilo que "Proceso" en la tarjeta de Honey/Natural)
+   dejan elegir DE QUÉ producto se están viendo/dejando reseñas —
+   `bloqueResenasHTML(lote)` (más abajo) es la misma función de la
+   primera versión, sin cambios; lo que cambió es solo DÓNDE vive y
+   cómo se elige el lote. */
 let resenas = [];
 let calificacionEnCurso = {}; // clave lote -> 1..5 elegido en el formulario ahora mismo (0/sin clave = nada)
 const ETIQUETA_CALIFICACION = { 1: 'Malo', 2: 'Regular', 3: 'Bueno', 4: 'Muy bueno', 5: 'Excelente' };
+let resenasSeccionAbierta = false;
+let loteResenasActivo = null;
+
+function lotesConResenasDisponibles() {
+  return LOTES.filter(l => ORDEN_PRES.some(p => precioDe(l, p) > 0));
+}
+
+// Disclosure accesible clásico: aria-expanded en el botón + el panel se
+// oculta con el atributo `hidden` nativo (no solo CSS), así un lector de
+// pantalla lo salta del todo mientras está cerrado, igual que si no
+// existiera. La flecha gira con CSS según ese mismo aria-expanded.
+function toggleResenasSeccion() {
+  resenasSeccionAbierta = !resenasSeccionAbierta;
+  const btn = document.getElementById('resenasToggleBtn');
+  const cont = document.getElementById('resenasContenido');
+  if (btn) btn.setAttribute('aria-expanded', String(resenasSeccionAbierta));
+  if (cont) cont.hidden = !resenasSeccionAbierta;
+  if (resenasSeccionAbierta) {
+    if (!loteResenasActivo) loteResenasActivo = lotesConResenasDisponibles()[0] || null;
+    pintarSeccionResenas();
+  }
+}
+
+function elegirLoteResenas(lote) {
+  loteResenasActivo = lote;
+  pintarSeccionResenas();
+}
+
+function pintarSeccionResenas() {
+  const cont = document.getElementById('resenasContenido');
+  if (!cont) return;
+  const lotes = lotesConResenasDisponibles();
+  if (!lotes.length || !loteResenasActivo) {
+    cont.innerHTML = '<p class="resenas-vacio">Todavía no hay productos disponibles para calificar.</p>';
+    return;
+  }
+  cont.innerHTML = `
+    ${lotes.length > 1 ? `
+    <div class="proceso-fila resenas-lote-fila">
+      <span class="proceso-titulo">¿Cuál café?</span>
+      <div class="proceso-pills">
+        ${lotes.map(l => `<button type="button" class="proceso-pill ${l === loteResenasActivo ? 'activo' : ''}" onclick="elegirLoteResenas('${l}')">${l}</button>`).join('')}
+      </div>
+    </div>` : ''}
+    ${bloqueResenasHTML(loteResenasActivo)}`;
+}
+
+// Texto chico dentro del botón cerrado, solo cuando ya hay algo que
+// contar ("12 reseñas · 4.6 de 5") — invita a abrir sin inventar
+// actividad que no existe (nada se muestra si `resenas` está vacío).
+function actualizarResenasToggleResumen() {
+  const el = document.getElementById('resenasToggleResumen');
+  if (!el) return;
+  if (!resenas.length) { el.textContent = ''; return; }
+  const promedio = resenas.reduce((s, r) => s + Number(r.calificacion), 0) / resenas.length;
+  el.textContent = `${resenas.length} ${resenas.length === 1 ? 'reseña' : 'reseñas'} · ${promedio.toFixed(1)} de 5`;
+}
 
 function resenasDeLote(lote) {
   return resenas.filter(r => r.lote === lote).sort((a, b) => Number(b.ts) - Number(a.ts));
@@ -1340,15 +1433,6 @@ function estrellasReadonlyHTML(valor, tamPx) {
   let html = `<span class="estrellas-readonly" style="font-size:${tamPx}px" aria-hidden="true">`;
   for (let i = 1; i <= 5; i++) html += `<span class="${i <= redondeado ? 'llena' : 'vacia'}">★</span>`;
   return html + '</span>';
-}
-
-function idContenedorResenas(lote) {
-  return LOTES_GRUPO_HONEY_NATURAL.includes(lote) ? 'resenas-panel-grupo' : 'resenas-panel-' + lote;
-}
-
-function refrescarBloqueResenas(lote) {
-  const cont = document.getElementById(idContenedorResenas(lote));
-  if (cont) cont.innerHTML = bloqueResenasHTML(lote);
 }
 
 function bloqueResenasHTML(lote) {
@@ -1422,7 +1506,7 @@ async function enviarResena(lote) {
   const comentarioEl = document.getElementById('resena-comentario-' + idBase);
   const nombre = nombreEl ? nombreEl.value.trim() : '';
   const comentario = comentarioEl ? comentarioEl.value.trim() : '';
-  const btn = document.querySelector(`#${idContenedorResenas(lote)} .resenas-enviar`);
+  const btn = document.querySelector('#resenasContenido .resenas-enviar');
   if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
   try {
     const res = await fetch('/api/resenas-publico', {
@@ -1434,7 +1518,8 @@ async function enviarResena(lote) {
     const nueva = await res.json();
     resenas.unshift(nueva);
     calificacionEnCurso[lote] = 0;
-    refrescarBloqueResenas(lote);
+    pintarSeccionResenas();
+    actualizarResenasToggleResumen();
     mostrarToast('¡Gracias por tu reseña!');
   } catch {
     mostrarToast('No se pudo publicar tu reseña — inténtalo de nuevo.');
@@ -1493,7 +1578,6 @@ function tarjetaListaHTML(lote, filas) {
         </div>`;
       }).join('')}
       </div>
-      <div class="resenas-wrap" id="resenas-panel-${lote}">${bloqueResenasHTML(lote)}</div>
     </div>`;
 }
 
@@ -1517,7 +1601,6 @@ function tarjetaBolsaHTML(lote, filas, bolsa) {
       <div class="bolsa-panel" id="bolsa-panel-${lote}">
         ${panelBolsaHTML(lote, filas)}
       </div>
-      <div class="resenas-wrap" id="resenas-panel-${lote}">${bloqueResenasHTML(lote)}</div>
     </div>`;
 }
 
@@ -1578,7 +1661,6 @@ function tarjetaBolsaGrupoHTML(procesos) {
       <div class="bolsa-panel" id="bolsa-panel-grupo">
         ${panelBolsaGrupoHTML(procesos)}
       </div>
-      <div class="resenas-wrap" id="resenas-panel-grupo">${bloqueResenasHTML(procesoActivo)}</div>
     </div>`;
 }
 
@@ -1622,7 +1704,6 @@ function elegirProceso(lote) {
   const procesos = LOTES_GRUPO_HONEY_NATURAL.filter(l => ORDEN_PRES.some(p => precioDe(l, p) > 0));
   const cont = document.getElementById('bolsa-panel-grupo');
   if (cont) cont.innerHTML = panelBolsaGrupoHTML(procesos);
-  refrescarBloqueResenas(lote);
 }
 
 function elegirPesoGrupo(presentacion) {
