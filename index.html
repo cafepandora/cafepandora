@@ -292,17 +292,6 @@
   .confianza-titulo { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--teal); margin: 0 0 10px; }
   .confianza-item { font-size: 13.5px; color: var(--cafe); margin: 0 0 8px; line-height: 1.45; }
   .confianza-item:last-child { margin-bottom: 0; }
-  /* Las 2 tarjetas-bolsa (Lavado, Honey/Natural) una al lado de la otra
-     en vez de apiladas (2026-09-28, a pedido del usuario) — solo desde
-     860px (mismo quiebre que ya usa la barra lateral, ver
-     `.sidebar-publica`), porque en celular ese ancho ya es angosto para
-     una sola tarjeta, dos lado a lado quedarían apretadas. `gap` hace el
-     trabajo de separación — el `margin-bottom` de `.card` en cada
-     tarjeta queda de sobra dentro de su propia celda, no estorba. */
-  .catalogo-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-  @media (min-width: 860px) {
-    .catalogo-grid { grid-template-columns: 1fr 1fr; align-items: start; }
-  }
   .card-lote { padding: 0; overflow: hidden; scroll-margin-top: 66px; }
   #resumenPedido { scroll-margin-top: 66px; }
   .lote-cabecera { padding: 20px 18px 18px; background: var(--crema-alt); }
@@ -1164,13 +1153,7 @@ function pintarCatalogo() {
     if (filas.length) html += tarjetaListaHTML(lote, filas);
   });
 
-  // Las dos "bolsas" (Lavado, Honey/Natural) van una al lado de la otra en
-  // vez de una bajo la otra en pantallas anchas (2026-09-28, a pedido del
-  // usuario) — .catalogo-grid es 2 columnas desde 860px (mismo quiebre que
-  // ya usa la barra lateral) y 1 columna en celular, donde no cabrían
-  // cómodas. Envuelve lo que sea que haya (2 tarjetas normalmente, o
-  // ninguna) sin afectar el mensaje de "no hay productos".
-  cont.innerHTML = html ? `<div class="catalogo-grid">${html}</div>` : '<div class="card">No hay productos disponibles ahora mismo. Escríbenos directo por WhatsApp.</div>';
+  cont.innerHTML = html || '<div class="card">No hay productos disponibles ahora mismo. Escríbenos directo por WhatsApp.</div>';
 }
 
 // Tarjeta "de siempre": lista con una fila por presentación, cada una con

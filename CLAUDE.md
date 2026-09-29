@@ -4489,22 +4489,17 @@ pantalla en vivo:
    `.hero-prueba-social`, las mismas de siempre) — solo se les agregó
    `text-align: center` + su propio margen, porque `.wrap` (a diferencia
    de `.cat-header`) no centra el texto por defecto.
-3. **Las dos "bolsas" (Lavado, Honey/Natural) una al lado de la otra**:
-   `pintarCatalogo()` ahora envuelve lo que arma (antes html suelto) en
-   un `<div class="catalogo-grid">` — grid de 2 columnas desde 860px
-   (mismo quiebre que ya usa la barra lateral), 1 columna en celular
-   (con solo ~340px de ancho disponible, dos bolsas lado a lado
-   quedarían demasiado apretadas). En escritorio, dentro de `.wrap`
-   (560px máximo, ~528px útiles descontando el padding), cada columna
-   queda en ~257px — ajustado pero suficiente: los pills de peso ya
-   tenían `flex-wrap`, así que si no caben los 3 en una fila bajan solo
-   a una segunda fila, sin desbordar. Si en el futuro se agrega un
-   tercer lote con bolsa propia, cae solo a una tercera celda (fila 2,
-   columna 1) sin tocar nada de este código — el grid no asume
-   exactamente 2 tarjetas.
+3. **Las dos "bolsas" (Lavado, Honey/Natural) una al lado de la otra —
+   probado y REVERTIDO el mismo día**: se probó envolviendo lo que arma
+   `pintarCatalogo()` en un `<div class="catalogo-grid">` (grid de 2
+   columnas desde 860px, 1 columna en celular). Se vio en vivo y el
+   usuario pidió dejarlo como estaba antes — vuelto a como era
+   (`cont.innerHTML = html` directo, sin el `<div>` envolvente; se quitó
+   también la clase `.catalogo-grid` del CSS, ya no se usa en ningún
+   lado). Las tarjetas siguen una debajo de la otra, como siempre.
 
-Probado en el preview, escritorio (con las 2 tarjetas realmente lado a
-lado, controles de peso/molienda/cantidad funcionando en las dos) y
-celular 375px (una sola columna, sin cambios); las 2 señales de
-confianza aparecen en su nueva posición y el encabezado del catálogo
-quedó más corto. Sin errores de consola.
+Probado en el preview: las 2 señales de confianza aparecen en su nueva
+posición y el encabezado del catálogo quedó más corto (puntos 1 y 2, sí
+se quedaron); las tarjetas de Lavado y Honey/Natural volvieron a verse
+apiladas, una debajo de la otra (punto 3, revertido). Sin errores de
+consola.
