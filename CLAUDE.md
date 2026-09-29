@@ -4096,10 +4096,9 @@ barra del navegador" ahí. Se agregó:
   distinguir a simple vista en la pantalla de inicio — "Gestión" dejó
   claro cuál es cuál desde ya, sin tener que rehacer esto después.
 
-No se tocó nada de `index.html` (la página pública) — si más adelante
-Juan quiere que los CLIENTES puedan anclar esa página también con el
-mismo tratamiento de app completa, es el mismo patrón, aplicado aparte
-(pendiente, no pedido todavía).
+No se tocó nada de `index.html` (la página pública) en este pase — el
+mismo patrón se aplicó ahí el 2026-09-29, ver "Ícono de pantalla de
+inicio de la página pública — el logo solo, sin el armadillo" más abajo.
 
 Probado en el preview local: `/gestion/manifest.json` responde 200 con
 el JSON esperado (`start_url`/`scope: "/gestion/"`, `short_name:
@@ -4546,3 +4545,56 @@ al bajar 5 “ticks” de scroll se encoge a círculo con ☰ solo; abrirlo
 muestra ✕ compacto con el panel de siempre; tocar "Maquila" cierra el
 panel, navega, y el botón vuelve a la píldora "Menú" porque la vista
 nueva arranca en scroll 0. Sin errores de consola.
+
+## Ícono de pantalla de inicio de la página pública — el logo solo, sin el armadillo (2026-09-29)
+
+Pedido del usuario, mandando el logo de "Café Pandora" en limpio (el
+letrero negro, sin el armadillo): que al anclar `gestion/index.html`
+(la app interna) a la pantalla de inicio del celular el ícono SIGA
+siendo el armadillo (ya lo era, sin cambios — ver la sección de arriba,
+"Manifest para 'Añadir a pantalla de inicio' de la app interna"), y que
+al anclar `index.html` (la página pública, "pedidos") el ícono sea ESE
+logo — el letrero solo, sin el armadillo. Mismo patrón que ya se había
+dejado pendiente en esa sección de arriba, aplicado ahora acá.
+
+**El logo real es un letrero ancho (1920×616 px), no sirve tal cual
+como ícono cuadrado** — un ícono de pantalla de inicio necesita ser
+cuadrado y con fondo opaco (iOS rellena de negro cualquier zona
+transparente, se vería mal con el logo suelto sobre nada). Se generó un
+ícono cuadrado nuevo con Python/Pillow (`icon-180.png`/`icon-512.png`,
+en la raíz del repo): el logo recortado a su tamaño real (sin el margen
+transparente que traía el archivo original) centrado sobre un cuadrado
+de `--crema` (`#FCFAF3`, el mismo fondo de toda la página pública), a
+~74% del ancho del cuadrado — suficiente margen para que no se sienta
+apretado, sobre todo a 180px donde el ícono se ve chico en la pantalla
+de inicio.
+
+**Mismas 2 piezas que ya usa `gestion/manifest.json`, aplicadas a la
+página pública**:
+- `manifest.json` nuevo en la raíz (`start_url`/`scope: "/"`, `name`/
+  `short_name: "Café Pandora"`, apunta a `/icon-180.png`/`/icon-512.png`)
+  — para que "Añadir a pantalla de inicio" en Android también abra sin
+  la barra del navegador.
+- En `index.html`, 3 `apple-mobile-web-app-*` + `theme-color` +
+  `<link rel="apple-touch-icon">` (el PNG de 180px embebido en base64,
+  igual que hace `gestion/index.html` con el armadillo — así no
+  depende de una petición aparte para que iOS lo encuentre) +
+  `<link rel="manifest">` — todo agregado justo después de los `<link>`
+  de Google Fonts, antes del `<link rel="icon">` (el favicon de la
+  pestaña, que SIGUE siendo el armadillo, sin tocar — ver el punto
+  siguiente).
+
+**El favicon de la pestaña del navegador NO cambió, a propósito** — el
+usuario pidió específicamente el ícono de "anclar a la pantalla", no el
+de la pestaña; `<link rel="icon">` se queda con el armadillo de
+siempre, igual que `gestion/index.html`. Los dos íconos (pestaña vs.
+pantalla de inicio) ahora son intencionalmente distintos en la página
+pública — no es una inconsistencia, es lo que se pidió.
+
+Probado en el preview local: `/manifest.json` responde 200 con el JSON
+esperado, `/icon-180.png` carga (180×180), y la página pública sigue
+renderizando sin errores de consola con los `<link>`/`<meta>` nuevos en
+el `<head>`. Igual que con el manifest de la app interna, no se pudo
+probar el comportamiento real de "Añadir a pantalla de inicio" (necesita
+un dispositivo físico) — se basa en cómo iOS/Android documentan estas
+etiquetas.
