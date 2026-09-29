@@ -4685,3 +4685,35 @@ bloque completo queda más bajo que las 4 filas de antes.
 Probado en el preview, escritorio y celular (375px): los 4 pasos se
 ven en cuadrícula 2×2, alineados, sin desbordar; sin errores de
 consola.
+
+## "Café Pandora" en la barra lateral, ahora clickeable (reemplaza a "Conócenos") (2026-09-29)
+
+El usuario reportó: "hasta yo me confundí y traté de darle clic ya un
+par de veces" — "Café Pandora" (el encabezado de la barra lateral,
+`.sidebar-marca`) era solo texto, sin `href` ni `onclick`, pero un
+nombre de marca destacado arriba de un menú se lee como un link en
+casi cualquier sitio. Dio 2 opciones: hacerlo clickeable (y que
+reemplace a "Conócenos", quitando ese link de la lista) o poner el
+logo ahí para que se sienta menos interactivo. Se eligió la primera —
+un logo/wordmark en un encabezado de marca es, si acaso, TODAVÍA más
+esperable que sea clickeable que texto plano (el patrón "clic en el
+logo" es universal en la web), así que solo cambiar texto por imagen no
+iba a resolver la confusión real; hacerlo funcionar sí.
+
+`<a href="/conocenos" id="navConocenosLink" onclick="mostrarVista(...)">`
+se movió de `.sidebar-nav` (la lista de abajo) a `.sidebar-marca` (el
+encabezado) — mismo `id`, así que `LINK_ID_POR_VISTA` no necesitó
+ningún cambio, solo el HTML. La lista de abajo quedó con 3 links
+(Catálogo, Maquila, Blog) en vez de 4. `.sidebar-marca a` es un estilo
+nuevo, más sobrio que `.sidebar-nav a.activo` (que pinta todo el fondo
+teal) — acá solo el TEXTO cambia a teal cuando está activo/en hover, sin
+fondo, para que se siga sintiendo como un encabezado de marca y no como
+un ítem más de la lista. El selector que limpia `.activo` en
+`mostrarVista()` pasó de `'.sidebar-nav a'` a `'.sidebar-nav a,
+.sidebar-marca a'` para cubrir el link que se movió.
+
+Probado en el preview, escritorio y celular (panel abierto): tocar
+"Café Pandora" navega a `/conocenos`, pinta su contenido, y el texto se
+pone teal (activo); la lista de abajo solo tiene 3 links; en celular el
+panel se cierra igual al tocarlo, mismo comportamiento de siempre. Sin
+errores de consola.

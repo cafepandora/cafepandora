@@ -518,7 +518,18 @@
     display: flex; flex-direction: column; overflow-y: auto;
   }
   .sidebar-marca { padding: 24px 20px 14px; }
-  .sidebar-marca span { font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--cafe); }
+  /* "Café Pandora" es un link real ahora (2026-09-29) — lleva a
+     "Conócenos", que se quitó de la lista de abajo (`.sidebar-nav`) para
+     no repetirlo. Antes era solo texto, sin onclick ni href — el usuario
+     reportó que "hasta yo me confundí y traté de darle clic ya un par de
+     veces": un encabezado de marca destacado, arriba del todo, se lee
+     como un link en casi cualquier sitio, así que lo más simple era
+     hacerlo funcionar de verdad en vez de aclarar que no lo es. */
+  .sidebar-marca a { font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--cafe); text-decoration: none; }
+  .sidebar-marca a.activo { color: var(--teal); }
+  @media (hover: hover) {
+    .sidebar-marca a:hover { color: var(--teal); }
+  }
   .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; flex: 1; }
   /* Sin íconos (2026-09-28, a pedido del usuario — "no haya íconos en la
      barra lateral") y en la misma serif del logo/los títulos en vez de
@@ -580,11 +591,12 @@
      sección, igual que ya hacían Maquila/Blog. Merch sigue SIN link acá
      a propósito (ver el comentario junto a #vistaMerch, más abajo). -->
 <nav class="sidebar-publica" id="sidebarPublica">
-  <div class="sidebar-marca"><span>Café Pandora</span></div>
+  <div class="sidebar-marca">
+    <a href="/conocenos" id="navConocenosLink" onclick="mostrarVista('conocenos'); return false;">Café Pandora</a>
+  </div>
   <div class="sidebar-nav">
     <a href="/" id="navCatalogoLink" onclick="mostrarVista('catalogo'); return false;">Catálogo</a>
     <a href="/maquila" id="navMaquilaLink" onclick="mostrarVista('maquila'); return false;">Maquila</a>
-    <a href="/conocenos" id="navConocenosLink" onclick="mostrarVista('conocenos'); return false;">Conócenos</a>
     <a href="/blog" id="navBlogLink" onclick="mostrarVista('blog'); return false;">Blog</a>
   </div>
   <div class="sidebar-footer">
@@ -955,7 +967,7 @@ function mostrarVista(vista, opciones = {}) {
   document.getElementById('vistaMaquila').style.display = vista === 'maquila' ? '' : 'none';
   document.getElementById('vistaBlog').style.display = vista === 'blog' ? '' : 'none';
   document.getElementById('vistaMerch').style.display = vista === 'merch' ? '' : 'none';
-  document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('activo'));
+  document.querySelectorAll('.sidebar-nav a, .sidebar-marca a').forEach(a => a.classList.remove('activo'));
   const linkId = LINK_ID_POR_VISTA[vista];
   if (linkId) document.getElementById(linkId).classList.add('activo');
   cerrarSidebar(); // no-op en escritorio (siempre visible); en celular cierra el panel al navegar
