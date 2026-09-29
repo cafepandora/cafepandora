@@ -490,8 +490,10 @@
   .sidebar-marca { padding: 24px 20px 14px; }
   .sidebar-marca span { font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--cafe); }
   .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; flex: 1; }
-  .sidebar-nav a { display: flex; align-items: center; gap: 11px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 14.5px; color: var(--cafe); text-decoration: none; padding: 11px 12px; border-radius: 12px; }
-  .sidebar-nav a .ico { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; }
+  /* Sin íconos (2026-09-28, a pedido del usuario — "no haya íconos en la
+     barra lateral") y en la misma serif del logo/los títulos en vez de
+     Outfit — se ve más elegante como menú de texto solo. */
+  .sidebar-nav a { display: block; font-family: var(--serif); font-weight: 600; font-size: 16.5px; letter-spacing: .2px; color: var(--cafe); text-decoration: none; padding: 12px 14px; border-radius: 12px; }
   .sidebar-nav a.activo { background: var(--teal); color: #fff; }
   @media (hover: hover) {
     .sidebar-nav a:not(.activo):hover { background: var(--linea); }
@@ -537,12 +539,12 @@
      sección, igual que ya hacían Maquila/Blog. Merch sigue SIN link acá
      a propósito (ver el comentario junto a #vistaMerch, más abajo). -->
 <nav class="sidebar-publica" id="sidebarPublica">
-  <div class="sidebar-marca"><span>☕ Café Pandora</span></div>
+  <div class="sidebar-marca"><span>Café Pandora</span></div>
   <div class="sidebar-nav">
-    <a href="/" id="navCatalogoLink" onclick="mostrarVista('catalogo'); return false;"><span class="ico">☕</span><span>Catálogo</span></a>
-    <a href="/maquila" id="navMaquilaLink" onclick="mostrarVista('maquila'); return false;"><span class="ico">🫘</span><span>Maquila</span></a>
-    <a href="/conocenos" id="navConocenosLink" onclick="mostrarVista('conocenos'); return false;"><span class="ico">📖</span><span>Conócenos</span></a>
-    <a href="/blog" id="navBlogLink" onclick="mostrarVista('blog'); return false;"><span class="ico">📰</span><span>Blog</span></a>
+    <a href="/" id="navCatalogoLink" onclick="mostrarVista('catalogo'); return false;">Catálogo</a>
+    <a href="/maquila" id="navMaquilaLink" onclick="mostrarVista('maquila'); return false;">Maquila</a>
+    <a href="/conocenos" id="navConocenosLink" onclick="mostrarVista('conocenos'); return false;">Conócenos</a>
+    <a href="/blog" id="navBlogLink" onclick="mostrarVista('blog'); return false;">Blog</a>
   </div>
   <div class="sidebar-footer">
     <a href="/gestion/">¿Eres del equipo? Inicia sesión →</a>

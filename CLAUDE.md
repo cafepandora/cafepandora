@@ -4306,13 +4306,13 @@ desbordar.
 **Pendiente, para cuando Juan avise que ya armó el catálogo y quiere
 lanzarlo**: correr `migracion_merch.sql`, y agregar
 `<a href="/merch" id="navMerchLink" onclick="mostrarVista('merch');
-return false;"><span class="ico">🛍️</span><span>Merch</span></a>` dentro
-de `.sidebar-nav` (en `index.html`) + `merch: 'navMerchLink'` a
-`LINK_ID_POR_VISTA` — dos líneas, nada más, ya está todo lo demás
-construido y probado. ⚠️ *Actualización 2026-09-28*: `.nav-secciones`
-(mencionada arriba en este bloque) ya no existe — la barra de arriba se
-reemplazó por una barra lateral, ver "Barra lateral + catálogo como
-primera pantalla" más abajo; el lugar donde agregar el link de Merch
+return false;">Merch</a>` dentro de `.sidebar-nav` (en `index.html`) +
+`merch: 'navMerchLink'` a `LINK_ID_POR_VISTA` — dos líneas, nada más, ya
+está todo lo demás construido y probado. ⚠️ *Actualización 2026-09-28*:
+`.nav-secciones` (mencionada arriba en este bloque) ya no existe — la
+barra de arriba se reemplazó por una barra lateral, ver "Barra lateral +
+catálogo como primera pantalla" más abajo; el lugar donde agregar el
+link de Merch
 ahora es `.sidebar-nav`, como se corrigió en este mismo párrafo.
 
 ## Barra lateral + catálogo como primera pantalla (2026-09-28)
@@ -4451,3 +4451,19 @@ WhatsApp") y la pantalla de confirmación se mostró igual que siempre,
 con el resto del formulario oculto correctamente. `/merch` sigue
 funcionando por URL directa, sin ningún link resaltado en la barra —
 comportamiento sin cambios. Sin errores de consola en ningún recorrido.
+
+**Ajuste el mismo día, después de ver la barra en vivo**: el usuario
+pidió quitar los emoji de cada link (☕🫘📖📰, y el ☕ del propio
+"Café Pandora" del encabezado de la barra) y usar una tipografía "más
+elegante y bonita" — se quitaron los `<span class="ico">` por completo
+(los 4 links de `.sidebar-nav` quedaron como texto solo) y
+`.sidebar-nav a` pasó de Outfit (sans-serif de UI) a `var(--serif)`
+(Fraunces, la misma serif del logo y los títulos de sección en toda la
+página), subiendo el tamaño de 14.5px a 16.5px — a ese tamaño chico
+Fraunces se ve apretada si no se agranda un poco. El link "¿Eres del
+equipo?..." al pie de la barra NO se tocó — a propósito se queda chico
+y en Outfit, porque es del equipo, no un ítem de navegación para
+clientes (mismo criterio que ya tenía cuando era un `<footer>` aparte).
+Probado en el preview, escritorio y celular (375px, panel abierto): los
+4 links se ven en serif sin íconos, sin desbordar ni verse apretados;
+sin errores de consola.
