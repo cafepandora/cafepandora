@@ -6204,10 +6204,17 @@ function renderResumen() {
   const maquilaPagada = maquilaMes.filter(o => o.estado === 'Pagado');
   const cobradoMaquila = maquilaPagada.reduce((s, o) => s + (Number(o.valor) || 0), 0);
 
-  // El total del negocio junta café + maquila; la tarjeta de maquila se ve
-  // aparte para que sepas cuánto es cada cosa, pero sí entra en el total.
-  const facturado = facturadoVentas + facturadoMaquila;
-  const cobrado = cobradoVentas + cobradoMaquila;
+  // El dinero de maquila se maneja aparte (Juan: "el dinero de maquilas se
+  // maneja aparte") — Total facturado/Cobrado/Por cobrar/Balance de arriba
+  // son SOLO café; maquila se ve nada más en su propia tarjeta ("Dinero de
+  // maquila este mes"), sin sumarse acá. Hasta el 2026-09-30 sí entraba en
+  // estos 4 números (a propósito, para no subestimar el ingreso real del
+  // mes) — Juan pidió el cambio explícito, revirtiendo esa decisión vieja
+  // solo para estos 4 stats de "Este mes" (no toca la gráfica "Ingresos
+  // cobrados vs. egresos" ni "Comparación año contra año", que siguen
+  // sumando maquila — no se pidió tocar esas).
+  const facturado = facturadoVentas;
+  const cobrado = cobradoVentas;
   const porCobrar = facturado - cobrado;
   const totalGastos = gastosMes.filter(esGastoOperativo).reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const totalMovimientosInternos = gastosMes.filter(g => !esGastoOperativo(g)).reduce((s, g) => s + (Number(g.monto) || 0), 0);
@@ -6260,14 +6267,14 @@ function renderResumen() {
   document.getElementById('view-resumen').innerHTML = `
     <h3 class="section-title" style="margin-top:0">Resumen de ${mes}</h3>
     <div class="stat-grid">
-      <div class="stat"><div class="n">${fmt(facturado)}</div><div class="l">Total facturado (café + maquila)</div></div>
-      <div class="stat"><div class="n pos">${fmt(cobrado)}</div><div class="l">Cobrado</div></div>
-      <div class="stat"><div class="n">${fmt(porCobrar)}</div><div class="l">Por cobrar</div></div>
+      <div class="stat"><div class="n">${fmt(facturado)}</div><div class="l">Total facturado (solo café)</div></div>
+      <div class="stat"><div class="n pos">${fmt(cobrado)}</div><div class="l">Cobrado (solo café)</div></div>
+      <div class="stat"><div class="n">${fmt(porCobrar)}</div><div class="l">Por cobrar (solo café)</div></div>
       <div class="stat"><div class="n neg">${fmt(totalGastos + totalFinca)}</div><div class="l">Gastos + Finca${totalMovimientosInternos ? ` <span style="opacity:.65">(no incluye ${fmt(totalMovimientosInternos)} en retiros/transferencias — eso no sale del negocio)</span>` : ''}</div></div>
     </div>
     <div class="stat-grid" style="margin-bottom:18px">
-      <div class="stat"><div class="n ${balance >= 0 ? 'pos' : 'neg'}">${fmt(balance)}</div><div class="l">Balance real del mes (cobrado − gastos − finca)</div></div>
-      <div class="stat"><div class="n pos">${fmt(facturadoMaquila)}</div><div class="l">Dinero de maquila este mes (${maquilaMes.length} orden${maquilaMes.length===1?'':'es'}, ya incluido arriba)</div></div>
+      <div class="stat"><div class="n ${balance >= 0 ? 'pos' : 'neg'}">${fmt(balance)}</div><div class="l">Balance real del mes (solo café — cobrado − gastos − finca)</div></div>
+      <div class="stat"><div class="n pos">${fmt(facturadoMaquila)}</div><div class="l">Dinero de maquila este mes (${maquilaMes.length} orden${maquilaMes.length===1?'':'es'}, aparte — no incluido arriba)</div></div>
       <div class="stat"><div class="n">${librasVendidas.toFixed(1)}</div><div class="l">Libras de café vendidas este mes (todas las presentaciones)</div></div>
     </div>
 

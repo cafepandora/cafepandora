@@ -5375,3 +5375,50 @@ de coma flotante — con el arreglo, muestra `16277` limpio (el caso real
 es, de hecho, un empate en .5 que ahora redondea hacia abajo como pidió
 Juan). Otros casos probados directo sobre `redondearPrecio()`: 100.6 →
 101, 100.5 → 100, 100.4 → 100. Sin errores nuevos de consola.
+
+## Resumen: los 4 stats de "Este mes" ya no suman maquila (2026-09-30)
+
+Juan: *"como el dinero de maquilas se maneja aparte, quiero que siga
+apareciendo en resultados como está, pero que no se sume al total de
+ventas, ahí solo van los resultados de venta de café"*. Se confirmó el
+alcance exacto antes de tocar nada (los cálculos de balance de esta app
+son delicados y ya se habían corregido varias veces por incidentes
+reales) — Juan eligió el alcance más amplio: los 4 números de
+"Este mes" que hoy suman café + maquila (`renderResumen()`, junto a
+"Resumen de {mes}") pasan a ser SOLO café: **Total facturado**,
+**Cobrado**, **Por cobrar** y **Balance real del mes**.
+
+⚠️ **Esto revierte, a propósito y solo para estos 4 stats, una decisión
+vieja documentada más arriba** ("Balance de cuentas por persona": *"la
+gráfica 'Ingresos cobrados vs. egresos' también se corrigió para sumar
+maquila... antes solo contaba café, y subestimaba los ingresos reales
+del mes"*) — esa gráfica de "Comportamiento en el tiempo" y
+"Comparación año contra año" (`comparacionAnual()`) **NO se tocaron**,
+siguen sumando café + maquila tal cual — Juan no pidió tocar esas, solo
+los 4 stats de encabezado de "Este mes". Si en algún momento se quiere
+el mismo criterio en esas otras vistas, es un pedido aparte, no algo
+que se haya asumido de una vez por todas acá.
+
+**Cómo quedó**: `facturadoVentas`/`cobradoVentas` (ya eran solo café,
+sin cambios) ahora son directamente `facturado`/`cobrado` — se quitó el
+`+ facturadoMaquila`/`+ cobradoMaquila` que tenían antes.
+`porCobrar`/`balance` no cambiaron de fórmula (`facturado - cobrado`,
+`cobrado - gastos - finca`), pero como sus insumos ya son solo café, el
+resultado también lo es. `facturadoMaquila`/`cobradoMaquila` se quedan
+calculados exactamente igual que antes — la tarjeta **"Dinero de
+maquila este mes"** sigue mostrándose tal cual pidió Juan ("que siga
+apareciendo... como está"), solo que su etiqueta cambió de "ya incluido
+arriba" a **"aparte — no incluido arriba"**, porque lo primero ya no
+era cierto y hubiera quedado mintiendo. Las etiquetas de los otros 3
+stats también ganaron "(solo café)" para que no quede ambiguo de un
+vistazo (antes "Total facturado" decía explícitamente "(café +
+maquila)", que ahora sería falso si se dejaba igual).
+
+Probado en el preview con datos reales del mock (534.000 en ventas de
+café + 100.000 de una orden de maquila pagada, mismo mes): "Total
+facturado" mostró $534.000 (NO $634.000), "Cobrado" $456.000, "Balance
+real del mes" $186.000 — confirmado a mano que ninguno de los 3 incluye
+el dinero de maquila (si lo incluyera, Balance hubiera dado $286.000 en
+vez de $186.000, por los $100.000 de la orden ya pagada). "Dinero de
+maquila este mes" siguió mostrando $100.000, con la etiqueta nueva. Sin
+errores nuevos de consola.
