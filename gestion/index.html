@@ -1410,6 +1410,19 @@ function irAPagina(clave, numero) {
 }
 
 const fmt = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO');
+// kg × tarifa (ej. 19.15 × 850) casi siempre da ruido de coma flotante en
+// JS (19.15 * 850 = 16277.499999999998, no 16277.5 exacto) — sin
+// redondear, ese número crudo se metía directo al campo "Valor de esta
+// línea" de Maquila (ver recalcularLineaMaquila()/recalcularEmqLinea()),
+// se veía con muchísimos decimales y el campo (step=1 por defecto) no
+// dejaba ajustarlo bien. redondearPrecio() limpia el ruido a 2 decimales
+// y redondea al peso más cercano — a pedido explícito del usuario, con
+// el empate exacto en .5 hacia ABAJO (no hacia arriba como Math.round())
+// y cualquier .6 o más hacia arriba, igual que el redondeo normal.
+function redondearPrecio(valor) {
+  const limpio = Math.round((Number(valor) || 0) * 100) / 100;
+  return Math.ceil(limpio - 0.5);
+}
 const mesDe = ts => { const d = new Date(Number(ts)); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 const coincide = (texto, q) => !q || String(texto || '').toLowerCase().includes(q.toLowerCase());
 const hoyMes = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
@@ -3844,7 +3857,7 @@ function recalcularLineaMaquila() {
     const tarifa = filas.find(f => f.presentacion === presentacion);
     valor = cantidad * (tarifa ? tarifa.precio : 0);
   }
-  document.getElementById('mq-valor').value = valor;
+  document.getElementById('mq-valor').value = redondearPrecio(valor);
 }
 function agregarLineaMaquila() {
   const servicio = document.getElementById('mq-servicio').value;
@@ -4071,7 +4084,7 @@ function recalcularEmqLinea() {
     const tarifa = filas.find(f => f.presentacion === presentacion);
     valor = cantidad * (tarifa ? tarifa.precio : 0);
   }
-  document.getElementById('emq-valor').value = valor;
+  document.getElementById('emq-valor').value = redondearPrecio(valor);
 }
 function agregarLineaEmq() {
   const servicio = document.getElementById('emq-servicio').value;

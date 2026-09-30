@@ -5331,3 +5331,47 @@ recientes o un conteo distinto más adelante.
 Probado en el preview: el bloque se ve completo en escritorio y celular
 (375px) sin desbordar, el link abre la búsqueda real de Google Maps.
 Sin errores de consola.
+
+## "Valor de esta línea" de Maquila con muchos decimales (2026-09-30)
+
+Juan: *"cuando en trilla pongo numeros como 19,15 el precio a veces sale
+con muchisimos decimales y no se deja poner"* — Trilla se cobra por kg
+(`recalcularLineaMaquila()`/`recalcularEmqLinea()` en Maquila, sección
+"① Agregar servicio a la orden": `valor = kg * filas[0].precio`). La
+causa es ruido de coma flotante de JS al multiplicar un kilaje decimal
+por la tarifa — confirmado en vivo: `19.15 * 850` da
+`16277.499999999998`, no `16277.5` exacto — ese número crudo se metía
+directo al campo "Valor de esta línea" (`mq-valor`/`emq-valor`, sin
+ningún redondeo), así que se veía con un montón de decimales y el campo
+(sin `step` explícito, por defecto 1) no dejaba ajustarlo bien con las
+flechitas.
+
+**`redondearPrecio(valor)`** (junto a `fmt()`): limpia primero el ruido
+redondeando a 2 decimales (`Math.round(valor * 100) / 100`) y LUEGO
+redondea al peso más cercano con el empate exacto en **.5 hacia abajo**
+(pedido explícito de Juan, al revés del `Math.round()` normal de JS, que
+redondea .5 hacia arriba) — cualquier cosa en .6 o más sigue subiendo
+igual que un redondeo normal. Implementado como
+`Math.ceil(limpio - 0.5)`. Se aplicó en los 2 lugares donde Maquila
+calcula "Valor de esta línea" por kg o por presentación
+(`recalcularLineaMaquila()` en Registrar, `recalcularEmqLinea()` en
+Editar — mismos 2 lugares gemelos de siempre) — antes de esto, `valor`
+se metía crudo al campo en ambos.
+
+**No se tocó nada de Ventas ni de las calculadoras de precio de
+cereza/pergamino** — aunque tienen el mismo patrón de multiplicar
+kg/cantidad × precio, esos ya pasan por `fmt()` (que ya redondea, solo
+que con el `Math.round()` normal, .5 hacia arriba) para lo que se
+MUESTRA, o por `Math.round()` explícito antes de guardar (ej.
+`cp-costo` en "Completar pago") — Juan mencionó puntualmente Trilla/
+Maquila, así que el arreglo se quedó ahí; si en Ventas también llega a
+notarse el mismo síntoma (un "Valor de esta línea" con muchos
+decimales), es el mismo patrón y `redondearPrecio()` ya queda listo
+para reusarse ahí.
+
+Probado en vivo en el preview: con una tarifa de prueba de Trilla a
+$850/kg y 19.15 kg, `mq-valor` mostraba antes el numero crudo con ruido
+de coma flotante — con el arreglo, muestra `16277` limpio (el caso real
+es, de hecho, un empate en .5 que ahora redondea hacia abajo como pidió
+Juan). Otros casos probados directo sobre `redondearPrecio()`: 100.6 →
+101, 100.5 → 100, 100.4 → 100. Sin errores nuevos de consola.
