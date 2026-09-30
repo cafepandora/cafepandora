@@ -125,7 +125,7 @@
   .dato-duro {
     background:
       linear-gradient(180deg, rgba(32,27,20,.55), rgba(32,27,20,.82)),
-      url('img/finca-ladera.jpg') center 35% / cover no-repeat, var(--cafe);
+      url('/img/finca-ladera.jpg') center 35% / cover no-repeat, var(--cafe);
     color: var(--crema); text-align: center;
     padding: 110px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px;
   }
@@ -800,20 +800,20 @@
     <div class="proceso-paso revela">
       <span class="proceso-num">01</span>
       <div><h3>Cereza</h3><p>Recolectamos a mano solo la cereza madura, en nuestra propia finca.</p>
-        <img class="proceso-foto" src="img/proceso-cereza.jpg" alt="Cerezas de café maduras y verdes en la rama, en la finca"></div>
+        <img class="proceso-foto" src="/img/proceso-cereza.jpg" alt="Cerezas de café maduras y verdes en la rama, en la finca"></div>
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">02</span>
       <div><h3>Lavado y secado</h3><p>Seleccionamos el café ya en el lavado, y secamos de 7 a 35 días según el proceso — Lavado es el más rápido; Honey y Natural fermentan mucho más tiempo en caneca.</p>
         <div class="proceso-fotos-par">
-          <div><img class="proceso-foto" src="img/proceso-secado.jpg" alt="Pergamino de Lavado secándose al sol en las marquesinas" style="object-position: center 40%"><span class="proceso-foto-etiqueta">Lavado</span></div>
-          <div><img class="proceso-foto" src="img/proceso-secado-honey.jpg" alt="Pergamino de Honey secándose en el invernadero"><span class="proceso-foto-etiqueta">Honey y Natural</span></div>
+          <div><img class="proceso-foto" src="/img/proceso-secado.jpg" alt="Pergamino de Lavado secándose al sol en las marquesinas" style="object-position: center 40%"><span class="proceso-foto-etiqueta">Lavado</span></div>
+          <div><img class="proceso-foto" src="/img/proceso-secado-honey.jpg" alt="Pergamino de Honey secándose en el invernadero"><span class="proceso-foto-etiqueta">Honey y Natural</span></div>
         </div></div>
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">03</span>
       <div><h3>Trilla</h3><p>Retiramos el pergamino para dejar el café verde, y volvemos a seleccionar grano por grano antes de tostar.</p>
-        <img class="proceso-foto" src="img/proceso-trilla.jpg" alt="Café verde recién trillado cayendo en una caneca, separado del pergamino"></div>
+        <img class="proceso-foto" src="/img/proceso-trilla.jpg" alt="Café verde recién trillado cayendo en una caneca, separado del pergamino"></div>
     </div>
     <div class="proceso-paso revela">
       <span class="proceso-num">04</span>
@@ -846,7 +846,7 @@
   <p class="maquila-kicker revela">También ofrecemos</p>
   <h2 class="maquila-titulo revela">Maquila — trillamos, tostamos y empacamos TU café</h2>
   <p class="maquila-intro revela">¿Ya tienes tu propio café en pergamino o verde? Te ayudamos a procesarlo — el café sigue siendo tuyo, nosotros solo lo transformamos con el mismo cuidado que le damos al nuestro.</p>
-  <img class="maquila-foto revela" src="img/maquila-tostadora.jpg" alt="Tostadora PRISMA de Café Pandora">
+  <img class="maquila-foto revela" src="/img/maquila-tostadora.jpg" alt="Tostadora PRISMA de Café Pandora">
   <div class="maquila-servicios">
     <div class="maquila-servicio revela"><h3>Trilla</h3><p>Retiramos el pergamino y dejamos tu café en verde, listo para tostar.</p></div>
     <div class="maquila-servicio revela"><h3>Tostión</h3><p>Tostamos tu café verde al punto que necesites.</p></div>
@@ -1336,7 +1336,7 @@ function cargarConocenosArte() {
   if (conocenosArteCargada) return;
   conocenosArteCargada = true;
   const cont = document.getElementById('conocenosArte');
-  if (cont) cont.innerHTML = `<img src="img/finca-flor.jpg" alt="Cereza de café y flor de café en la finca, al amanecer">`;
+  if (cont) cont.innerHTML = `<img src="/img/finca-flor.jpg" alt="Cereza de café y flor de café en la finca, al amanecer">`;
 }
 
 // Revela por scroll los bloques .revela (Hero, Dato duro) agregándoles

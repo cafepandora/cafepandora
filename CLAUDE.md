@@ -5219,20 +5219,62 @@ puntualmente en vez de inventar contenido en su nombre.
   el caso exacto que antes se hubiera adivinado mal) — los 4 dieron el
   número final correcto.
 
-**Ya estaba resuelto (probablemente antes de que se hiciera esta
-prueba)**: "Enlaces rotos" en Maquila, Nosotros→Cereza,
-Lavado y secado, y Trilla — las 4 fotos responden 200 en producción
-ahora mismo (confirmado en vivo contra `cafepandora.co`) y están bien
-referenciadas en el HTML. Coincide con que esos 4 puntos son
-exactamente las fotos que se agregaron/arreglaron en los commits de
-HOY MISMO (el bug real de `loading="lazy"` dentro de un contenedor
-`display:none`, ya documentado más arriba en "Fotos reales comprimidas
-+ el bug real de por qué no cargaban en 'algunas pestañas'", y la foto
-de Trilla que se agregó en el commit más reciente) — lo más probable es
-que la prueba haya sido justo antes de ese despliegue, o que el
-navegador de quien probó tuviera cacheada una versión vieja de la
-página. Si se vuelve a reportar, revisar con caché forzado a un lado
-antes de asumir que es un bug nuevo.
+**"Enlaces rotos" — la causa real, encontrada después (2026-09-30)**: el
+primer diagnóstico (arriba) estaba incompleto — las fotos SÍ respondían
+200 al probarlas desde acá, pero el usuario reportó que el reportero
+las vio rotas conectándose desde Australia y no desde Colombia. Esa
+pista geográfica llevó a la causa real, que no tiene nada que ver con
+la ubicación en sí: **depende de la URL EXACTA con la que se llega a la
+página, con o sin `/` final** — probablemente el visitante de Australia
+llegó por un link con `/maquila/` o `/conocenos/` (con `/` al final) en
+vez de `/maquila`/`/conocenos` (como arma `mostrarVista()` al navegar
+por dentro del sitio, que nunca le pone `/` final).
+
+Las 6 fotos reales de `pedidos/index.html`/`index.html` estaban
+referenciadas con ruta RELATIVA (`src="img/proceso-cereza.jpg"`, sin
+`/` inicial) — igual que `url('img/finca-ladera.jpg')` en el CSS. Una
+ruta relativa se resuelve contra la URL actual del navegador, no contra
+la raíz del sitio. Mientras la URL es `/` o `/maquila` (sin `/` final),
+el navegador trata el último segmento como "archivo" y lo reemplaza,
+así que `img/x.jpg` sí resuelve a `/img/x.jpg` — correcto. Pero si la
+URL termina en `/` (`/maquila/`), el navegador trata `maquila` como una
+CARPETA y arma `/maquila/img/x.jpg` en su lugar. Confirmado en vivo:
+
+```
+curl -sI "https://cafepandora.co/maquila/img/proceso-cereza.jpg"
+→ HTTP 200, content-type: text/html
+```
+
+`_redirects` tiene una regla `/maquila/*  /  200` (proxying, para que
+`/maquila/lo-que-sea` siga funcionando) — así que esa URL mal armada
+NO da 404: Cloudflare la interpreta como una ruta más bajo `/maquila/*`
+y devuelve el `index.html` completo con status 200. El navegador recibe
+HTML donde esperaba una imagen y no puede pintarlo — ícono de imagen
+rota, con un 200 "exitoso" de por medio, nada que un chequeo simple de
+status code hubiera detectado (por eso el primer diagnóstico, que solo
+miró códigos de respuesta, no vio el problema).
+
+**Arreglo real**: las 6 referencias (`index.html`, 5 `<img src="img/...">`
++ 1 `url('img/...')` en CSS) pasaron a ruta ABSOLUTA
+(`/img/...`) — con `/` inicial, la resolución ya no depende de en qué
+URL esté parado el visitante ni de si esa URL termina en `/` o no.
+`fetch('/api/...')` y `<link rel="manifest" href="/manifest.json">` ya
+eran absolutos desde el principio (por eso nunca fallaron) — esta
+inconsistencia solo afectaba a las fotos, agregadas más tarde con el
+patrón relativo heredado de cuando `pedidos/index.html` vivía en su
+propia carpeta y esa ruta relativa sí era correcta siempre (antes de que
+existieran las vistas con proxying de `_redirects`).
+
+Probado en vivo, reproduciendo el bug exacto (`/maquila/` con `/`
+final): antes del arreglo, las 5 fotos de esa vista pedían
+`/maquila/img/*.jpg` (200 pero `text/html`, rotas); con las rutas ya
+absolutas, todas piden `/img/*.jpg` sin importar el `/` final. Moraleja
+para cualquier archivo/imagen nuevo que se agregue a este sitio: SIEMPRE
+con `/` inicial, nunca ruta relativa — este sitio tiene vistas
+proxineadas por `_redirects` en varias URLs (`/maquila`, `/conocenos`,
+`/blog`, `/merch`, `/pedidos`), y una ruta relativa que "funciona" hoy
+puede romperse el día que alguien llegue por una de esas URLs con `/`
+final.
 
 **Devuelto al usuario, necesita contenido o una decisión suya (no se
 inventó nada en su nombre):**
