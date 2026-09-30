@@ -5169,11 +5169,12 @@ puntualmente en vez de inventar contenido en su nombre.
 
 **Hechas:**
 
-- **Tiempo de entrega real (Servientrega)**: nueva línea en
-  `#confianzaPedido` ("Nota importante antes de pedir"): "🚚 Tiempo de
-  entrega: con Servientrega — 1 a 2 días hábiles a ciudades principales,
-  4 a 5 días hábiles a otros municipios." — dato que dio el propio
-  usuario, no inventado.
+- **Tiempo de entrega real (Envía)**: nueva línea en `#confianzaPedido`
+  ("Nota importante antes de pedir"): "🚚 Tiempo de entrega: con Envía —
+  1 a 2 días hábiles a ciudades principales, 4 a 5 días hábiles a otros
+  municipios." — dato que dio el propio usuario, no inventado. (Se
+  escribió primero "Servientrega" por error de interpretación del
+  mensaje original; Juan corrigió el mismo día que es "Envía".)
 - **Horario de atención en la promesa de WhatsApp**: "Respondemos por
   WhatsApp en menos de una hora" (en 3 lugares: el encabezado del
   catálogo, la nota antes de pedir, y la pantalla de confirmación) ganó
