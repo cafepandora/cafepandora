@@ -1885,9 +1885,16 @@ function ordenarPedidosWeb(lista) {
 // "300 000 0000", como dice el placeholder de ese campo) — wa.me sí lo
 // necesita, así que si quedan 10 dígitos les anteponemos 57 (Colombia).
 // Si el número ya viene con indicativo (más de 10 dígitos), se deja igual.
+// ⚠️ 2026-09-29: eso adivinaba mal si un cliente de OTRO país escribía un
+// número que TAMBIÉN diera 10 dígitos — el checkbox nuevo "Mi número no
+// es de Colombia" en pedidos/index.html hace que esos clientes escriban
+// su número completo con "+", así que si el original traía un "+" (antes
+// de quitarle todo lo que no sea dígito) se respeta tal cual, sin
+// importar cuántos dígitos tenga.
 function numeroWhatsapp(tel) {
-  let d = String(tel || '').replace(/\D/g, '');
-  if (d.length === 10) d = '57' + d;
+  const original = String(tel || '');
+  let d = original.replace(/\D/g, '');
+  if (!original.includes('+') && d.length === 10) d = '57' + d;
   return d;
 }
 function mensajePedidoListo(p) {

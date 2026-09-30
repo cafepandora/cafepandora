@@ -5156,3 +5156,95 @@ el resumen del botón cerrado ("4 reseñas · 4.5 de 5"); en celular
 (375px) el botón, las pills y el panel se ven completos sin desbordar,
 con la flecha girando al abrir/cerrar. Sin errores de consola en ningún
 recorrido.
+
+## Retroalimentación de un tercero — ajustes rápidos (2026-09-29)
+
+El usuario pasó una lista de 9 observaciones de alguien que probó el
+sitio en vivo (feedback externo, tipo auditoría de usuario real). De
+esas 9, 4 eran arreglos/textos concretos que se hicieron de una vez; las
+otras 5 necesitan contenido o una decisión de negocio que solo Juan
+puede dar (fotos reales, la historia real de la familia, confirmar una
+afirmación sobre prácticas de cultivo) — se le devolvieron esas
+puntualmente en vez de inventar contenido en su nombre.
+
+**Hechas:**
+
+- **Tiempo de entrega real (Servientrega)**: nueva línea en
+  `#confianzaPedido` ("Nota importante antes de pedir"): "🚚 Tiempo de
+  entrega: con Servientrega — 1 a 2 días hábiles a ciudades principales,
+  4 a 5 días hábiles a otros municipios." — dato que dio el propio
+  usuario, no inventado.
+- **Horario de atención en la promesa de WhatsApp**: "Respondemos por
+  WhatsApp en menos de una hora" (en 3 lugares: el encabezado del
+  catálogo, la nota antes de pedir, y la pantalla de confirmación) ganó
+  la aclaración "(horario de atención: 8:00 a.m. – 4:00 p.m.)" — sin
+  esto, alguien que escribe a las 11 p.m. podía sentirse ignorado
+  esperando una respuesta en una hora que no iba a llegar hasta el otro
+  día hábil.
+- **Botones de Lavado/Honey/Natural/Exóticos que "a veces necesitan dos
+  clics"**: revisando el código se encontró una causa real, aunque
+  puede no ser la única — `scroll-margin-top: 66px` (el mismo offset
+  que ya usan `#catalogo`/`#bannerExoticos`/`#datosCliente`, pensado
+  para que el salto de ancla no quede tapado por `.nav-rapida` —
+  position:sticky en escritorio) nunca se le había puesto a
+  `.tarjeta-bolsa-clara`, la clase real que usan las 3 tarjetas de
+  producto (Lavado, Honey/Natural) desde que se rediseñaron como
+  "bolsa" — solo la tenía `.card-lote`, la plantilla vieja que ya no se
+  usa. Sin ese offset, saltar a una tarjeta en escritorio la dejaba con
+  el encabezado tapado por la barra `.nav-rapida` — agregado. Verificado
+  en el preview que ahora el tope de la tarjeta queda exactamente debajo
+  de `.nav-rapida`, sin superposición. Si el "necesita dos clics" persiste
+  después de este cambio, es probablemente el quirk conocido de iOS
+  Safari de que un toque durante el scroll por inercia a veces solo
+  frena el scroll en vez de hacer clic (no tiene arreglo de código real,
+  es comportamiento del navegador) — habría que confirmarlo en un
+  celular real.
+- **Validación de indicativo de país en "Tu WhatsApp o celular"**: antes
+  cualquier número de 10 dígitos se asumía colombiano en
+  `numeroWhatsapp()` (`gestion/index.html`, le antepone "57") — un
+  cliente de otro país cuyo número también diera 10 dígitos (bastante
+  común, muchos países usan celulares de 10 dígitos) generaba un link
+  de WhatsApp incorrecto al querer contactarlo de vuelta. Checkbox nuevo
+  "Mi número no es de Colombia" bajo el campo de teléfono
+  (`index.html`) — al marcarlo, cambia el placeholder a
+  "+1 305 000 0000" y EXIGE que el número tenga un "+" antes de dejar
+  enviar el pedido (`onTelInternacionalChange()`, validación en
+  `enviarPedido()`). `numeroWhatsapp()` ahora revisa si el string
+  original (antes de quitarle todo lo que no sea dígito) tenía un "+" —
+  si lo tenía, respeta el número tal cual sin importar cuántos dígitos
+  tenga, en vez de adivinar. Probado con 4 casos reales (colombiano de
+  10 dígitos, uno que ya traía indicativo sin "+", uno de EE.UU. con
+  "+1" y uno del Reino Unido con "+44" que por sí solo da 10 dígitos —
+  el caso exacto que antes se hubiera adivinado mal) — los 4 dieron el
+  número final correcto.
+
+**Ya estaba resuelto (probablemente antes de que se hiciera esta
+prueba)**: "Enlaces rotos" en Maquila, Nosotros→Cereza,
+Lavado y secado, y Trilla — las 4 fotos responden 200 en producción
+ahora mismo (confirmado en vivo contra `cafepandora.co`) y están bien
+referenciadas en el HTML. Coincide con que esos 4 puntos son
+exactamente las fotos que se agregaron/arreglaron en los commits de
+HOY MISMO (el bug real de `loading="lazy"` dentro de un contenedor
+`display:none`, ya documentado más arriba en "Fotos reales comprimidas
++ el bug real de por qué no cargaban en 'algunas pestañas'", y la foto
+de Trilla que se agregó en el commit más reciente) — lo más probable es
+que la prueba haya sido justo antes de ese despliegue, o que el
+navegador de quien probó tuviera cacheada una versión vieja de la
+página. Si se vuelve a reportar, revisar con caché forzado a un lado
+antes de asumir que es un bug nuevo.
+
+**Devuelto al usuario, necesita contenido o una decisión suya (no se
+inventó nada en su nombre):**
+
+- Fotos y reseñas en la sección del Tour (+ fotos del almuerzo).
+- Destacar reseñas ya dejadas por compradores — hoy no hay ninguna
+  reseña real todavía (`migracion_resenas.sql` sigue sin correrse, ver
+  la sección de Reseñas más arriba), así que no hay nada real que
+  destacar todavía; aplica en cuanto haya reseñas de verdad.
+- La historia humana de "Nosotros" (que son familia, que dejaron la
+  ciudad, etc.) — es contenido biográfico real, no algo para redactar
+  por su cuenta sin que Juan confirme los detalles.
+- La afirmación sobre abono limpio/sin químicos fuertes ni disruptores
+  hormonales/pesticidas naturales/selección manual del grano — es una
+  afirmación de producto potencialmente sensible (salud/certificación),
+  se necesita que Juan confirme la redacción exacta antes de publicarla.

@@ -360,8 +360,11 @@
   .tarjeta-bolsa .peso-pill.activo, .tarjeta-bolsa .bolsa-panel .molienda-btn.activo {
     background: var(--dorado); border-color: var(--dorado); color: #2A2621;
   }
-  /* Variante clara (Honey/Natural) — mismos tonos crema/línea que el resto de la página. */
-  .tarjeta-bolsa-clara { padding: 0; overflow: hidden; background: var(--crema); }
+  /* Variante clara (Honey/Natural) — mismos tonos crema/línea que el resto de la página.
+     scroll-margin-top: mismo 66px que ya usan #catalogo/#bannerExoticos/#datosCliente —
+     sin esto, saltar acá desde .nav-rapida (sticky en escritorio) dejaba el
+     encabezado de la tarjeta tapado por esa barra. */
+  .tarjeta-bolsa-clara { padding: 0; overflow: hidden; background: var(--crema); scroll-margin-top: 66px; }
   .tarjeta-bolsa-clara .peso-pill { background: var(--crema-alt); border: 1.5px solid var(--linea); color: var(--cafe); }
   /* Mismo gotcha ya documentado con la variante kraft (.tarjeta-bolsa):
      esta regla y la de arriba tienen la MISMA especificidad (2 clases) —
@@ -516,6 +519,7 @@
   .field label { font-size: 13px; font-weight: 600; color: var(--cafe-soft); }
   .field input, .field textarea { font-family: 'Outfit', sans-serif; font-size: 16px; padding: 11px 12px; border: 1px solid var(--linea); border-radius: 10px; background: var(--blanco); color: var(--cafe); }
   .field textarea { resize: vertical; min-height: 60px; }
+  .campo-ayuda { font-size: 12px; color: var(--cafe-soft); margin: 2px 0 0; line-height: 1.4; }
 
   .carrito-barra {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
@@ -729,21 +733,30 @@
     <a class="wa-inline" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20preguntar%20por%20la%20disponibilidad%20de%20los%20caf%C3%A9s%20ex%C3%B3ticos." target="_blank" rel="noopener">📲 Preguntar por WhatsApp</a>
   </div>
 
-  <p class="hero-confianza revela">💬 Respondemos por WhatsApp en menos de una hora</p>
+  <p class="hero-confianza revela">💬 Respondemos por WhatsApp en menos de una hora (horario de atención: 8:00 a.m. – 4:00 p.m.)</p>
 
   <div id="resumenPedido" style="display:none"></div>
 
   <div class="card confianza-pedido" id="confianzaPedido">
     <p class="confianza-titulo">Nota importante antes de pedir</p>
     <p class="confianza-item">📦 <b>Envío:</b> hacemos envíos todos los jueves — si necesitas que sea otro día, tiene un costo adicional de $5.000.</p>
+    <p class="confianza-item">🚚 <b>Tiempo de entrega:</b> con Servientrega — 1 a 2 días hábiles a ciudades principales, 4 a 5 días hábiles a otros municipios.</p>
     <p class="confianza-item">💳 <b>Pago:</b> efectivo, transferencia o Nequi.</p>
-    <p class="confianza-item">💬 Este botón abre WhatsApp para <b>confirmar y coordinar</b> tu pedido — no es un pago. Normalmente respondemos en menos de una hora.</p>
+    <p class="confianza-item">💬 Este botón abre WhatsApp para <b>confirmar y coordinar</b> tu pedido — no es un pago. Normalmente respondemos en menos de una hora, en horario de atención (8:00 a.m. – 4:00 p.m.).</p>
   </div>
 
   <div class="card" id="datosCliente" style="scroll-margin-top:66px">
     <h3 style="margin-top:0">Tus datos</h3>
     <div class="field"><label>Tu nombre</label><input id="p-nombre" placeholder="Nombre completo" oninput="guardarBorrador()"></div>
-    <div class="field"><label>Tu WhatsApp o celular</label><input id="p-telefono" type="tel" placeholder="Ej. 300 000 0000" oninput="guardarBorrador()"></div>
+    <div class="field">
+      <label>Tu WhatsApp o celular</label>
+      <input id="p-telefono" type="tel" placeholder="Ej. 300 000 0000" oninput="guardarBorrador()">
+      <label class="metodo-diferente" style="margin-top:6px">
+        <input type="checkbox" id="p-tel-internacional" onchange="onTelInternacionalChange()">
+        Mi número no es de Colombia
+      </label>
+      <p class="campo-ayuda" id="p-tel-ayuda" style="display:none">Escríbelo completo, con el + y el indicativo de tu país — ej. +1 305 000 0000.</p>
+    </div>
     <div class="field"><label>Notas (opcional)</label><textarea id="p-notas" placeholder="Barrio, punto de entrega, alguna preferencia…" oninput="guardarBorrador()"></textarea></div>
   </div>
 
@@ -1915,19 +1928,39 @@ function borrarBorrador() {
   try { localStorage.removeItem(CLAVE_BORRADOR); } catch {}
 }
 
+// El campo de teléfono asume Colombia por defecto (mismo criterio que
+// numeroWhatsapp() en gestion/index.html, que le antepone 57 a cualquier
+// número de 10 dígitos) — pero eso adivina mal si un cliente de OTRO país
+// escribe un número que también da 10 dígitos. Este checkbox hace que la
+// persona lo diga explícitamente: si lo marca, tiene que escribir su
+// número COMPLETO con el "+" y el indicativo — ese "+" viaja intacto en
+// `telefono` (numeroWhatsapp() ahora lo detecta y ya no intenta adivinar
+// nada si lo encuentra).
+function onTelInternacionalChange() {
+  const marcado = document.getElementById('p-tel-internacional').checked;
+  const input = document.getElementById('p-telefono');
+  document.getElementById('p-tel-ayuda').style.display = marcado ? 'block' : 'none';
+  input.placeholder = marcado ? '+1 305 000 0000' : 'Ej. 300 000 0000';
+}
+
 async function enviarPedido() {
   const items = Object.values(carrito);
   if (!items.length) return;
   const nombre = document.getElementById('p-nombre').value.trim();
   const telefono = document.getElementById('p-telefono').value.trim();
+  const esInternacional = document.getElementById('p-tel-internacional').checked;
   const soloDigitos = telefono.replace(/\D/g, '');
   // Si le falta algo del formulario, lo llevamos directo ahí en vez de
   // dejarlo adivinando qué le faltó — sobre todo si venía tocando "Enviar"
   // desde la barra flotante sin haber bajado a ver el formulario.
-  if (!nombre || soloDigitos.length < 7) {
+  const faltaIndicativo = esInternacional && !telefono.includes('+');
+  if (!nombre || soloDigitos.length < 7 || faltaIndicativo) {
     document.getElementById('datosCliente').scrollIntoView({ behavior: 'smooth', block: 'start' });
     const campo = !nombre ? 'p-nombre' : 'p-telefono';
-    mostrarToast(!nombre ? 'Escribe tu nombre para poder contactarte.' : 'Escribe un número de celular válido.');
+    let msg = 'Escribe tu nombre para poder contactarte.';
+    if (nombre && soloDigitos.length < 7) msg = 'Escribe un número de celular válido.';
+    else if (nombre && faltaIndicativo) msg = 'Escribe tu número completo con el "+" y el indicativo de tu país.';
+    mostrarToast(msg);
     setTimeout(() => document.getElementById(campo).focus(), 400);
     return;
   }
@@ -1981,7 +2014,7 @@ function mostrarConfirmacion(nombre, items, total, notas) {
     <div class="confirmacion revela">
       <div class="check">✅</div>
       <h2>¡Pedido recibido!</h2>
-      <p>Dale al botón para confirmarlo por WhatsApp y coordinar contigo la entrega y el pago. Normalmente respondemos en menos de una hora.</p>
+      <p>Dale al botón para confirmarlo por WhatsApp y coordinar contigo la entrega y el pago. Normalmente respondemos en menos de una hora, en horario de atención (8:00 a.m. – 4:00 p.m.).</p>
       <a class="wa" href="${linkWa}" target="_blank" rel="noopener">📲 Confirmar por WhatsApp</a>
     </div>`;
   // Es el momento de más peso emocional de todo el flujo — el cierre de
