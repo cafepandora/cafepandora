@@ -310,6 +310,20 @@
   .confianza-titulo { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--teal); margin: 0 0 10px; }
   .confianza-item { font-size: 13.5px; color: var(--cafe); margin: 0 0 8px; line-height: 1.45; }
   .confianza-item:last-child { margin-bottom: 0; }
+  /* Reseñas reales de Google (2026-09-30) — a diferencia del bloque
+     .resenas-* de abajo (el sistema de reseñas PROPIO del sitio, que
+     todavía no tiene ninguna real porque falta correr
+     migracion_resenas.sql), esto son 3 reseñas que YA existen en la
+     ficha de Google del negocio — prueba social real desde el día uno,
+     mientras se junta contenido propio. */
+  .testimonios-card { background: var(--crema-alt); border-color: var(--crema-alt); }
+  .testimonios-titulo { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--teal); margin: 0 0 14px; }
+  .testimonio-item { margin-bottom: 14px; }
+  .testimonio-item:last-of-type { margin-bottom: 12px; }
+  .testimonio-estrellas { color: var(--dorado); letter-spacing: 2px; line-height: 1; margin: 0 0 4px; }
+  .testimonio-texto { font-size: 13.5px; color: var(--cafe); line-height: 1.5; margin: 0 0 3px; }
+  .testimonio-nombre { font-size: 12.5px; font-weight: 600; color: var(--cafe-soft); margin: 0; }
+  .testimonios-link { display: inline-block; font-size: 12.5px; font-weight: 700; color: var(--teal); text-decoration: none; border-bottom: 1.5px solid var(--teal); }
   .card-lote { padding: 0; overflow: hidden; scroll-margin-top: 66px; }
   #resumenPedido { scroll-margin-top: 66px; }
   .lote-cabecera { padding: 20px 18px 18px; background: var(--crema-alt); }
@@ -761,6 +775,32 @@
   </div>
 
   <p class="hero-prueba-social revela">☕ +1.000 pedidos de café entregados este año</p>
+
+  <!-- Reseñas reales de Google (2026-09-30) — pedido del usuario: mientras
+       el sistema de reseñas propio (más abajo) no tenga ninguna real
+       todavía, mostrar 3 que YA dejaron clientes en la ficha de Google
+       del negocio ("Café Pandora", Pereira, 5.0 con 8 reseñas al momento
+       de escribir esto) — copiadas tal cual, no inventadas, con link real
+       a la ficha para que cualquiera las pueda verificar. -->
+  <div class="card testimonios-card revela">
+    <p class="testimonios-titulo">⭐ 5.0 en Google · 8 reseñas</p>
+    <div class="testimonio-item">
+      <p class="testimonio-estrellas" aria-hidden="true">★★★★★</p>
+      <p class="testimonio-texto">"Compré una libra para probarlo y ahora estoy haciendo pedidos de más de 10 libras casi que mensual. Lo probaron mis conocidos y ahora todos lo quieren. Un café de origen, altamente apreciado por todos los amantes del café."</p>
+      <p class="testimonio-nombre">— Giancarlo Donado Medina</p>
+    </div>
+    <div class="testimonio-item">
+      <p class="testimonio-estrellas" aria-hidden="true">★★★★★</p>
+      <p class="testimonio-texto">"El Mejor café que he probado 🥰"</p>
+      <p class="testimonio-nombre">— Diana Marcela Perea Cifuentes</p>
+    </div>
+    <div class="testimonio-item">
+      <p class="testimonio-estrellas" aria-hidden="true">★★★★★</p>
+      <p class="testimonio-texto">"No puedo despertar sin una taza de café! Me encanta!!!"</p>
+      <p class="testimonio-nombre">— Silvia Marquez</p>
+    </div>
+    <a class="testimonios-link" href="https://www.google.com/maps/search/Caf%C3%A9+Pandora+Pereira+Risaralda" target="_blank" rel="noopener">Ver todas las reseñas en Google ↗</a>
+  </div>
 
   <!-- Reseñas con estrellas (2026-09-29): un solo bloque al fondo, detrás
        de un desplegable con invitación en vez de bajo cada producto —

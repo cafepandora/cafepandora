@@ -5280,10 +5280,6 @@ final.
 inventó nada en su nombre):**
 
 - Fotos y reseñas en la sección del Tour (+ fotos del almuerzo).
-- Destacar reseñas ya dejadas por compradores — hoy no hay ninguna
-  reseña real todavía (`migracion_resenas.sql` sigue sin correrse, ver
-  la sección de Reseñas más arriba), así que no hay nada real que
-  destacar todavía; aplica en cuanto haya reseñas de verdad.
 - La historia humana de "Nosotros" (que son familia, que dejaron la
   ciudad, etc.) — es contenido biográfico real, no algo para redactar
   por su cuenta sin que Juan confirme los detalles.
@@ -5291,3 +5287,47 @@ inventó nada en su nombre):**
   hormonales/pesticidas naturales/selección manual del grano — es una
   afirmación de producto potencialmente sensible (salud/certificación),
   se necesita que Juan confirme la redacción exacta antes de publicarla.
+
+## Reseñas reales de Google en el catálogo (2026-09-30)
+
+El usuario pidió destacar reseñas que YA hayan dejado compradores
+reales — en vez de esperar a que el sistema de reseñas propio del sitio
+tenga contenido (sigue en $0 porque `migracion_resenas.sql` no se ha
+corrido), usar las que el negocio ya tiene en su ficha de Google. Se
+confirmó primero que la ficha encontrada es la correcta antes de copiar
+nada — no cualquier "Café Pandora" (ese nombre lo comparten cafeterías
+sin relación en Finlandia, España, y un restaurante distinto en el
+centro de Pereira, "La Caja de Pandora"): la ficha real coincide en
+categoría ("Tostaderos de café"), ubicación (Pereira, Risaralda), sitio
+web (`cafepandora.pages.dev`) y teléfono (318 3926578, el mismo
+`573183926578` que ya usa todo el sitio) — 5.0 de calificación con 8
+reseñas al momento de escribir esto.
+
+Se tomaron 3 reseñas reales, copiadas tal cual (ninguna redactada ni
+parafraseada), y se armó un bloque nuevo `.testimonios-card` en
+`index.html`, entre "☕ +1.000 pedidos..." y el desplegable "¿Ya nos
+conoces? Califícanos" — mismo lugar donde ya vive la prueba social real,
+antes de "Tus datos". Cada una con nombre real, 5 estrellas (todas eran
+5★) y el texto entre comillas. Un link "Ver todas las reseñas en
+Google ↗" al final apunta a la búsqueda real de Maps que llevó a esta
+ficha — para que cualquiera pueda verificar que son reales, no
+inventadas, sin depender de un Place ID que no convenía adivinar a
+mano.
+
+**A propósito NO se mezcló con el sistema `.resenas-*` de la propia
+página** (el desplegable "¿Ya nos conoces? Califícanos", que sigue
+vacío hasta que se corra la migración) — son dos cosas distintas: este
+bloque nuevo es prueba social YA existente y externa (de Google), el
+otro es el sistema propio para juntar reseñas nuevas desde el sitio
+mismo. Ambos conviven, uno al lado del otro.
+
+**Mantenimiento**: el número "5.0 · 8 reseñas" y las 3 citas están
+escritos a mano en el HTML (no se consulta la API de Google en vivo —
+la API de Google Places para esto es de pago y necesita una API key,
+desproporcionado para 3 citas fijas) — igual que "+1.000 pedidos" de al
+lado, hay que actualizarlos a mano si Juan quiere reflejar reseñas más
+recientes o un conteo distinto más adelante.
+
+Probado en el preview: el bloque se ve completo en escritorio y celular
+(375px) sin desbordar, el link abre la búsqueda real de Google Maps.
+Sin errores de consola.
