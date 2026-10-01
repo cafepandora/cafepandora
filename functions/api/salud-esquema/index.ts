@@ -26,6 +26,7 @@ const CHEQUEOS = [
   { tabla: 'blog_posts', columna: 'es_html', migracion: 'migracion_blog_html.sql', descripcion: 'Subir un artículo del blog desde un archivo de Word' },
   { tabla: 'merch_productos', columna: 'estado', migracion: 'migracion_merch.sql', descripcion: 'Catálogo de merch (pestaña "Merch")' },
   { tabla: 'resenas', columna: 'calificacion', migracion: 'migracion_resenas.sql', descripcion: 'Reseñas con estrellas bajo cada producto del catálogo público' },
+  { tabla: 'exotico_actual', columna: 'stock', migracion: 'migracion_exotico_actual.sql', descripcion: 'Foto, nombre y stock del exótico actual, editables desde la app' },
 ];
 
 // A diferencia de CHEQUEOS de arriba (columna/tabla que no existe todavía —

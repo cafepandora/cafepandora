@@ -5463,3 +5463,95 @@ reemplazar `img/exotico-actual.jpg` (mismo pipeline: cuadrada, ~900px,
 JPEG calidad ~82) y actualizar el `<p class="exotico-variedad">` y la
 línea de descripción corta en `index.html`, junto al comentario de
 `#bannerExoticos`.
+
+## Exótico pedible desde el carrito, editable por Juan sin pedírselo a nadie (2026-10-01)
+
+⚠️ **Esto reemplaza por completo la sección de arriba ("Banner de
+Exóticos con la etiqueta real del lote actual")** — ese primer pase
+(archivo `img/exotico-actual.jpg` + texto fijo en `index.html`) se hizo
+y se desplegó el mismo día, pero el usuario pidió dos cosas más
+enseguida, antes de que se asentara: (1) que el exótico actual se
+pueda **pedir directo del carrito**, sin tener que escribir en
+WhatsApp — con precio fijo ($35.000), una sola presentación (250 gr) y
+un tope real de 10 unidades; y (2) que la foto y el stock se puedan
+**cambiar desde la app interna**, porque van rotando y no quiere
+pedírmelo cada vez. El archivo estático y el texto fijo ya NO existen —
+`img/exotico-actual.jpg` se borró del repo.
+
+**Pedible del carrito, con tope de unidades**: el banner de
+"✨ Ediciones especiales de cafés exóticos" (antes solo un link de
+WhatsApp) ahora tiene molienda (Molido/En grano, mismo
+`cambiarMolienda()` genérico de siempre) y un contador +/− que agrega
+`Exotico|Media lb|<molienda>` al mismo `carrito` de toda la vida —
+`cambiarCantidadExotico(delta)` es casi idéntico a `cambiarCantidad()`
+genérico, pero con un chequeo extra: suma cuánto Exótico hay YA en el
+carrito (sin importar la molienda) y bloquea el "+" con un toast si ya
+se llegó al stock — el resto del flujo (resumen del pedido, mensaje de
+WhatsApp, método de preparación si es molido) es el mismo de cualquier
+otro lote, no hizo falta tocar nada ahí. El precio sigue viniendo de
+"Precios de la página web" de siempre (`precioDe('Exotico','Media lb')`)
+— **Juan tiene que poner $35.000 ahí mismo**, Claude no tiene cómo
+cambiar ese valor sin iniciar sesión.
+
+⚠️ *Bug real, encontrado y corregido antes de desplegar*: quitar la
+línea del Exótico desde "Quitar" en el resumen del pedido (en vez de
+con el "−" del propio banner) dejaba el texto "Solo quedan X..." viejo
+("Se agotaron...") aunque el carrito ya hubiera vuelto a 0 — porque
+`quitarLineaResumen()` nunca pasaba por la lógica que actualiza ese
+texto. Se sacó esa actualización a su propia función,
+`actualizarStockExoticoTexto()`, y se llama desde `actualizarBarra()`
+(el punto en común de CUALQUIER cambio al carrito, venga de donde
+venga) — así el texto de stock nunca queda desactualizado sin importar
+por dónde se modifique el carrito.
+
+**Editable desde la app interna, sin pedírmelo**: tabla nueva de una
+sola fila (`exotico_actual`, `migracion_exotico_actual.sql`, mismo
+patrón `id` fijo + upsert que `costos_margen`) con `variedad`,
+`descripcion`, `imagen` (base64, mismo mecanismo de `redimensionarImagen()`
+que ya usan Blog/Merch — acá a calidad .85 en vez del .75 por defecto,
+porque esta foto tiene texto chico que se ve borroso si se comprime
+tanto) y `stock`. Dos endpoints, mismo criterio que blog/blog-publico:
+- `/api/exotico-actual` (GET/POST, con login) — lo usa Configuración →
+  Precios → "✨ Exótico actual (catálogo público)", un bloque nuevo
+  justo después de "Precios de la página web" (variedad, descripción
+  corta, unidades disponibles, subir foto, Guardar).
+- `/api/exotico-publico` (GET, sin login) — lo usa `index.html`
+  (`cargarCatalogo()`, con su propio try/catch, mismo criterio de
+  resiliencia que reseñas) para pintar el banner con lo que Juan dejó
+  puesto, sin tener que tocar código nunca más cuando cambie la
+  variedad.
+
+`index.html` ya NO tiene ningún dato del exótico actual escrito a mano
+— `exoticoActual` es una variable que se llena del fetch, y
+`pintarBannerExoticos()` arma la imagen/nombre/descripción desde ahí
+(con `escapeHtml`/`escapeAttr`, primera vez que este archivo interpola
+una imagen en base64 directo en un atributo `src`, sin problema porque
+el alfabeto base64 no tiene ninguno de los caracteres que escapa esa
+función). Sumado a `salud-esquema` (`CHEQUEOS`) para que el aviso de
+migraciones pendientes en Configuración lo detecte si falta correr la
+migración.
+
+**No hay inventario automático detrás del stock** — a propósito: estas
+ediciones especiales no pasan por el pipeline de cosecha/trilla de
+siempre (son lotes chicos que Juan separa aparte), así que no hay de
+dónde descontarlo solo. El número que Juan pone en "Unidades
+disponibles" es el tope que ve y respeta el carrito del cliente en SU
+sesión — no se descuenta entre clientes distintos en tiempo real (mismo
+límite que ya tenía el "Pregunta por disponibilidad" de antes: la
+confirmación real sigue pasando por WhatsApp). Si se agotan de verdad,
+Juan pone el stock en 0 y el banner avisa "Se agotaron las unidades
+disponibles de esta edición" sin dejar agregar más.
+
+Probado de punta a punta en el preview (las dos apps): desde
+Configuración, cambiar variedad/descripción/stock y subir una foto de
+prueba se guarda y se refleja en `state.exoticoActual`; desde la página
+pública, el banner pinta la foto/nombre/descripción/precio/stock real
+que vienen del endpoint público, agregar 11 unidades bloquea la
+undécima con el toast correcto, y quitar la línea desde el resumen del
+pedido ya NO deja el texto de stock desactualizado (el bug de arriba,
+confirmado arreglado). Sin errores de consola en ningún recorrido.
+
+**Pendiente**: correr `migracion_exotico_actual.sql` en Supabase, y que
+Juan ponga el precio real ($35.000) en Configuración → Precios →
+"Precios de la página web" → Exótico → Media lb (sigue en $40.000, el
+valor de la foto que se mandó antes de pedir todo esto).

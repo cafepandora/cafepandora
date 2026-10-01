@@ -748,12 +748,18 @@
   <div id="catalogo" style="scroll-margin-top:66px"></div>
 
   <div class="card exoticos-banner" id="bannerExoticos" style="display:none;scroll-margin-top:66px">
-    <img class="exotico-foto revela" src="/img/exotico-actual.jpg" alt="Etiqueta del café exótico actual: Bourbon Rayado, honey fermentado, finca Buenavista, Marsella Risaralda, 87.50 SCA">
-    <p class="exotico-variedad">Bourbon Rayado</p>
-    <p style="margin:0 0 8px;font-size:12.5px;color:var(--cafe-soft)">Honey fermentado · Finca Buenavista, Marsella · 87.50 SCA</p>
+    <div id="exoticoFotoWrap"></div>
+    <p class="exotico-variedad" id="exoticoVariedad"></p>
+    <p style="margin:0 0 8px;font-size:12.5px;color:var(--cafe-soft)" id="exoticoDescripcion"></p>
     <h3 style="margin:0 0 4px">✨ Ediciones especiales de cafés exóticos</h3>
-    <p style="margin:0 0 10px" id="precioExoticos"></p>
-    <a class="wa-inline" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20preguntar%20por%20la%20disponibilidad%20de%20los%20caf%C3%A9s%20ex%C3%B3ticos." target="_blank" rel="noopener">📲 Preguntar por WhatsApp</a>
+    <p style="margin:0 0 4px" id="precioExoticos"></p>
+    <p style="margin:0 0 12px;font-size:12px;color:var(--cafe-soft)" id="exoticoStock"></p>
+    <div class="molienda-toggle" id="exoticoMolienda" style="justify-content:center"></div>
+    <div class="stepper" style="justify-content:center;margin-top:10px">
+      <button onclick="cambiarCantidadExotico(-1)">−</button>
+      <span id="cant-Exotico_Media_lb">0</span>
+      <button onclick="cambiarCantidadExotico(1)">+</button>
+    </div>
   </div>
 
   <p class="hero-confianza revela">💬 Respondemos por WhatsApp en menos de una hora (horario de atención: 8:00 a.m. – 4:00 p.m.)</p>
@@ -1035,6 +1041,7 @@ function nombreMetodo(id) {
 }
 
 let precios = [];
+let exoticoActual = { variedad: '', descripcion: '', imagen: '', stock: 0 };
 let carrito = {}; // clave "Lote|Presentacion|Molienda" -> {lote, presentacion, molienda, precio, cantidad}
 let moliendaSeleccionada = {}; // clave "Lote|Presentacion" -> 'Molido' | 'En grano' (lo que se ve elegido ahora mismo)
 let pesoSeleccionado = {}; // clave Lote -> presentación que se ve ahora mismo en la tarjeta-bolsa (ej. "Libra")
@@ -1066,6 +1073,17 @@ async function cargarCatalogo() {
     resenas = res.ok ? await res.json() : [];
   } catch {
     resenas = [];
+  }
+  // Foto/nombre/descripción/stock del exótico de turno, editables desde la
+  // app interna (Configuración → Precios → "✨ Exótico actual") — mismo
+  // criterio de resiliencia que reseñas: si la migración no se ha corrido
+  // todavía, el banner simplemente no se muestra (precioDe sigue siendo lo
+  // que decide si se intenta mostrar, ver pintarBannerExoticos()).
+  try {
+    const res = await fetch('/api/exotico-publico');
+    exoticoActual = res.ok ? await res.json() : { variedad: '', descripcion: '', imagen: '', stock: 0 };
+  } catch {
+    exoticoActual = { variedad: '', descripcion: '', imagen: '', stock: 0 };
   }
   recuperarBorrador();
   pintarCatalogo();
@@ -1322,12 +1340,74 @@ function pintarNavRapida() {
 
 // El precio de Exóticos sale de lo que dejes puesto en Configuración → la
 // tarifa web de café → Exotico. Si lo dejas en $0, el aviso ni aparece.
+//
+// A diferencia de Lavado/Honey/Natural, el exótico de turno es una edición
+// limitada — se pide directo del carrito (2026-10-01, antes solo tenía un
+// link de "Preguntar por WhatsApp") con un tope de unidades real. La foto,
+// el nombre, la descripción y el stock YA NO están a mano en este archivo
+// (como al principio) — vienen de /api/exotico-publico, que Juan edita
+// desde la app interna (Configuración → Precios → "✨ Exótico actual")
+// cada vez que cambia la variedad disponible, sin tener que pedírselo a
+// nadie. No hay ningún inventario automático detrás del stock (estas
+// ediciones no pasan por el pipeline de cosecha/trilla de siempre, son
+// lotes chicos que Juan separa aparte) — es el número que él mismo pone.
+const CLAVE_EXOTICO = 'Exotico|Media lb';
+
 function pintarBannerExoticos() {
   const precio = precioDe('Exotico', 'Media lb');
   const banner = document.getElementById('bannerExoticos');
   if (!precio) { banner.style.display = 'none'; return; }
   banner.style.display = 'block';
-  document.getElementById('precioExoticos').innerHTML = `Media libra (250 gr) · ${fmt(precio)}<br><i>Pregunta por disponibilidad</i>`;
+
+  const fotoWrap = document.getElementById('exoticoFotoWrap');
+  fotoWrap.innerHTML = exoticoActual.imagen
+    ? `<img class="exotico-foto revela" src="${escapeAttr(exoticoActual.imagen)}" alt="Etiqueta del café exótico actual${exoticoActual.variedad ? ': ' + escapeAttr(exoticoActual.variedad) : ''}">`
+    : '';
+  document.getElementById('exoticoVariedad').textContent = exoticoActual.variedad || '';
+  document.getElementById('exoticoDescripcion').textContent = exoticoActual.descripcion || '';
+
+  document.getElementById('precioExoticos').innerHTML = `Media libra (250 gr) · ${fmt(precio)}`;
+  actualizarStockExoticoTexto();
+  const molienda = moliendaSeleccionada[CLAVE_EXOTICO] || 'Molido';
+  document.getElementById('exoticoMolienda').innerHTML = MOLIENDAS.map(m =>
+    `<button type="button" class="molienda-btn ${m === molienda ? 'activo' : ''}" onclick="cambiarMolienda('Exotico','Media lb','${m}', this)">${m}</button>`).join('');
+  document.getElementById('cant-' + idSeguro(CLAVE_EXOTICO)).textContent = carrito[CLAVE_EXOTICO + '|' + molienda] ? carrito[CLAVE_EXOTICO + '|' + molienda].cantidad : 0;
+}
+
+// Aparte de pintarBannerExoticos() para poder refrescar solo el texto de
+// "quedan X" sin repintar todo el bloque — se llama también desde
+// actualizarBarra() (ver más abajo), porque el carrito puede cambiar
+// desde OTRO lado (ej. el botón "Quitar" del resumen del pedido) sin pasar
+// por cambiarCantidadExotico(); sin esto, quitar la línea desde ahí dejaba
+// el texto de stock desactualizado ("Se agotaron...") aunque ya no
+// quedara nada en el carrito.
+function actualizarStockExoticoTexto() {
+  const el = document.getElementById('exoticoStock');
+  if (!el) return;
+  const vendidas = Object.values(carrito).filter(it => it.lote === 'Exotico').reduce((s, it) => s + it.cantidad, 0);
+  const quedan = Math.max(0, (exoticoActual.stock || 0) - vendidas);
+  el.textContent = quedan > 0
+    ? `Solo quedan ${quedan} de ${exoticoActual.stock} unidades disponibles`
+    : 'Se agotaron las unidades disponibles de esta edición';
+}
+
+// Mismo mecanismo que cambiarCantidad() (carrito, moliendaSeleccionada),
+// pero con el tope de unidades — a diferencia de los demás lotes, acá SÍ
+// hace falta frenar el "+" cuando ya no queda stock de esta edición.
+function cambiarCantidadExotico(delta) {
+  const vendidas = Object.values(carrito).filter(it => it.lote === 'Exotico').reduce((s, it) => s + it.cantidad, 0);
+  if (delta > 0 && vendidas >= (exoticoActual.stock || 0)) {
+    mostrarToast(`Solo quedan ${exoticoActual.stock || 0} unidades de esta edición — ya las tienes todas en tu pedido.`);
+    return;
+  }
+  const molienda = moliendaSeleccionada[CLAVE_EXOTICO] || 'Molido';
+  const clave = CLAVE_EXOTICO + '|' + molienda;
+  const actual = carrito[clave] || { lote: 'Exotico', presentacion: 'Media lb', molienda, precio: precioDe('Exotico', 'Media lb'), cantidad: 0 };
+  actual.cantidad = Math.max(0, actual.cantidad + delta);
+  if (actual.cantidad === 0) delete carrito[clave];
+  else carrito[clave] = actual;
+  document.getElementById('cant-' + idSeguro(CLAVE_EXOTICO)).textContent = actual.cantidad;
+  actualizarBarra();
 }
 
 function precioDe(lote, presentacion) {
@@ -1805,6 +1885,7 @@ function cambiarCantidad(lote, presentacion, delta) {
 }
 
 function actualizarBarra() {
+  actualizarStockExoticoTexto();
   const items = Object.values(carrito);
   const barra = document.getElementById('barraCarrito');
   const totalItems = items.reduce((s, it) => s + it.cantidad, 0);

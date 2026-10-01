@@ -1098,6 +1098,7 @@ const state = {
   saldosIniciales: [],
   precioFnc: [],
   costosMargen: { costosPorKg: [], costoBolsaMediaLb: 0, costoBolsaLibra: 0, costoBolsaKilo: 0, costoBolsaCuarteron: 0 },
+  exoticoActual: { variedad: '', descripcion: '', imagen: '', stock: 0 },
   saludEsquema: [],
   inventarioPergamino: [],
   inventarioVerde: [],
@@ -1536,7 +1537,7 @@ supabaseClient.auth.onAuthStateChange((_evento, session) => { if (session) sesio
 /* ================================================================
    CARGA DE CACHÉ LOCAL + SINCRONIZACIÓN CON EL SERVIDOR
 ================================================================ */
-const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc', costosMargen: 'cp_c_costosMargen', inventarioPergamino: 'cp_c_inventarioPergamino', inventarioVerde: 'cp_c_inventarioVerde', movimientosInventario: 'cp_c_movimientosInventario', blog: 'cp_c_blog', merch: 'cp_c_merch' };
+const CACHE_KEYS = { ventas: 'cp_c_ventas', gastos: 'cp_c_gastos', clientes: 'cp_c_clientes', inventario: 'cp_c_inventario', maquila: 'cp_c_maquila', finca: 'cp_c_finca', preciosCafe: 'cp_c_preciosCafe', cosechas: 'cp_c_cosechas', pergamino: 'cp_c_pergamino', tuestes: 'cp_c_tuestes', ordenesMaquila: 'cp_c_ordenesMaquila', pedidosWeb: 'cp_c_pedidosWeb', cuentasCobro: 'cp_c_cuentasCobro', cerezaComprada: 'cp_c_cerezaComprada', saldosIniciales: 'cp_c_saldosIniciales', precioFnc: 'cp_c_precioFnc', costosMargen: 'cp_c_costosMargen', inventarioPergamino: 'cp_c_inventarioPergamino', inventarioVerde: 'cp_c_inventarioVerde', movimientosInventario: 'cp_c_movimientosInventario', blog: 'cp_c_blog', merch: 'cp_c_merch', exoticoActual: 'cp_c_exoticoActual' };
 
 function cargarCacheLocal() {
   for (const k in CACHE_KEYS) {
@@ -1552,12 +1553,12 @@ function guardarCacheLocal(k) {
 
 // Mismo orden que `endpoints` de abajo — cada posición es a qué clave de
 // `state` (y de CACHE_KEYS, si aplica) corresponde esa URL.
-const CLAVES_SINCRONIZAR = ['ventas', 'gastos', 'clientes', 'inventario', 'maquila', 'finca', 'preciosCafe', 'cosechas', 'pergamino', 'tuestes', 'ordenesMaquila', 'pedidosWeb', 'cuentasCobro', 'cerezaComprada', 'saldosIniciales', 'precioFnc', 'costosMargen', 'saludEsquema', 'inventarioPergamino', 'inventarioVerde', 'movimientosInventario', 'blog', 'merch'];
+const CLAVES_SINCRONIZAR = ['ventas', 'gastos', 'clientes', 'inventario', 'maquila', 'finca', 'preciosCafe', 'cosechas', 'pergamino', 'tuestes', 'ordenesMaquila', 'pedidosWeb', 'cuentasCobro', 'cerezaComprada', 'saldosIniciales', 'precioFnc', 'costosMargen', 'saludEsquema', 'inventarioPergamino', 'inventarioVerde', 'movimientosInventario', 'blog', 'merch', 'exoticoActual'];
 
 async function sincronizar() {
   const ind = document.getElementById('syncIndicator');
   ind.innerHTML = '<span class="sync-dot"></span> Sincronizando…';
-  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen', '/api/salud-esquema', '/api/inventario-pergamino', '/api/inventario-verde', '/api/movimientos-inventario', '/api/blog', '/api/merch'];
+  const endpoints = ['/api/ventas', '/api/gastos', '/api/clientes', '/api/inventario', '/api/maquila', '/api/finca', '/api/precios-cafe', '/api/cosechas', '/api/pergamino', '/api/tuestes', '/api/ordenes-maquila', '/api/pedidos-web', '/api/cuentas-cobro', '/api/cereza-comprada', '/api/saldos-iniciales', '/api/precio-fnc', '/api/costos-margen', '/api/salud-esquema', '/api/inventario-pergamino', '/api/inventario-verde', '/api/movimientos-inventario', '/api/blog', '/api/merch', '/api/exotico-actual'];
 
   let respuestas;
   try {
@@ -7381,6 +7382,7 @@ function renderConfig() {
     costosPorKgEdit = (cm.costosPorKg && cm.costosPorKg.length) ? cm.costosPorKg.map(c => ({ ...c })) : [{ nombre: 'Tostión', costoPorKg: 0 }];
     costosPorKgEditTs = cm.ts;
   }
+  const ea = state.exoticoActual || {};
   const migracionesFaltantes = (state.saludEsquema || []).filter(x => !x.ok);
   // `localStorage` (no el estado de las ventas) decide si este bloque ya
   // se aplicó — las ventas que originaron la corrección siguen
@@ -7438,6 +7440,18 @@ function renderConfig() {
     <h3 class="section-title">Precios de la página web</h3>
     ${filasCafeWeb || '<div class="empty">Sin precios de página web configurados.</div>'}
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:10px">Independientes de los de arriba — son los que ve cualquiera que entre a hacer un pedido en tu página pública. Sirve para dar un precio distinto a clientes nuevos y ajustarlo con el tiempo, sin tocar lo que cobras a tus clientes de siempre.</p>
+
+    <h3 class="section-title">✨ Exótico actual (catálogo público)</h3>
+    <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">La edición especial que se ve en "Ediciones especiales de cafés exóticos" en la página de pedidos — cada vez que cambie la variedad disponible, actualiza la foto y estos datos acá, tú mismo, sin tener que pedirlo. El precio sigue siendo el de "Precios de la página web" de arriba (lote Exótico, Media lb) — este bloque es solo la foto, el nombre, la descripción y cuántas unidades quedan.</p>
+    <div class="field"><label>Variedad</label><input type="text" id="ex-variedad" value="${escapeAttr(ea.variedad || '')}" placeholder="Ej. Bourbon Rayado"></div>
+    <div class="field"><label>Descripción corta</label><input type="text" id="ex-descripcion" value="${escapeAttr(ea.descripcion || '')}" placeholder="Ej. Honey fermentado · Finca Buenavista, Marsella · 87.50 SCA"></div>
+    <div class="field"><label>Unidades disponibles</label><input type="number" min="0" id="ex-stock" value="${ea.stock || 0}"></div>
+    <div class="field">
+      <label>Foto de la etiqueta</label>
+      <input type="file" accept="image/*" onchange="onImagenExoticoNueva(this)">
+      <img id="exotico-imagen-preview" src="${ea.imagen || ''}" style="max-width:160px;border-radius:10px;margin-top:8px;display:${ea.imagen ? 'block' : 'none'}">
+    </div>
+    <button class="sec-btn" onclick="guardarExoticoActual(this)">Guardar</button>
 
     <h3 class="section-title">Agregar un precio nuevo</h3>
     <p style="font-size:12px;color:var(--cafe-soft);margin-top:-4px">Para un lote, tarifa o presentación que todavía no tiene precio configurado arriba — ya no hace falta pedir una migración para esto. Si la combinación ya existe, corrígela arriba en vez de agregarla de nuevo.</p>
@@ -7722,6 +7736,49 @@ async function guardarCostosMargen(btn) {
     costosPorKgEditTs = state.costosMargen.ts;
     guardarCacheLocal('costosMargen');
     toast('Costos de margen guardados');
+    conservarScroll(() => renderConfig());
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+// Exótico actual (2026-10-01) — la edición especial que se ve en el
+// catálogo público va rotando; esto deja que Juan cambie la foto de la
+// etiqueta, el nombre, la descripción corta y las unidades disponibles
+// él mismo, sin pedirlo — mismo patrón de imagen que Blog/Merch
+// (redimensionarImagen(), un buffer aparte que no toca `state` hasta
+// Guardar) y mismo patrón de fila única que costos_margen (upsert,
+// id fijo, sin histórico).
+let imagenExoticoNueva = null;
+async function onImagenExoticoNueva(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    // Calidad más alta que el 0.75 por defecto — esta foto es la etiqueta
+    // con texto chico (región, notas, SCA), que se ve borroso si se
+    // comprime tanto como una portada de blog.
+    imagenExoticoNueva = await redimensionarImagen(file, 900, 0.85);
+    const prev = document.getElementById('exotico-imagen-preview');
+    if (prev) { prev.src = imagenExoticoNueva; prev.style.display = 'block'; }
+  } catch {
+    toast('No se pudo procesar la imagen.', 'error');
+  }
+}
+async function guardarExoticoActual(btn) {
+  btn.disabled = true;
+  const payload = {
+    variedad: document.getElementById('ex-variedad').value.trim(),
+    descripcion: document.getElementById('ex-descripcion').value.trim(),
+    stock: Math.max(0, Number(document.getElementById('ex-stock').value) || 0),
+    imagen: imagenExoticoNueva || state.exoticoActual.imagen || '',
+  };
+  try {
+    const res = await apiFetch('/api/exotico-actual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
+    state.exoticoActual = await res.json();
+    imagenExoticoNueva = null;
+    guardarCacheLocal('exoticoActual');
+    toast('Exótico actual guardado');
     conservarScroll(() => renderConfig());
   } catch (err) {
     toast('No se pudo guardar: ' + err.message, 'error');
