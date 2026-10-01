@@ -5422,3 +5422,44 @@ el dinero de maquila (si lo incluyera, Balance hubiera dado $286.000 en
 vez de $186.000, por los $100.000 de la orden ya pagada). "Dinero de
 maquila este mes" siguió mostrando $100.000, con la etiqueta nueva. Sin
 errores nuevos de consola.
+
+## Banner de Exóticos con la etiqueta real del lote actual (2026-10-01)
+
+Juan mandó la etiqueta real de diseño del exótico disponible en este
+momento (Bourbon Rayado — honey fermentado, Finca Buenavista, Marsella,
+87.50 SCA, 1550 msnm) y pidió "dejarlo hermoso, así como vamos" — el
+`#bannerExoticos` (`✨ Ediciones especiales de cafés exóticos`) hasta
+ahora era solo texto plano sobre fondo dorado, sin ninguna imagen, a
+diferencia de Lavado/Honey/Natural que ya tienen su propia tarjeta-bolsa
+con arte real.
+
+**`img/exotico-actual.jpg`** — a propósito el archivo se llama por lo que
+ES (el exótico de turno), no por el nombre de la variedad
+("Bourbon Rayado") — los exóticos son ediciones especiales que van
+rotando (ver el texto ya existente "Pregunta por disponibilidad"), así
+que la próxima vez que Juan mande una etiqueta nueva, el reemplazo es
+tan simple como sobreescribir este mismo archivo + actualizar las 2
+líneas de texto (variedad y su descripción corta) — sin tocar CSS ni
+estructura. Procesado con el mismo pipeline de siempre (Pillow,
+`ImageOps.exif_transpose`, reescalado a 900×900 — la imagen original ya
+era cuadrada — JPEG calidad 82 progresivo, ~177 KB).
+
+`.exotico-foto` (imagen, 260px máximo, `aspect-ratio:1/1`,
+`border-radius:14px`, sombra suave para que se sienta como una pieza de
+diseño/etiqueta y no una foto de producto plana) + `.exotico-variedad`
+(nombre en `--serif`, mismo tratamiento que `.lote-nombre` de Lavado) +
+una línea chica con proceso/finca/puntaje SCA — todo ANTES del título
+"✨ Ediciones especiales..." y el precio/WhatsApp que ya existían, sin
+tocar `pintarBannerExoticos()` (sigue ocultando toda la tarjeta si no
+hay precio configurado para Exótico, igual que siempre).
+
+Probado en el preview, escritorio y celular (375px): la etiqueta se ve
+nítida y completa dentro de su marco redondeado, el texto no se
+desborda en ningún ancho, y el resto de la tarjeta (precio, botón de
+WhatsApp) sigue funcionando igual. Sin errores de consola.
+
+**Pendiente, para la próxima vez que cambie el exótico disponible**:
+reemplazar `img/exotico-actual.jpg` (mismo pipeline: cuadrada, ~900px,
+JPEG calidad ~82) y actualizar el `<p class="exotico-variedad">` y la
+línea de descripción corta en `index.html`, junto al comentario de
+`#bannerExoticos`.

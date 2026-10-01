@@ -509,6 +509,12 @@
   @media (max-width: 859px) { .nav-rapida { position: static; } }
   .exoticos-banner { background: var(--dorado-bg); border: 1.5px solid var(--dorado); text-align: center; }
   .exoticos-banner p { font-size: 13.5px; color: var(--cafe-soft); line-height: 1.5; }
+  /* Etiqueta real del exótico disponible ahora mismo (cambia cada vez que
+     Juan manda una nueva — por eso el archivo se llama "exotico-actual",
+     no por el nombre de la variedad, así una foto nueva solo reemplaza el
+     archivo sin tocar el HTML). */
+  .exotico-foto { display: block; width: 100%; max-width: 260px; aspect-ratio: 1/1; object-fit: cover; border-radius: 14px; margin: 0 auto 12px; box-shadow: 0 6px 18px rgba(32,27,20,.2); }
+  .exotico-variedad { font-family: var(--serif); font-weight: 600; font-size: 20px; color: var(--cafe); margin: 0 0 2px; }
   .wa-inline {
     display: inline-flex; align-items: center; gap: 6px; background: #25D366; color: #fff;
     text-decoration: none; font-weight: 700; font-size: 13.5px; padding: 9px 16px; border-radius: 20px;
@@ -742,6 +748,9 @@
   <div id="catalogo" style="scroll-margin-top:66px"></div>
 
   <div class="card exoticos-banner" id="bannerExoticos" style="display:none;scroll-margin-top:66px">
+    <img class="exotico-foto revela" src="/img/exotico-actual.jpg" alt="Etiqueta del café exótico actual: Bourbon Rayado, honey fermentado, finca Buenavista, Marsella Risaralda, 87.50 SCA">
+    <p class="exotico-variedad">Bourbon Rayado</p>
+    <p style="margin:0 0 8px;font-size:12.5px;color:var(--cafe-soft)">Honey fermentado · Finca Buenavista, Marsella · 87.50 SCA</p>
     <h3 style="margin:0 0 4px">✨ Ediciones especiales de cafés exóticos</h3>
     <p style="margin:0 0 10px" id="precioExoticos"></p>
     <a class="wa-inline" href="https://wa.me/573183926578?text=%C2%A1Hola%21%20Quiero%20preguntar%20por%20la%20disponibilidad%20de%20los%20caf%C3%A9s%20ex%C3%B3ticos." target="_blank" rel="noopener">📲 Preguntar por WhatsApp</a>
