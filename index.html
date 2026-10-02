@@ -3,7 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Café Pandora — Haz tu pedido</title>
+<title>Café Pandora — Café de origen y maquila de café en Pereira</title>
+<meta name="description" content="Café Pandora: café colombiano de origen cultivado, tostado y empacado en nuestra finca en Pereira, Risaralda. Pide por WhatsApp y ofrecemos maquila de café en Pereira: trilla, tostión, molienda y empaque de tu propio café.">
+<link rel="canonical" href="https://cafepandora.co/" id="seoCanonical">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Café Pandora">
+<meta property="og:locale" content="es_CO">
+<meta property="og:title" content="Café Pandora — Café de origen y maquila de café en Pereira" id="ogTitle">
+<meta property="og:description" content="Café colombiano de origen y servicio de maquila de café en Pereira: trilla, tostión, molienda y empaque." id="ogDesc">
+<meta property="og:url" content="https://cafepandora.co/" id="ogUrl">
+<!-- SEO (2026-10-02): JSON-LD para que Google entienda que esto es un
+     negocio local en Pereira que ofrece maquila de café. Sin
+     aggregateRating a propósito (Google no muestra estrellas para
+     reseñas de uno mismo y puede considerarlo marcado engañoso). -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "@id": "https://cafepandora.co/#negocio",
+  "name": "Café Pandora",
+  "url": "https://cafepandora.co/",
+  "description": "Café colombiano de origen cultivado, tostado y empacado en finca, y servicio de maquila de café en Pereira, Risaralda: trilla, tostión, molienda y empaque.",
+  "telephone": "+57 318 3926578",
+  "email": "pandoracafedeorigen@gmail.com",
+  "address": { "@type": "PostalAddress", "addressLocality": "Pereira", "addressRegion": "Risaralda", "addressCountry": "CO" },
+  "geo": { "@type": "GeoCoordinates", "latitude": 4.8590637, "longitude": -75.7316014 },
+  "areaServed": [ { "@type": "City", "name": "Pereira" }, { "@type": "AdministrativeArea", "name": "Risaralda" }, { "@type": "Country", "name": "Colombia" } ],
+  "hasOfferCatalog": {
+    "@type": "OfferCatalog",
+    "name": "Maquila de café en Pereira",
+    "itemListElement": [
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Trilla de café en Pereira" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Tostión de café en Pereira" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Molienda de café en Pereira" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Empaque de café en Pereira" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Prueba de taza" } }
+    ]
+  }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Baloo+2:wght@600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600&display=swap" rel="stylesheet">
 <!-- Ícono y comportamiento al anclar esta página (la de pedidos) en la
@@ -899,8 +937,8 @@
 
 <section class="maquila-seccion" id="vistaMaquila" style="display:none">
   <p class="maquila-kicker revela">También ofrecemos</p>
-  <h2 class="maquila-titulo revela">Maquila — trillamos, tostamos y empacamos TU café</h2>
-  <p class="maquila-intro revela">¿Ya tienes tu propio café en pergamino o verde? Te ayudamos a procesarlo — el café sigue siendo tuyo, nosotros solo lo transformamos con el mismo cuidado que le damos al nuestro.</p>
+  <h2 class="maquila-titulo revela">Maquila de café en Pereira — trillamos, tostamos y empacamos TU café</h2>
+  <p class="maquila-intro revela">¿Buscas maquila de café en Pereira? ¿Ya tienes tu propio café en pergamino o verde? Te ayudamos a procesarlo — el café sigue siendo tuyo, nosotros solo lo transformamos con el mismo cuidado que le damos al nuestro.</p>
   <img class="maquila-foto revela" src="/img/maquila-tostadora.jpg" alt="Tostadora PRISMA de Café Pandora">
   <div class="maquila-servicios">
     <div class="maquila-servicio revela"><h3>Trilla</h3><p>Retiramos el pergamino y dejamos tu café en verde, listo para tostar.</p></div>
@@ -1160,8 +1198,31 @@ const RUTA_POR_VISTA = { catalogo: '/', maquila: '/maquila', conocenos: '/conoce
 // todavía. Si vuelve a tocarse esto cuando se lance, agregar
 // 'merch: navMerchLink' acá, junto con el link real en el HTML.
 const LINK_ID_POR_VISTA = { catalogo: 'navCatalogoLink', maquila: 'navMaquilaLink', conocenos: 'navConocenosLink', blog: 'navBlogLink' };
+// SEO por vista (2026-10-02): todas las rutas sirven el mismo index.html,
+// así que el <title>/description/canonical se ajustan acá al mostrar cada
+// vista — Google ejecuta JS y los toma. Clave: /maquila debe verse como
+// "maquila de café en Pereira", no como el catálogo.
+const SEO_POR_VISTA = {
+  catalogo: { t: 'Café Pandora — Café de origen y maquila de café en Pereira', d: 'Café Pandora: café colombiano de origen cultivado, tostado y empacado en nuestra finca en Pereira, Risaralda. Pide por WhatsApp y ofrecemos maquila de café en Pereira: trilla, tostión, molienda y empaque de tu propio café.' },
+  maquila: { t: 'Maquila de café en Pereira — Trilla, tostión, molienda y empaque | Café Pandora', d: 'Servicio de maquila de café en Pereira, Risaralda: trillamos, tostamos, molemos y empacamos tu propio café en pergamino o verde. Cotiza por WhatsApp con Café Pandora.' },
+  conocenos: { t: 'Nosotros — Finca de café en Pereira | Café Pandora', d: 'Conoce la finca de Café Pandora en Pereira, Risaralda: cómo cultivamos, secamos, trillamos y tostamos nuestro café de origen. Tour de café en la finca.' },
+  blog: { t: 'Blog de café — Café Pandora, Pereira', d: 'Historias, novedades y aprendizajes de la finca de Café Pandora en Pereira, Risaralda.' },
+  merch: { t: 'Merch — Café Pandora', d: 'Pocillos, camisetas y más de Café Pandora.' },
+};
+function actualizarSEO(vista) {
+  const seo = SEO_POR_VISTA[vista] || SEO_POR_VISTA.catalogo;
+  const url = 'https://cafepandora.co' + (RUTA_POR_VISTA[vista] || '/');
+  document.title = seo.t;
+  const set = (sel, attr, val) => { const el = document.querySelector(sel); if (el) el.setAttribute(attr, val); };
+  set('meta[name="description"]', 'content', seo.d);
+  set('#seoCanonical', 'href', url);
+  set('#ogTitle', 'content', seo.t);
+  set('#ogDesc', 'content', seo.d);
+  set('#ogUrl', 'content', url);
+}
 function mostrarVista(vista, opciones = {}) {
   const esCatalogo = vista === 'catalogo';
+  actualizarSEO(vista);
   document.getElementById('vistaCatalogo').style.display = esCatalogo ? '' : 'none';
   document.getElementById('vistaConocenos').style.display = vista === 'conocenos' ? '' : 'none';
   document.getElementById('vistaMaquila').style.display = vista === 'maquila' ? '' : 'none';

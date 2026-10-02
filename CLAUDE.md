@@ -5646,3 +5646,35 @@ patrón.
 Probado en el preview: cerrado por defecto, la lista no se pinta en el
 DOM (no solo oculta por CSS) y el botón muestra el conteo correcto;
 abrir y cerrar funciona en los dos sentidos. Sin errores de consola.
+
+## SEO: aparecer en Google para "maquila en Pereira" (2026-10-02)
+
+Pedido de Juan: que la página salga de primera al buscar "maquila en
+Pereira". Nadie puede garantizar el puesto #1 (depende de Google, de la
+competencia y del tiempo), pero esto deja la parte técnica bien hecha:
+
+- `index.html`: `<title>` y `meta description` con "café" + "maquila de
+  café en Pereira", `canonical` a `https://cafepandora.co/` (evita que
+  `cafepandora.pages.dev` compita como contenido duplicado), Open Graph, y
+  JSON-LD `LocalBusiness` (Pereira, Risaralda, teléfono, coordenadas de la
+  ficha de Google, `areaServed` y `OfferCatalog` con trilla/tostión/
+  molienda/empaque/prueba de taza). Sin `aggregateRating` a propósito.
+- Todas las rutas sirven el MISMO index.html (`_redirects`), así que
+  `actualizarSEO(vista)` (llamada desde `mostrarVista()`, `SEO_POR_VISTA`)
+  cambia title/description/canonical/og por vista — `/maquila` se ve como
+  "Maquila de café en Pereira…", no como el catálogo. Google ejecuta JS.
+  Si algún día se quiere HTML distinto por ruta en el servidor, habría que
+  hacerlo con una Pages Function (HTMLRewriter) — no se hizo, para no
+  arriesgar el enrutado actual.
+- Título visible de la vista Maquila ahora dice "Maquila de café en
+  Pereira" (h2 e intro).
+- `robots.txt` (bloquea /gestion/ y /api/) y `sitemap.xml` (/, /maquila,
+  /conocenos, /blog; /merch a propósito fuera) en la raíz.
+
+**Pendiente, solo lo puede hacer Juan (pesa más que el código para
+búsquedas locales):** (1) Google Search Console: verificar `cafepandora.co`
+y enviar `https://cafepandora.co/sitemap.xml`; (2) en la ficha de Google
+Business Profile "Café Pandora": cambiar el sitio web de
+`cafepandora.pages.dev` a `https://cafepandora.co`, agregar la categoría/
+servicio "maquila de café", descripción con "maquila de café en Pereira",
+fotos de la tostadora, y pedir reseñas mencionando el servicio.

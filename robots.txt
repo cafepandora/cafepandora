@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /gestion/
+Disallow: /api/
+
+Sitemap: https://cafepandora.co/sitemap.xml
