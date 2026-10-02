@@ -5678,3 +5678,13 @@ Business Profile "Café Pandora": cambiar el sitio web de
 `cafepandora.pages.dev` a `https://cafepandora.co`, agregar la categoría/
 servicio "maquila de café", descripción con "maquila de café en Pereira",
 fotos de la tostadora, y pedir reseñas mencionando el servicio.
+
+**Ampliación (mismo día)**: Juan también quiere salir por "café pandora",
+"café en Pereira", "café en el Eje Cafetero" y "mejor café de Pereira". El
+catálogo ahora dice "Café de origen en Pereira, Eje Cafetero" (title,
+description, línea visible del encabezado, JSON-LD con `alternateName`
+"Cafe Pandora" sin tilde, `keywords`, `areaServed` Eje Cafetero). A
+propósito NO se escribió "el mejor café de Pereira" como afirmación (no
+verificable); lo que sí respalda esa búsqueda es la calificación 5.0 en
+Google, ya mencionada en la description y visible en la página — y se
+gana pidiendo más reseñas en la ficha de Google Business Profile.
