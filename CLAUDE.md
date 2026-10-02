@@ -5688,3 +5688,7 @@ propósito NO se escribió "el mejor café de Pereira" como afirmación (no
 verificable); lo que sí respalda esa búsqueda es la calificación 5.0 en
 Google, ya mencionada en la description y visible en la página — y se
 gana pidiendo más reseñas en la ficha de Google Business Profile.
+
+**Google Search Console (2026-10-02)**: `google00ede4f9a03974af.html` en la
+raíz es el archivo de verificación de propiedad que dio Search Console
+para `cafepandora.co` — NO borrarlo, Google lo revisa periódicamente.
