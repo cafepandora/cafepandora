@@ -2,7 +2,7 @@ import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
-const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, ts';
+const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, ts, fechaPago:fecha_pago';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
 
 async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre: unknown, tipoCliente: unknown) {
@@ -54,7 +54,18 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
   if (body.servicios !== undefined) updates.servicios = body.servicios;
   if (body.items !== undefined) updates.items = body.items;
   if (body.valor !== undefined) updates.valor = Number(body.valor) || 0;
-  if (body.estado !== undefined) updates.estado = body.estado;
+  // fecha_pago: cuándo entró la plata de verdad, separado de `ts` (cuándo
+  // se registró el pedido) — "Cobrado" en Resumen se agrupa por esto, no
+  // por `ts` (Juan: "lo que queda por cobrar del mes anterior [que] entre
+  // en ingresos del mes actual... porque la plata está entrando en este
+  // mes"). Se pone sola al pasar a "Pagado" (solo si no estaba Pagado ya
+  // — así un PATCH repetido con el mismo estado no la pisa con la fecha
+  // de hoy) y se limpia si se corrige de vuelta a "Pendiente".
+  if (body.estado !== undefined) {
+    updates.estado = body.estado;
+    if (body.estado === 'Pagado' && actual.estado !== 'Pagado') updates.fecha_pago = Date.now();
+    else if (body.estado !== 'Pagado') updates.fecha_pago = null;
+  }
   if (body.estadoEnvio !== undefined) updates.estado_envio = body.estadoEnvio;
   if (body.metodo !== undefined) updates.metodo = body.metodo;
   if (body.recibidoPor !== undefined) updates.recibido_por = body.recibidoPor;

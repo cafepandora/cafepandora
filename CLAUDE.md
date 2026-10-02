@@ -5555,3 +5555,94 @@ confirmado arreglado). Sin errores de consola en ningún recorrido.
 Juan ponga el precio real ($35.000) en Configuración → Precios →
 "Precios de la página web" → Exótico → Media lb (sigue en $40.000, el
 valor de la foto que se mandó antes de pedir todo esto).
+
+## "Cobrado" se agrupa por fecha de pago real, no por fecha del pedido (2026-10-01)
+
+Juan: *"necesito que, lo que queda por cobrar del mes anterior, entre en
+ingresos del mes actual, no del mes anterior, porque la plata está
+entrando en este mes"*. Hasta ahora, `cobradoVentas` en `renderResumen()`
+agrupaba cada venta por `ts` (la fecha en que se REGISTRÓ el pedido) —
+una venta de septiembre que seguía "Pendiente" y se terminaba de pagar en
+octubre contaba como ingreso de septiembre (el mes del pedido), aunque la
+plata de verdad entrara en octubre. Esto afecta directo a los 3 stats que
+dependen de `cobrado` (ver la sección de arriba, "Resumen: los 4 stats de
+'Este mes' ya no suman maquila"): Cobrado, Por cobrar y Balance real del
+mes.
+
+**`fecha_pago`** (`ventas`, nullable, `migracion_fecha_pago_ventas.sql`)
+— se pone sola la primera vez que una venta pasa a "Pagado"
+(`functions/api/ventas/[id].ts`, `onRequestPatch`: solo si
+`actual.estado !== 'Pagado'`, para que un PATCH repetido con el mismo
+estado no la vuelva a pisar con la fecha de hoy) y se limpia a `null` si
+se corrige de vuelta a "Pendiente" (un error que se deshace). El POST de
+`functions/api/ventas/index.ts` también la pone si un pedido nace YA
+"Pagado" (no pasa hoy desde ningún formulario — siempre arranca
+Pendiente — pero queda cubierto).
+
+`cobradoVentas` ahora es:
+```js
+state.ventas
+  .filter(v => v.estado === 'Pagado' && mesDe(v.fechaPago || v.ts) === mes)
+  .reduce((s, v) => s + (Number(v.valor) || 0), 0);
+```
+Nótese que ya NO viene de `ventasMes` (que filtra por `ts`) sino de
+`state.ventas` completo, filtrando por `fechaPago` (o `ts` como respaldo,
+para ventas viejas de antes de esta migración, que no tienen
+`fechaPago`) — así una venta de SEPTIEMBRE pagada en OCTUBRE sí cuenta
+en el Cobrado de octubre al mirar ese mes, y YA NO cuenta en el de
+septiembre.
+
+**"Por cobrar" dejó de ser `facturado - cobrado`** — con `cobrado`
+pudiendo traer plata de OTROS meses, esa resta ya no representa "lo que
+falta por cobrar de este mes". Ahora es directo:
+`pendientes.reduce((s,v) => s + v.valor, 0)` (`pendientes` = ventas de
+ESTE mes, por `ts`, que siguen sin estado "Pagado" — la misma lista que
+ya se usaba para la sub-pestaña "Por pagar" del detalle del mes).
+
+**Lo que a propósito NO cambió**: `facturadoVentas` (sigue por `ts`,
+representa lo que se VENDIÓ/pidió este mes, no lo que se cobró — son
+preguntas distintas, como en cualquier contabilidad de causación vs.
+caja) y las listas `pagadas`/`pendientes` que alimentan la sub-pestaña
+"Pagadas"/"Por pagar" del detalle transaccional del mes (siguen
+agrupadas por `ts`, porque ahí la pregunta es "¿qué se pidió este mes y
+cómo va su pago?", no "¿cuánta plata entró?"). Tampoco se tocó la
+gráfica "Ingresos cobrados vs. egresos" ni "Comparación año contra
+año" — no se pidió, y usan su propio cálculo aparte.
+
+Las etiquetas de los 3 stats afectados se ampliaron para dejar explícito
+el cambio de criterio: "Cobrado (solo café — plata que entró este mes,
+sea de cuando sea el pedido)", etc.
+
+Probado en el preview con 3 ventas de prueba (una pedida el mes pasado
+y sin pagar; una pedida el mes pasado pero pagada ESTE mes; una pedida y
+pagada normal, este mes): confirmado que la de $50.000 pedida el mes
+pasado y pagada este mes aparece en el "Cobrado" de ESTE mes y
+desaparece del "Cobrado" del mes pasado (antes del arreglo hubiera sido
+al revés). Sin errores de consola.
+
+## Ventas: "Pendientes de meses anteriores" colapsado por defecto (2026-10-01)
+
+Mismo día, segundo pedido: *"que se organice mejor y de manera más
+cómoda en ventas, porque hay que hacer mucho scroll para llegar a lo de
+este mes viendo lo pendiente del pasado"*. La causa: en `renderVentas()`,
+"Pendientes de meses anteriores" se pintaba SIEMPRE completo, sin
+paginar, justo entre el formulario grande de "Registrar venta" y
+"Ventas de {mes}" — con varias deudas viejas acumuladas, llegar a las
+pestañas del mes actual (Por enviar/Pagadas/Por pagar) requería
+scrollear primero por todo ese formulario Y por toda esa lista.
+
+`ventasPendientesAbierto` (nueva variable módulo, arranca en `false`) +
+`toggleVentasPendientes()` — la sección ahora es un botón tipo tarjeta
+(fondo terracota, mismo color que ya usaba el título) que SIEMPRE
+muestra el conteo ("⚠️ Pendientes de meses anteriores (3)"), colapsado
+por defecto — un toque la despliega con la lista completa de siempre,
+otro toque la vuelve a cerrar. Conserva el scroll al togglear
+(`conservarScroll()`, mismo patrón ya establecido en toda la app para
+cualquier botón que repinta sin navegar a otra pestaña). No se tocó
+Maquila, que tiene la misma sección/mismo problema potencial — Juan solo
+pidió esto en Ventas; si lo quiere ahí también, es extender el mismo
+patrón.
+
+Probado en el preview: cerrado por defecto, la lista no se pinta en el
+DOM (no solo oculta por CSS) y el botón muestra el conteo correcto;
+abrir y cerrar funciona en los dos sentidos. Sin errores de consola.

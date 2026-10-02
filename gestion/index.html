@@ -1358,6 +1358,15 @@ let ventasSubTab = 'porEnviar';
 // conviene poder verlos aparte del resto de pendientes). Solo aplica
 // dentro de esa sub-pestaña — "Por enviar"/"Pagadas" no se tocan.
 let ventasPorPagarSubTab = 'normales';
+// "Pendientes de meses anteriores" (más abajo en renderVentas()) colapsada
+// por defecto (2026-10-01, Juan: "hay que hacer mucho scroll para llegar
+// a lo de este mes viendo lo pendiente del pasado") — antes esa lista se
+// pintaba SIEMPRE completa, sin paginar, entre el formulario de registrar
+// y "Ventas de {mes}", así que con varias deudas viejas había que
+// scrollear un montón para llegar a las pestañas del mes actual. Cerrada
+// por defecto sigue mostrando el conteo en el título, así no se pierde de
+// vista que hay algo pendiente — un toque la despliega.
+let ventasPendientesAbierto = false;
 const POR_PAGINA = 8;
 const paginas = {
   ventas: 1, gastos: 1, finca: 1, resumen: 1, cosechas: 1, pergamino: 1, tuestes: 1, maquila: 1,
@@ -3007,9 +3016,14 @@ function renderVentas() {
       </div>
 
     ${anteriores.length ? `
-      <h3 class="section-title" style="color:var(--terracota)">Pendientes de meses anteriores</h3>
-      <p style="font-size:12px;color:var(--cafe-soft);margin-top:-6px">Lo que sigue sin pagar o sin enviar de otros meses — el resto de esos meses ya quedó resuelto y no aparece aquí, solo si cambias el mes de arriba.</p>
-      <div>${anteriores.map(v => filaVenta(v, true)).join('')}</div>
+      <button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;background:var(--terracota-bg);border:none;font-family:inherit" onclick="toggleVentasPendientes()">
+        <span class="section-title" style="margin:0;color:var(--terracota)">⚠️ Pendientes de meses anteriores (${anteriores.length})</span>
+        <span style="font-size:13px;color:var(--terracota)">${ventasPendientesAbierto ? '▲ ocultar' : '▼ ver'}</span>
+      </button>
+      ${ventasPendientesAbierto ? `
+        <p style="font-size:12px;color:var(--cafe-soft);margin-top:8px">Lo que sigue sin pagar o sin enviar de otros meses — el resto de esos meses ya quedó resuelto y no aparece aquí, solo si cambias el mes de arriba.</p>
+        <div>${anteriores.map(v => filaVenta(v, true)).join('')}</div>
+      ` : ''}
     ` : ''}
 
     <h3 class="section-title">Ventas de ${mes}</h3>
@@ -3043,6 +3057,10 @@ function cambiarVentasSubTab(tab) {
 
 function cambiarVentasPorPagarSubTab(tab) {
   conservarScroll(() => { ventasPorPagarSubTab = tab; renderTodo(); });
+}
+
+function toggleVentasPendientes() {
+  conservarScroll(() => { ventasPendientesAbierto = !ventasPendientesAbierto; renderTodo(); });
 }
 
 /* ---------- Línea nueva (café o un servicio de maquila) ---------- */
@@ -6199,7 +6217,22 @@ function renderResumen() {
   const facturadoVentas = ventasMes.reduce((s, v) => s + (Number(v.valor) || 0), 0);
   const pagadas = ventasMes.filter(v => v.estado === 'Pagado').sort((a,b)=>b.ts-a.ts);
   const pendientes = ventasMes.filter(v => v.estado !== 'Pagado').sort((a,b)=>b.ts-a.ts);
-  const cobradoVentas = pagadas.reduce((s, v) => s + (Number(v.valor) || 0), 0);
+
+  // "Cobrado" ya NO se agrupa por `ts` (fecha del PEDIDO) — se agrupa por
+  // `fechaPago` (fecha real de pago, columna nueva — ver
+  // migracion_fecha_pago_ventas.sql), para que una venta de septiembre que
+  // se termina de pagar en octubre cuente como ingreso de OCTUBRE, que es
+  // cuando la plata de verdad entró (Juan, 2026-10-01: "lo que queda por
+  // cobrar del mes anterior [que] entre en ingresos del mes actual...
+  // porque la plata está entrando en este mes"). Ventas viejas sin
+  // `fechaPago` (de antes de esta migración) caen a `ts`, igual que
+  // cualquier otro campo nuevo en este proyecto. `pagadas`/`pendientes`
+  // arriba SÍ se quedan agrupadas por `ts` (fecha del pedido) a propósito
+  // — son el detalle transaccional de "qué se pidió este mes y cómo va su
+  // pago", una pregunta distinta de "cuánta plata entró este mes".
+  const cobradoVentas = state.ventas
+    .filter(v => v.estado === 'Pagado' && mesDe(v.fechaPago || v.ts) === mes)
+    .reduce((s, v) => s + (Number(v.valor) || 0), 0);
 
   const facturadoMaquila = maquilaMes.reduce((s, o) => s + (Number(o.valor) || 0), 0);
   const maquilaPagada = maquilaMes.filter(o => o.estado === 'Pagado');
@@ -6216,7 +6249,10 @@ function renderResumen() {
   // sumando maquila — no se pidió tocar esas).
   const facturado = facturadoVentas;
   const cobrado = cobradoVentas;
-  const porCobrar = facturado - cobrado;
+  // Ya NO es "facturado - cobrado" — desde que Cobrado puede traer plata
+  // de OTROS meses (ver arriba), esa resta ya no da el saldo pendiente de
+  // ESTE mes. Por cobrar es, directo, lo que de este mes sigue sin pagar.
+  const porCobrar = pendientes.reduce((s, v) => s + (Number(v.valor) || 0), 0);
   const totalGastos = gastosMes.filter(esGastoOperativo).reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const totalMovimientosInternos = gastosMes.filter(g => !esGastoOperativo(g)).reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const totalFinca = fincaMes.reduce((s, f) => s + (Number(f.monto) || 0), 0);
@@ -6268,9 +6304,9 @@ function renderResumen() {
   document.getElementById('view-resumen').innerHTML = `
     <h3 class="section-title" style="margin-top:0">Resumen de ${mes}</h3>
     <div class="stat-grid">
-      <div class="stat"><div class="n">${fmt(facturado)}</div><div class="l">Total facturado (solo café)</div></div>
-      <div class="stat"><div class="n pos">${fmt(cobrado)}</div><div class="l">Cobrado (solo café)</div></div>
-      <div class="stat"><div class="n">${fmt(porCobrar)}</div><div class="l">Por cobrar (solo café)</div></div>
+      <div class="stat"><div class="n">${fmt(facturado)}</div><div class="l">Total facturado (solo café — pedidos de este mes)</div></div>
+      <div class="stat"><div class="n pos">${fmt(cobrado)}</div><div class="l">Cobrado (solo café — plata que entró este mes, sea de cuando sea el pedido)</div></div>
+      <div class="stat"><div class="n">${fmt(porCobrar)}</div><div class="l">Por cobrar (solo café — de los pedidos de este mes)</div></div>
       <div class="stat"><div class="n neg">${fmt(totalGastos + totalFinca)}</div><div class="l">Gastos + Finca${totalMovimientosInternos ? ` <span style="opacity:.65">(no incluye ${fmt(totalMovimientosInternos)} en retiros/transferencias — eso no sale del negocio)</span>` : ''}</div></div>
     </div>
     <div class="stat-grid" style="margin-bottom:18px">

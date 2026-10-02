@@ -2,7 +2,7 @@ import { getSupabase, Env } from '../../_lib/supabase.js';
 import { requireAuth, requireAuthConUsuario } from '../../_lib/auth.js';
 import { ajustarInventarioPorLote, itemsCafeParaInventario } from '../../_lib/convert.js';
 
-const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, creadoPor:creado_por, ts';
+const SELECT_VENTA = 'id, usuario, cliente, tipoCliente:tipo_cliente, tipoVenta:tipo_venta, lote, presentacion, cantidad, servicios, items, valor, estado, estadoEnvio:estado_envio, metodo, recibidoPor:recibido_por, guiaEnvio:guia_envio, origenWeb:origen_web, creadoPor:creado_por, ts, fechaPago:fecha_pago';
 const GENERICOS = ['', 'venta directa', 'n/a', '-'];
 
 async function registrarCliente(supabase: ReturnType<typeof getSupabase>, nombre: unknown, tipoCliente: unknown) {
@@ -61,6 +61,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       recibido_por: body.recibidoPor || null,
       creado_por: email,
       ts: body.ts || Date.now(),
+      // Si el pedido ya nace "Pagado" (no pasa hoy desde ningún formulario
+      // — siempre arranca Pendiente — pero se cubre por si acaso), la
+      // plata entra justo ahora, no en `ts` del pedido.
+      fecha_pago: body.estado === 'Pagado' ? Date.now() : null,
     })
     .select(SELECT_VENTA)
     .single();

@@ -1,0 +1,13 @@
+-- Ejecuta esto en el SQL Editor de Supabase.
+--
+-- Fecha de pago real, separada de la fecha del pedido (2026-10-01) — hasta
+-- ahora "Cobrado" en Resumen agrupaba cada venta por `ts` (cuándo se
+-- REGISTRÓ el pedido), así que una venta de septiembre que se termina de
+-- pagar en octubre seguía contando como ingreso de septiembre, aunque la
+-- plata entrara en octubre. Juan: "lo que queda por cobrar del mes
+-- anterior [que] entre en ingresos del mes actual... porque la plata está
+-- entrando en este mes". `fecha_pago` (nullable — ventas viejas antes de
+-- esta migración, o todavía Pendientes, no tienen) se pone sola cuando
+-- una venta pasa a "Pagado" (ver functions/api/ventas), y es eso lo que
+-- ahora decide en qué mes cuenta como "Cobrado", no `ts`.
+ALTER TABLE "ventas" ADD COLUMN IF NOT EXISTS "fecha_pago" bigint;

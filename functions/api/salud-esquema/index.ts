@@ -27,6 +27,7 @@ const CHEQUEOS = [
   { tabla: 'merch_productos', columna: 'estado', migracion: 'migracion_merch.sql', descripcion: 'Catálogo de merch (pestaña "Merch")' },
   { tabla: 'resenas', columna: 'calificacion', migracion: 'migracion_resenas.sql', descripcion: 'Reseñas con estrellas bajo cada producto del catálogo público' },
   { tabla: 'exotico_actual', columna: 'stock', migracion: 'migracion_exotico_actual.sql', descripcion: 'Foto, nombre y stock del exótico actual, editables desde la app' },
+  { tabla: 'ventas', columna: 'fecha_pago', migracion: 'migracion_fecha_pago_ventas.sql', descripcion: '"Cobrado" en Resumen se agrupa por fecha de pago real, no por fecha del pedido' },
 ];
 
 // A diferencia de CHEQUEOS de arriba (columna/tabla que no existe todavía —
